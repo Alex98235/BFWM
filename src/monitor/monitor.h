@@ -208,8 +208,8 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
  * (DirLeft/DirRight/DirUp/Down/DirNext/DirPrev)
  * @return Workspace* Pointer to the neighbouring workspace, or NULL
  */
-auto FindNeighbouringWorkspace(struct BFWMContext *ctx,
-                               BFWMDirection direction) -> Workspace *;
+auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
+    -> Workspace *;
 
 /**
  * @brief Find the monitor for a given HWND.

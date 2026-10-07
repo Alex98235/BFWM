@@ -31,8 +31,8 @@
 
 #include "../../dpi/dpi.h"
 #include "../../logging/logger.h"
-#include "../fullscreen/detect.h"
 #include "../../workspace/placement.h"
+#include "../fullscreen/detect.h"
 
 #define OVERLAY_CLASS L"BFWMBorderOverlay"
 #define OVERLAY_TITLE L"BFWMBorderOverlay"
@@ -366,10 +366,11 @@ auto Overlay::OverlayFlush() -> BOOL {
     * gated path resumes. */
    if ((win != nullptr) && (win->MoveInFlight() == TRUE) &&
        (win->IsCrossMonitorTrusted() != FALSE)) {
-       if (overlay_landed_at_issued(win) != FALSE) {
-          win->SetMoveInFlight(FALSE); /* landed at the issued rect (within DPI tol) */
-       }
-       overlay_sync_position(suppress);
+      if (overlay_landed_at_issued(win) != FALSE) {
+         win->SetMoveInFlight(
+             FALSE); /* landed at the issued rect (within DPI tol) */
+      }
+      overlay_sync_position(suppress);
       return TRUE;
    }
 
@@ -386,12 +387,13 @@ auto Overlay::OverlayFlush() -> BOOL {
     * (here) or when the window settles anywhere (ProcessMoveSizeEnd), so
     * geometry changes that never went through IssueMove — floating drags,
     * mouse resizes, app-driven moves — sync immediately to the live rect. */
-    if ((win != nullptr) && (win->MoveInFlight() == TRUE)) {
-       if (overlay_landed_at_issued(win) == FALSE) {
-          return FALSE; /* still in flight — stay dirty, retry next commit */
-       }
-       win->SetMoveInFlight(FALSE); /* landed at the issued rect (within DPI tol) */
-    }
+   if ((win != nullptr) && (win->MoveInFlight() == TRUE)) {
+      if (overlay_landed_at_issued(win) == FALSE) {
+         return FALSE; /* still in flight — stay dirty, retry next commit */
+      }
+      win->SetMoveInFlight(
+          FALSE); /* landed at the issued rect (within DPI tol) */
+   }
 
    overlay_sync_position(suppress);
    return TRUE;

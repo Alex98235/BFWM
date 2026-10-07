@@ -135,17 +135,17 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
    size_t const n = layout->windows.size();
    int const master_count = layout->master_count > 0 ? layout->master_count : 1;
 
-   if (n <= static_cast<size_t>(master_count)) {
-      // Everything is a master: split the whole tiled area.
-      std::vector<RECT> slices;
-      SplitVertical(layout->tiled_rect, static_cast<int>(n),
-                    layout->gap_between, slices);
-      if (static_cast<size_t>(idx) < slices.size()) {
-         *out_rect = slices[static_cast<size_t>(idx)];
-         return true;
+   if (std::cmp_less_equal(n, master_count))) {
+         // Everything is a master: split the whole tiled area.
+         std::vector<RECT> slices;
+         SplitVertical(layout->tiled_rect, static_cast<int>(n),
+                       layout->gap_between, slices);
+         if (static_cast<size_t>(idx) < slices.size()) {
+            *out_rect = slices[static_cast<size_t>(idx)];
+            return true;
+         }
+         return false;
       }
-      return false;
-   }
 
    int const master_w =
        static_cast<int>((layout->tiled_rect.right - layout->tiled_rect.left) *
@@ -186,8 +186,8 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
    return false;
 }
 
-auto MasterMoveWindow(MasterLayout *layout, HWND hwnd,
-                      BFWMDirection direction) -> bool {
+auto MasterMoveWindow(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
+    -> bool {
    if ((layout == nullptr) || layout->windows.size() < 2)
       return false;
 
@@ -227,8 +227,8 @@ auto MasterMoveWindow(MasterLayout *layout, HWND hwnd,
    return true;
 }
 
-auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd,
-                       BFWMDirection direction) -> HWND {
+auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
+    -> HWND {
    if ((layout == nullptr) || layout->windows.empty())
       return nullptr;
 

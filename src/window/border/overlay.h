@@ -311,9 +311,9 @@ class Overlay {
     *
     * @param ctx The BFWM context (owner)
     */
-    static void OverlayReconcileAll(struct BFWMContext *ctx);
-    /// Purge windows whose HWND died or was reused (e.g. across sleep/wake).
-    static void ReclaimStaleWindows(struct BFWMContext *ctx);
+   static void OverlayReconcileAll(struct BFWMContext *ctx);
+   /// Purge windows whose HWND died or was reused (e.g. across sleep/wake).
+   static void ReclaimStaleWindows(struct BFWMContext *ctx);
 
    /**
     * @brief Whether the ring currently needs a flush to converge.
@@ -450,15 +450,15 @@ class Overlay {
    void overlay_hide_ring();
    void overlay_sync_strips(const RECT *efb, const OverlayInsets *insets,
                             DWORD gate_cloaked, BOOL was_visible);
-     void overlay_sync_position(BOOL suppress);
+   void overlay_sync_position(BOOL suppress);
 
-     /* Tolerance-aware landing check matching MaybeIssueMove's landed
-      * detection, so a DPI-unaware window on a scaled monitor (whose landed
-      * rect rounds vs the issued rect) still clears MoveInFlight and converges
-      * the ring instead of deferring forever. */
-     auto overlay_landed_at_issued(Window *win) -> BOOL;
+   /* Tolerance-aware landing check matching MaybeIssueMove's landed
+    * detection, so a DPI-unaware window on a scaled monitor (whose landed
+    * rect rounds vs the issued rect) still clears MoveInFlight and converges
+    * the ring instead of deferring forever. */
+   auto overlay_landed_at_issued(Window *win) -> BOOL;
 
-    static auto CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+   static auto CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
                                         LPARAM lparam) -> LRESULT;
 };
 

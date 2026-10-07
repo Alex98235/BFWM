@@ -47,11 +47,12 @@ auto MonocleRemoveWindow(MonocleLayout *layout, HWND window) -> bool {
          layout->windows.erase(layout->windows.begin() +
                                static_cast<ptrdiff_t>(i));
          if (was_selected) {
-            if (layout->windows.empty())
+            if (layout->windows.empty()) {
                layout->selected_hwnd = nullptr;
-            else
+            } else {
                layout->selected_hwnd =
                    layout->windows[i % layout->windows.size()];
+            }
          }
          return true;
       }

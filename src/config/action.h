@@ -300,8 +300,7 @@ auto BFWMActionCreateCustom(const char *lua_callback) -> BFWMAction *;
 auto BFWMActionCreateReloadConfig() -> BFWMAction *;
 auto BFWMActionCreateToggleGaps() -> BFWMAction *;
 auto BFWMActionCreateCycleLayout(BFWMDirection direction) -> BFWMAction *;
-auto BFWMActionCreateMoveWorkspaceToMonitor(int index,
-                                              BFWMDirection direction)
+auto BFWMActionCreateMoveWorkspaceToMonitor(int index, BFWMDirection direction)
     -> BFWMAction *;
 
 /**

@@ -10,8 +10,8 @@
 
 #include "../../bar/bar.h"
 #include "../../config/action.h"
-#include "../../config/lua/parser.h"
 #include "../../config/config_paths.h"
+#include "../../config/lua/parser.h"
 #include "../../core/bfwm_context.h"
 #include "../../core/portable.h"
 #include "../../core/sync.h"
@@ -158,8 +158,7 @@ inline auto resize_in_direction(BFWMContext *ctx, BFWMDirection direction,
          }
       }
 
-      BOOL const result =
-          BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
+      BOOL const result = BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
       win->MarkOverlayDirty();
       return static_cast<int>(result == 0);
    }
@@ -501,7 +500,7 @@ inline void RestoreFullscreenForHwnd(Window *win) {
    SetWindowLong(win->GetHwnd(), GWL_EXSTYLE, win->SavedExstyle());
    BFWMEnableNCRendering(win->GetHwnd());
    BFWMSetWindowPosEx(win->GetHwnd(), HWND_NOTOPMOST, win->SavedRectPtr(),
-                        SWP_NOCOPYBITS | SWP_FRAMECHANGED);
+                      SWP_NOCOPYBITS | SWP_FRAMECHANGED);
 }
 
 std::array<HWND, MAX_PENDING_KILLS> s_pending_kills;
@@ -593,12 +592,12 @@ void ToggleFullscreenForHwnd(HWND hwnd, BFWMContext *ctx) {
       EnterFullscreenForHwnd(hwnd, ctx, win, workspace, mon);
    }
 
-    // Ring follows the fullscreen transition: suppressed over the fullscreen
-    // window, shown again on restore. Mark dirty (not an immediate sync): the
-    // commit-end flush already recomputes suppress from the window's live
-    // fullscreen state, so an immediate sync would only paint the ring at the
-    // still-in-flight/stale rect and flash before the move lands.
-    win->MarkOverlayDirty();
+   // Ring follows the fullscreen transition: suppressed over the fullscreen
+   // window, shown again on restore. Mark dirty (not an immediate sync): the
+   // commit-end flush already recomputes suppress from the window's live
+   // fullscreen state, so an immediate sync would only paint the ring at the
+   // still-in-flight/stale rect and flash before the move lands.
+   win->MarkOverlayDirty();
 }
 
 auto HandleFullscreen(BFWMContext *ctx, BFWMAction *action) -> int {
@@ -1125,8 +1124,7 @@ auto HandleToggleGaps(BFWMContext *ctx, BFWMAction *action) -> int {
    PushGapConfigToAllWorkspaces(ctx);
    return 0;
 }
-auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action)
-    -> int {
+auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int {
    if ((ctx == nullptr) || (action == nullptr))
       return -1;
    auto &args = std::get<ActionArgsMoveWorkspaceToMonitor>(action->args);

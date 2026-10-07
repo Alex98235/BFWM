@@ -123,8 +123,7 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
  * @param rect The desired frame rect
  * @param ctx  The BFWM context (unused except for API symmetry)
  */
-void PlacementIssueMove(Window *win, const RECT *rect,
-                        struct BFWMContext *ctx);
+void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
 
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
@@ -133,7 +132,8 @@ void PlacementIssueMove(Window *win, const RECT *rect,
 /// OverlayFlush so both detect "landed" identically.
 auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int;
 
-/// Compare two RECTs for equality within a per-field pixel tolerance (0 = exact).
+/// Compare two RECTs for equality within a per-field pixel tolerance (0 =
+/// exact).
 auto RectEqualsWithinTolerance(RECT a, RECT b, int tol) -> BOOL;
 
 #endif /* BFWM_PLACEMENT_H */

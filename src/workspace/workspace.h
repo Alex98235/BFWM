@@ -245,8 +245,8 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
  */
 void WorkspaceActivateForWindow(HWND hwnd, struct BFWMContext *ctx);
 
-auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon,
-                       size_t target_id) -> bool;
+auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
+    -> bool;
 
 void RestoreDesktopState(struct BFWMContext *ctx);
 
@@ -256,11 +256,10 @@ void RecalculateAllWorkspaceRects(struct BFWMContext *ctx);
 
 auto FindNextWorkspaceId(struct BFWMContext *ctx) -> size_t;
 
-auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon)
-    -> size_t;
+auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon) -> size_t;
 
-auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id)
-    -> const struct WorkspaceConfig *;
+auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id) -> const
+    struct WorkspaceConfig *;
 
 /**
  * @brief Force DWM to re-composite immediately.
@@ -282,7 +281,6 @@ static inline void ForceDwmComposite() { DwmFlush(); }
  * @param hwnd The window handle to locate
  * @return Workspace* Pointer to the workspace, or NULL
  */
-auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd)
-    -> Workspace *;
+auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace *;
 
 #endif

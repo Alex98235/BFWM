@@ -131,8 +131,7 @@ inline auto table_get_string_field(lua_State *lua_state, int table_idx,
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 auto build_action(LuaConfig *config, struct BFWMContext *ctx,
-                  const char *action_name, int opts_table_idx)
-    -> BFWMAction * {
+                  const char *action_name, int opts_table_idx) -> BFWMAction * {
    lua_State *lua_state = config->L;
    BFWMAction *action = nullptr;
 

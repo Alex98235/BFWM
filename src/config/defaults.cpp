@@ -72,24 +72,22 @@ void ConfigLoadDefaultKeybinds(BFWMContext *ctx) {
    insert_bind(ctx, 'W', TRUE, FALSE, FALSE, BFWMActionCreateToggleFloat());
 
    /* Resize (vim-style HJKL) */
-   insert_bind(ctx, 'H', TRUE, FALSE, TRUE,
-               BFWMActionCreateResizeWindow(DirLeft,
-                                              BFWM_DEFAULT_RESIZE_PX_AMOUNT));
-   insert_bind(ctx, 'J', TRUE, FALSE, TRUE,
-               BFWMActionCreateResizeWindow(DirDown,
-                                              BFWM_DEFAULT_RESIZE_PX_AMOUNT));
+   insert_bind(
+       ctx, 'H', TRUE, FALSE, TRUE,
+       BFWMActionCreateResizeWindow(DirLeft, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
+   insert_bind(
+       ctx, 'J', TRUE, FALSE, TRUE,
+       BFWMActionCreateResizeWindow(DirDown, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
    insert_bind(
        ctx, 'K', TRUE, FALSE, TRUE,
        BFWMActionCreateResizeWindow(DirUp, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
-   insert_bind(ctx, 'L', TRUE, FALSE, TRUE,
-               BFWMActionCreateResizeWindow(DirRight,
-                                              BFWM_DEFAULT_RESIZE_PX_AMOUNT));
+   insert_bind(
+       ctx, 'L', TRUE, FALSE, TRUE,
+       BFWMActionCreateResizeWindow(DirRight, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
 
    /* Move focus (arrows) */
-   insert_bind(ctx, VK_LEFT, TRUE, FALSE, TRUE,
-               BFWMActionCreateFocus(DirLeft));
-   insert_bind(ctx, VK_DOWN, TRUE, FALSE, TRUE,
-               BFWMActionCreateFocus(DirDown));
+   insert_bind(ctx, VK_LEFT, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirLeft));
+   insert_bind(ctx, VK_DOWN, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirDown));
    insert_bind(ctx, VK_UP, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirUp));
    insert_bind(ctx, VK_RIGHT, TRUE, FALSE, TRUE,
                BFWMActionCreateFocus(DirRight));
@@ -176,8 +174,7 @@ void ConfigLoadDefaults(BFWMContext *ctx) {
    ctx->config.snackbar.opacity = BFWM_DEFAULT_SNACKBAR_OPACITY;
    ctx->config.snackbar.close_on_click = BFWM_DEFAULT_SNACKBAR_CLOSE_ON_CLICK;
    ctx->config.snackbar.pause_on_hover = BFWM_DEFAULT_SNACKBAR_PAUSE_ON_HOVER;
-   ctx->config.snackbar.click_to_expand =
-       BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND;
+   ctx->config.snackbar.click_to_expand = BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND;
    ctx->config.snackbar.max_queue = BFWM_DEFAULT_SNACKBAR_MAX_QUEUE;
    ctx->config.snackbar.monitor = BFWM_DEFAULT_SNACKBAR_MONITOR;
 

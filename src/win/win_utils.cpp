@@ -11,7 +11,7 @@
 #include <winnt.h>
 
 auto BFWMSetWindowPosEx(HWND hwnd, HWND insertAfter, const RECT *rect,
-                          DWORD extraFlags) -> BOOL {
+                        DWORD extraFlags) -> BOOL {
    return SetWindowPos(hwnd, insertAfter, rect->left, rect->top,
                        rect->right - rect->left, rect->bottom - rect->top,
                        SWP_NOACTIVATE | extraFlags);
@@ -19,13 +19,13 @@ auto BFWMSetWindowPosEx(HWND hwnd, HWND insertAfter, const RECT *rect,
 
 auto BFWMApplyLayoutPosition(HWND hwnd, const RECT *rect) -> BOOL {
    return BFWMSetWindowPosEx(hwnd, nullptr, rect,
-                               SWP_FRAMECHANGED | SWP_NOSENDCHANGING |
-                                   SWP_ASYNCWINDOWPOS);
+                             SWP_FRAMECHANGED | SWP_NOSENDCHANGING |
+                                 SWP_ASYNCWINDOWPOS);
 }
 
 auto BFWMSetWindowPos(HWND hwnd, const RECT *rect) -> BOOL {
    return BFWMSetWindowPosEx(hwnd, HWND_TOP, rect,
-                               SWP_NOCOPYBITS | SWP_FRAMECHANGED);
+                             SWP_NOCOPYBITS | SWP_FRAMECHANGED);
 }
 
 void IssueRectWithDpiConversion(struct BFWMContext *ctx, HWND hwnd,

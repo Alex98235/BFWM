@@ -24,8 +24,7 @@ struct BFWMContext;
  * @param hwnd  Target window handle
  * @param color The desired COLORREF border color
  */
-void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd,
-                           COLORREF color);
+void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color);
 
 /**
  * @brief Queue the active border color for the given window.

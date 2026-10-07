@@ -93,8 +93,8 @@ inline auto parse_criterion(struct BFWMContext *ctx, lua_State *lua_state,
    return criterion;
 }
 
-inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state,
-                         int idx, WindowRule *rule) {
+inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
+                         WindowRule *rule) {
    if (lua_isstring(lua_state, idx) != 0) {
       const char *s = lua_tostring(lua_state, idx);
       if (strcmp(s, "ignore") == 0) {
@@ -527,21 +527,21 @@ inline auto parse_layout_name(const char *name) -> LayoutType {
 }
 
 const std::array<std::string, 16> known_BFWM_keys = {"gap_between",
-                                                       "gap_edge",
-                                                       "border_color",
-                                                       "inactive_border",
-                                                       "border_width",
-                                                       "border_radius",
-                                                       "focus_follows_mouse",
-                                                       "mouse_follows_focus",
-                                                       "unlock_window_resize",
-                                                       "unlock_window_move",
-                                                       "keybinds",
-                                                       "window_rules",
-                                                       "layout",
-                                                       "workspaces",
-                                                       "disabled_monitors",
-                                                       "notify"};
+                                                     "gap_edge",
+                                                     "border_color",
+                                                     "inactive_border",
+                                                     "border_width",
+                                                     "border_radius",
+                                                     "focus_follows_mouse",
+                                                     "mouse_follows_focus",
+                                                     "unlock_window_resize",
+                                                     "unlock_window_move",
+                                                     "keybinds",
+                                                     "window_rules",
+                                                     "layout",
+                                                     "workspaces",
+                                                     "disabled_monitors",
+                                                     "notify"};
 
 inline auto BFWM_newindex(lua_State *lua_state) -> int {
    auto *ctx =

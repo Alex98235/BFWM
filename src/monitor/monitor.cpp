@@ -196,8 +196,8 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
 // WORKSPACE NAVIGATION (monitor-aware)
 // ============================================================
 
-auto FindNeighbouringWorkspace(struct BFWMContext *ctx,
-                               BFWMDirection direction) -> Workspace * {
+auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
+    -> Workspace * {
    if (ctx == nullptr)
       return nullptr;
 

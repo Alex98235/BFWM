@@ -42,8 +42,8 @@ auto MonocleEngine::get_closest_window(HWND reference) -> HWND {
 void MonocleEngine::set_active_window(HWND hwnd) {
    if (layout_ == nullptr)
       return;
-   for (size_t i = 0; i < layout_->windows.size(); i++) {
-      if (layout_->windows[i] == hwnd) {
+   for (auto &window : layout_->windows) {
+      if (window == hwnd) {
          layout_->selected_hwnd = hwnd;
          return;
       }

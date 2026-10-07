@@ -89,8 +89,8 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
  * @param direction Direction to move
  * @return true on success
  */
-auto MasterMoveWindow(MasterLayout *layout, HWND hwnd,
-                      BFWMDirection direction) -> bool;
+auto MasterMoveWindow(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
+    -> bool;
 
 /**
  * @brief Get the neighbouring window in the given direction.
@@ -99,8 +99,8 @@ auto MasterMoveWindow(MasterLayout *layout, HWND hwnd,
  * @param direction Direction to look
  * @return The neighbouring HWND, or NULL
  */
-auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd,
-                       BFWMDirection direction) -> HWND;
+auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
+    -> HWND;
 
 /**
  * @brief Get the closest window to a reference, cycling forward.

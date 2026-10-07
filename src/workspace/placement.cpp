@@ -171,8 +171,7 @@ namespace {
  * @param rect The desired frame rect (destination-monitor physical px)
  * @param ctx  The BFWM context (DPI registry for the destination scale)
  */
-inline void IssueMove(Window *win, const RECT *rect,
-                      struct BFWMContext *ctx) {
+inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
    RECT issued = *rect;
    DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
 

@@ -12,8 +12,7 @@
 #include "../../core/bfwm_context.h"
 #include "../../transaction/transaction.h"
 
-void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd,
-                           COLORREF color) {
+void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color) {
    ctx->transaction.QueueBorderColor(hwnd, color);
 }
 

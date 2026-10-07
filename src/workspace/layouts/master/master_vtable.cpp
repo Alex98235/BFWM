@@ -51,8 +51,8 @@ void MasterEngine::set_active_window(HWND hwnd) {
 }
 
 /** @brief Not applicable — master/stack has no free-form resize */
-auto MasterEngine::resize_window(HWND hwnd, BFWMDirection direction,
-                                 int pixels) -> bool {
+auto MasterEngine::resize_window(HWND hwnd, BFWMDirection direction, int pixels)
+    -> bool {
    (void)hwnd;
    (void)direction;
    (void)pixels;

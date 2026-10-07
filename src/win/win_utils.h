@@ -37,7 +37,7 @@ using BFWMWindowStyle = struct {
  * @return TRUE on success
  */
 auto BFWMSetWindowPosEx(HWND hwnd, HWND insertAfter, const RECT *rect,
-                          DWORD extraFlags) -> BOOL;
+                        DWORD extraFlags) -> BOOL;
 
 /**
  * @brief Tiled layout positioning.  Does not change z-order.

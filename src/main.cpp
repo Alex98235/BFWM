@@ -325,7 +325,7 @@ inline void InitLogger() {
 }
 
 inline auto PopulateBFWMContext(struct BFWMContext *ctx,
-                                  const BFWMCliArgs *args) -> BOOL {
+                                const BFWMCliArgs *args) -> BOOL {
    std::string config_path;
    if (args->custom_config_path != nullptr) {
       config_path = args->custom_config_path;
@@ -431,7 +431,7 @@ inline void ProcessReconcile(struct BFWMContext *ctx) {
    // (e.g. CS2 minimizing on every launch).
    ctx->transaction.Begin();
    {
-      ScopedLock lock(ctx->lock);
+      ScopedLock const lock(ctx->lock);
       RefreshFullscreenStates(ctx);
    }
    BFWMTransactionCommit(ctx);
@@ -599,8 +599,7 @@ auto main(int argc, char *argv[]) -> int {
 
    BFWMCliArgs const args = ParseCliArgs(argc, argv);
 
-   HANDLE instance_mutex =
-       CreateMutexW(nullptr, TRUE, L"Local\\BFWM-Instance");
+   HANDLE instance_mutex = CreateMutexW(nullptr, TRUE, L"Local\\BFWM-Instance");
    if (HandleInstanceGuard(instance_mutex, args.notify_mode,
                            args.notify_text) == TRUE) {
       CloseHandle(instance_mutex);

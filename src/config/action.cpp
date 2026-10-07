@@ -144,8 +144,7 @@ auto BFWMActionCreateToggleGaps() -> BFWMAction * {
    return action;
 }
 
-auto BFWMActionCreateCycleLayout(BFWMDirection direction)
-    -> BFWMAction * {
+auto BFWMActionCreateCycleLayout(BFWMDirection direction) -> BFWMAction * {
    auto *action = new BFWMAction;
    action->type = ActionCycleLayout;
    action->args = ActionArgsCycleLayout{direction};
@@ -153,8 +152,7 @@ auto BFWMActionCreateCycleLayout(BFWMDirection direction)
    return action;
 }
 
-auto BFWMActionCreateMoveWorkspaceToMonitor(int index,
-                                              BFWMDirection direction)
+auto BFWMActionCreateMoveWorkspaceToMonitor(int index, BFWMDirection direction)
     -> BFWMAction * {
    auto *action = new BFWMAction;
    action->type = ActionMoveWorkspaceToMonitor;

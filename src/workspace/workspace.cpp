@@ -43,8 +43,8 @@
 // Workspace config lookup
 // ---------------------------------------------------------------
 
-auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id)
-    -> const struct WorkspaceConfig * {
+auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id) -> const
+    struct WorkspaceConfig * {
    if (ctx == nullptr)
       return nullptr;
    for (int i = 0; i < ctx->config.workspace_config_count; i++) {
@@ -651,8 +651,7 @@ void Workspace::ApplyLayout(struct BFWMContext *ctx) {
       BFWMTransactionCommit(ctx);
 }
 
-auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd)
-    -> Workspace * {
+auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
    if ((ctx == nullptr) || (hwnd == nullptr) || (IsWindow(hwnd) == FALSE))
       return (ctx != nullptr) ? ctx->focused_workspace : nullptr;
 
@@ -807,7 +806,7 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
    // transaction commit (which also takes ctx->lock) is safe. ApplyLayout
    // must run OUTSIDE the lock (see events.cpp HandleWindowReRegistered).
    {
-      ScopedLock lock(ctx->lock);
+      ScopedLock const lock(ctx->lock);
       for (auto *win : old_workspace->Windows()) {
          HWND h = win->GetHwnd();
          if (in_tx == TRUE) {
@@ -873,8 +872,8 @@ void WorkspaceActivateForWindow(HWND hwnd, struct BFWMContext *ctx) {
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon,
-                       size_t target_id) -> bool {
+auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
+    -> bool {
    if ((ctx == nullptr) || (mon == nullptr))
       return false;
 

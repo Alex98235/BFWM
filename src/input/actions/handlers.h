@@ -30,8 +30,7 @@ auto HandleCycleLayout(BFWMContext *ctx, BFWMAction *action) -> int;
 auto HandleCustom(BFWMContext *ctx, BFWMAction *action) -> int;
 auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int;
 auto HandleToggleGaps(BFWMContext *ctx, BFWMAction *action) -> int;
-auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action)
-    -> int;
+auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int;
 
 /**
  * @brief Toggle fullscreen for an arbitrary HWND (not just the focused one).
