@@ -57,7 +57,9 @@ jobs:
       # test/cbelt submodule, which is not part of release builds.
       - name: Build BFWM
         shell: msys2 {0}
-        run: cmake --build build --target BFWM
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          cmake --build build --target BFWM
 
       - name: Install Inno Setup
         shell: pwsh
