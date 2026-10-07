@@ -18,6 +18,8 @@ CheckOptions:
     value: "^[a-z]$"
   - key: readability-identifier-length.IgnoredLoopCounterNames
     value: "^[a-z]_?$"
+  - key: readability-magic-numbers.IngoredDoubleValues
+    value: "1.0;2.0;100.0;255.0"
   - key: readability-magic-numbers.IgnoredFloatingPointValues
     value: "1.0;2.0;100.0;255.0"
   - key: readability-magic-numbers.IgnoredIntegerValues
