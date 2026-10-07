@@ -16,8 +16,8 @@ enum {
 auto ResolveConfigPath(const char *filename, char *out_path, size_t out_size)
     -> bool {
    const std::array<std::string, 2> prefixes = {
-       "%APPDATA%\\BFWMwm\\",
-       R"(%USERPROFILE%\.config\BFWMwm\)",
+       "%APPDATA%\\BFWM\\",
+       R"(%USERPROFILE%\.config\BFWM\)",
    };
 
    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++) {
