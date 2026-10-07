@@ -3,8 +3,8 @@
  * @brief Core type definitions shared across BFWMWM modules.
  */
 
-#ifndef bfwm_def.h
-#define bfwm_def.h
+#ifndef BFWM_DEF_H
+#define BFWM_DEF_H
 
 #include <windows.h>
 

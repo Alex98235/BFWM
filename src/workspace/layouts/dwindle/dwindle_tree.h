@@ -6,8 +6,8 @@
  * tiled windows. Supports leaf nodes (windows) and container nodes (splits).
  */
 
-#ifndef BFWM_DWINDLE_TREE
-#define BFWM_DWINDLE_TREE
+#ifndef BFWM_DWINDLE_TREE_H
+#define BFWM_DWINDLE_TREE_H
 
 #include "windef.h"
 

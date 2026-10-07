@@ -9,8 +9,8 @@
  * (`Error(...)`) so call sites never need to name the singleton.
  */
 
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef BFWM_LOGGER_H
+#define BFWM_LOGGER_H
 
 #include <cstdarg>
 #include <cstdio>

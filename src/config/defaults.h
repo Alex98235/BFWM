@@ -104,7 +104,9 @@ enum {
 #define BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG      RGB(0x73, 0x79, 0x94)
 #define BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL     RGB(0xef, 0x9f, 0x76)
 
-#define BFWM_DEFAULT_RESIZE_PX_AMOUNT          50
+enum {
+BFWM_DEFAULT_RESIZE_PX_AMOUNT =          50
+};
 // clang-format on
 
 // ── Master loader ────────────────────────────────────────────

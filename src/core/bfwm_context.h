@@ -20,8 +20,8 @@
  * @endcode
  */
 
-#ifndef bfwm_context.h
-#define bfwm_context.h
+#ifndef BFWM_CONTEXT_H
+#define BFWM_CONTEXT_H
 
 #include "../config/keybinds.h"
 #include "../config/lua/parser.h"
