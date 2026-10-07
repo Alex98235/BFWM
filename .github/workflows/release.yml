@@ -47,10 +47,12 @@ jobs:
       - name: Configure (CMake)
         shell: msys2 {0}
         run: |
+          export CPP=/mingw64/bin/gcc.exe
           cmake -S . -B build -G "Unix Makefiles" \
             -DCMAKE_C_COMPILER=/mingw64/bin/clang.exe \
             -DCMAKE_CXX_COMPILER=/mingw64/bin/clang++.exe \
-            -DCMAKE_RC_COMPILER=/mingw64/bin/windres.exe
+            -DCMAKE_RC_COMPILER=/mingw64/bin/windres.exe \
+            -DCMAKE_RC_FLAGS="--preprocessor=/mingw64/bin/gcc.exe --preprocessor-args=-E"
 
       # Only the production target is built: the test target depends on the
       # test/cbelt submodule, which is not part of release builds.
