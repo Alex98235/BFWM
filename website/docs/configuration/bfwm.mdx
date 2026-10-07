@@ -9,26 +9,26 @@ Global window manager settings are set as fields on the global
 
 ## Reference
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `gap_between` | integer | `6` | Pixel gap between tiled windows |
-| `gap_edge` | integer | `8` | Pixel gap between tiled windows and the screen edges |
-| `border_color` | string | `"#ef9f76"` | Focused window border color (hex `#RRGGBB`) |
-| `inactive_border` | string | `"#51576d"` | Unfocused window border color (hex `#RRGGBB`) |
-| `border_width` | integer | `4` | Window border thickness in pixels |
-| `border_radius` | integer | `8` | Window border corner radius in pixels (`0` = square corners) |
-| `focus_follows_mouse` | boolean | `false` | Auto-focus the window under the cursor |
-| `mouse_follows_focus` | boolean | `false` | Move cursor to the newly focused window |
-| `unlock_window_resize` | string | — | ⚠️ **WIP/dead — do not use.** May or may not work as intended. Empty (default) means resize is always unlocked |
-| `unlock_window_move` | string | — | ⚠️ **WIP/dead — do not use.** Dead feature. Empty (default) means move is always unlocked |
-| `layout` | string | `"dwindle"` | Default layout algorithm. One of `"dwindle"`, `"monocle"`, or `"master"` |
-| `keybinds` | array | — | Array of keybind entries (see [Keybinds](/configuration/keybinds)) |
-| `window_rules` | array | none | Array of window rule entries (see [Window Rules](/configuration/window-rules)) |
-| `workspaces` | array | none | Per-workspace configuration (see [Workspaces](/configuration/workspaces)) |
-| `disabled_monitors` | array | `{}` | Array of display numbers to disable/ignore (e.g. `{ 3 }` to skip monitor 3). Up to 16 entries |
+| Key                    | Type    | Default     | Description                                                                                                    |
+| ---------------------- | ------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `gap_between`          | integer | `6`         | Pixel gap between tiled windows                                                                                |
+| `gap_edge`             | integer | `8`         | Pixel gap between tiled windows and the screen edges                                                           |
+| `border_color`         | string  | `"#ef9f76"` | Focused window border color (hex `#RRGGBB`)                                                                    |
+| `inactive_border`      | string  | `"#51576d"` | Unfocused window border color (hex `#RRGGBB`)                                                                  |
+| `border_width`         | integer | `4`         | Window border thickness in pixels                                                                              |
+| `border_radius`        | integer | `8`         | Window border corner radius in pixels (`0` = square corners)                                                   |
+| `focus_follows_mouse`  | boolean | `false`     | Auto-focus the window under the cursor                                                                         |
+| `mouse_follows_focus`  | boolean | `false`     | Move cursor to the newly focused window                                                                        |
+| `unlock_window_resize` | string  | —           | ⚠️ **WIP/dead — do not use.** May or may not work as intended. Empty (default) means resize is always unlocked |
+| `unlock_window_move`   | string  | —           | ⚠️ **WIP/dead — do not use.** Dead feature. Empty (default) means move is always unlocked                      |
+| `layout`               | string  | `"dwindle"` | Default layout algorithm. One of `"dwindle"`, `"monocle"`, or `"master"`                                       |
+| `keybinds`             | array   | —           | Array of keybind entries (see [Keybinds](/configuration/keybinds))                                             |
+| `window_rules`         | array   | none        | Array of window rule entries (see [Window Rules](/configuration/window-rules))                                 |
+| `workspaces`           | array   | none        | Per-workspace configuration (see [Workspaces](/configuration/workspaces))                                      |
+| `disabled_monitors`    | array   | `{}`        | Array of display numbers to disable/ignore (e.g. `{ 3 }` to skip monitor 3). Up to 16 entries                  |
 
 :::note
-`BFWM.notify("text")` is a function, not a setting — it shows a snackbar
+`BFWM.notify("text")` exists as a function. It shows a snackbar
 notification immediately and always bypasses the snackbar `log_level` filter.
 :::
 
