@@ -230,7 +230,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     )
 endif()
 
-target_link_libraries(BFWM PRIVATE dwmapi gdiplus lua tiny-regex-c clay ole32 oleaut32 psapi wlanapi shcore)
+target_link_libraries(BFWM PRIVATE dwmapi gdiplus lua tiny-regex-c clay ole32 oleaut32 uuid psapi wlanapi shcore)
 message(STATUS "Created executable: BFWM")
 message(STATUS "Created executable: BFWM-debug (debug/console)")
 add_custom_target(run-debug
