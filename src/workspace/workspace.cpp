@@ -486,7 +486,7 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
    // (exclusive or borderless): switching the OS-level foreground kicks an
    // exclusive-fullscreen game out of exclusive mode and minimizes it (e.g.
    // Unity's D3DProxyWindow helper focused during CS2's device init). Skip
-   // the whole operation — including the focused_hwnd update — so BFWMWM
+   // the whole operation — including the focused_hwnd update — so BFWM
    // keeps treating the fullscreen window as focused. User-initiated
    // switches (mouse click, Alt+Tab) already moved the OS foreground before
    // this runs, so they pass the check.

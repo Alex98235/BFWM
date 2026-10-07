@@ -140,7 +140,7 @@ auto IsSystemProcess(HWND hwnd) -> bool {
 }
 
 // True when the window's process runs at a higher integrity level than
-// BFWMWM (e.g. elevated installers/terminals). UIPI makes SetWindowPos
+// BFWM (e.g. elevated installers/terminals). UIPI makes SetWindowPos
 // fail silently for such windows, they cannot be moved, tiled, or ringed,
 // so they are rejected at registration.
 auto IsElevatedWindow(HWND hwnd) -> bool {

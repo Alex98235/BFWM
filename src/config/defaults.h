@@ -1,6 +1,6 @@
 /**
  * @file defaults.h
- * @brief Single source of truth for all BFWMWM default configuration values.
+ * @brief Single source of truth for all BFWM default configuration values.
  *
  * All compile-time default constants live here so they are visible
  * without opening the implementation file.

@@ -1060,8 +1060,8 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
    (void)action;
 
    /* Re-resolve the config path on every reload so a deleted primary config
-      (e.g. %APPDATA%\BFWMwm\config.lua) falls back to the secondary
-      location (%USERPROFILE%\.config\BFWMwm\config.lua). */
+      (e.g. %APPDATA%\BFWM\config.lua) falls back to the secondary
+      location (%USERPROFILE%\.config\BFWM\config.lua). */
    std::array<char, 1024> resolved{};
    const char *reload_path = nullptr;
    if (ResolveConfigPath("config.lua", resolved.data(), resolved.size())) {

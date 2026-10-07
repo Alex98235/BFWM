@@ -25,7 +25,7 @@
  * Initialisation:
  *
  *   The constructor MUST run before any thread accesses the queue. In
- *   BFWMWM this is done during BFWMContextInit() (called from main())
+ *   BFWM this is done during BFWMContextInit() (called from main())
  *   _before_ the keyboard hook or worker thread is started, so there is no
  *   lazy / racy initialisation.
  *

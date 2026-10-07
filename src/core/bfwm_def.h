@@ -1,6 +1,6 @@
 /**
  * @file bfwm_def.h
- * @brief Core type definitions shared across BFWMWM modules.
+ * @brief Core type definitions shared across BFWM modules.
  */
 
 #ifndef BFWM_DEF_H

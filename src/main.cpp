@@ -248,10 +248,10 @@ inline auto HandleInstanceGuard(HANDLE mutex, BOOL notify_mode,
          SendMessageW(notify_window, WM_COPYDATA, 0,
                       reinterpret_cast<LPARAM>(&cds));
       } else {
-         ErrorW(L"BFWMWM is running but notify window not found\n");
+         ErrorW(L"BFWM is running but notify window not found\n");
       }
    } else {
-      ErrorW(L"BFWMWM is already running\n");
+      ErrorW(L"BFWM is already running\n");
    }
    return 1;
 }
@@ -270,11 +270,11 @@ inline void InitLogger() {
    logger.UseColor(true);
    logger.UseTimestamps(true);
 
-   /* Log to %APPDATA%\BFWMwm\BFWMwm.log (per-user install). */
+   /* Log to %APPDATA%\BFWM\bfwm.log (per-user install). */
    std::string log_path;
    log_path.resize(MAIN_BUF_SIZE, '\0');
    DWORD const ret = ExpandEnvironmentStringsA(
-       "%APPDATA%\\BFWMwm\\BFWMwm.log", log_path.data(), log_path.size());
+       "%APPDATA%\\BFWM\\bfwm.log", log_path.data(), log_path.size());
    if (ret == 0 || ret > log_path.size()) {
       Error("ExpandEnvironmentStringsA failed for log path: %lu",
             GetLastError());
@@ -287,7 +287,7 @@ inline void InitLogger() {
    std::string log_dir;
    log_dir.resize(MAIN_BUF_SIZE, '\0');
    DWORD const dir_ret = ExpandEnvironmentStringsA(
-       "%APPDATA%\\BFWMwm", log_dir.data(), log_dir.size());
+       "%APPDATA%\\BFWM", log_dir.data(), log_dir.size());
    if (dir_ret == 0 || dir_ret > log_dir.size()) {
       Error("ExpandEnvironmentStringsA failed for log directory: %lu",
             GetLastError());
@@ -607,7 +607,7 @@ auto main(int argc, char *argv[]) -> int {
    }
 
    if (args.notify_mode == TRUE) {
-      ErrorW(L"BFWMWM is not running\n");
+      ErrorW(L"BFWM is not running\n");
       CloseHandle(instance_mutex);
       return 1;
    }

@@ -13,9 +13,9 @@
  *
  * To translate an offset to a source location (MINGW):
  *   1. Build with a linker map file:
- *      target_link_options(BFWMWM PRIVATE -Wl,-Map=BFWMwm.map)
+ *      target_link_options(BFWM PRIVATE -Wl,-Map=BFWM.map)
  *   2. Look up <Offset> in the map to find the nearest function symbol,
- *      or pass the address to `addr2line -e BFWMWM.exe`.
+ *      or pass the address to `addr2line -e BFWM.exe`.
  */
 
 #ifndef BFWM_CRASH_DUMP_H

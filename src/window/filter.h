@@ -60,7 +60,7 @@ auto IsSystemProcess(HWND hwnd) -> bool;
 
 /**
  * @brief Check whether a window's process runs at a higher integrity
- *        level than BFWMWM.
+ *        level than BFWM.
  *
  * Returns true if the process that owns @p hwnd runs at a higher Windows
  * integrity level (e.g. elevated/administrator processes). UIPI makes
@@ -68,7 +68,7 @@ auto IsSystemProcess(HWND hwnd) -> bool;
  * tiled, or ringed — they must be rejected at registration.
  *
  * @param hwnd A window handle
- * @return true if the process is elevated above BFWMWM, false otherwise
+ * @return true if the process is elevated above BFWM, false otherwise
  */
 auto IsElevatedWindow(HWND hwnd) -> bool;
 #endif

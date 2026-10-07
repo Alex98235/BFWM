@@ -167,7 +167,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
    case OP_FOCUS_WINDOW: {
       // FocusWindowImmediate returns FALSE when it declined to steal the
       // foreground from a fullscreen window; keep focused_hwnd unchanged in
-      // that case so BFWMWM still considers the fullscreen window focused.
+      // that case so BFWM still considers the fullscreen window focused.
       if (FocusWindowImmediate(operation->hwnd, ctx) == TRUE)
          ctx->focused_hwnd = operation->hwnd;
 

@@ -8,7 +8,7 @@ struct BFWMContext;
 /**
  * @brief Add the system-tray icon (hidden window + Shell_NotifyIcon).
  *
- * Non-fatal if it fails — BFWMWM still runs headless. Call once on the main
+ * Non-fatal if it fails — BFWM still runs headless. Call once on the main
  * thread, before MainLoop.
  *
  * @param ctx The BFWM context (used to signal shutdown from the tray menu)
