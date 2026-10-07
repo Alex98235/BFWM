@@ -47,8 +47,8 @@ jobs:
         shell: msys2 {0}
         run: |
           cmake -S . -B build -G "Unix Makefiles" \
-            -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/clang.exe \
-            -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/clang++.exe
+            -DCMAKE_C_COMPILER=/mingw64/bin/clang.exe \
+            -DCMAKE_CXX_COMPILER=/mingw64/bin/clang++.exe
 
       # Only the production target is built: the test target depends on the
       # test/cbelt submodule, which is not part of release builds.
