@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The tag is the single source of truth for the version. On a tag build
+      # (v1.2.3) the leading "v" is stripped and written to VERSION so the
+      # CMake version resource and the installer filename both agree with the
+      # release. On a manual run, the committed VERSION is used as-is.
+      - name: Resolve version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $version = (Get-Content VERSION -Raw).Trim()
+          }
+          Set-Content -Path VERSION -Value $version -NoNewline
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Building version $version"
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: >-
+            make
+            cmake
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-binutils
+
+      - name: Configure (CMake)
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G "MSYS Makefiles" \
+            -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/clang.exe \
+            -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/clang++.exe \
+            -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
+
+      # Only the production target is built: the test target depends on the
+      # test/cbelt submodule, which is not part of release builds.
+      - name: Build BFWM
+        shell: msys2 {0}
+        run: cmake --build build --target BFWM
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: ./scripts/build_installer.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BFWM-Setup-${{ env.VERSION }}
+          path: installer/output/BFWM-Setup-*.exe
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BFWM ${{ env.VERSION }}
+          files: installer/output/BFWM-Setup-*.exe
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          draft: false
