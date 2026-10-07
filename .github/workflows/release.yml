@@ -41,6 +41,7 @@ jobs:
             make
             cmake
             mingw-w64-x86_64-clang
+            mingw-w64-x86_64-gcc
             mingw-w64-x86_64-binutils
 
       - name: Configure (CMake)
@@ -49,8 +50,7 @@ jobs:
           cmake -S . -B build -G "Unix Makefiles" \
             -DCMAKE_C_COMPILER=/mingw64/bin/clang.exe \
             -DCMAKE_CXX_COMPILER=/mingw64/bin/clang++.exe \
-            -DCMAKE_RC_COMPILER=/mingw64/bin/windres.exe \
-            -DCMAKE_RC_FLAGS=--preprocessor=/mingw64/bin/clang.exe
+            -DCMAKE_RC_COMPILER=/mingw64/bin/windres.exe
 
       # Only the production target is built: the test target depends on the
       # test/cbelt submodule, which is not part of release builds.
