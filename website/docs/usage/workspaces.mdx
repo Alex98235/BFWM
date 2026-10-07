@@ -1,0 +1,70 @@
+---
+title: "Workspaces"
+---
+
+Workspaces let you organize windows into separate virtual desktops.
+Each monitor has its own set of workspaces, created on demand.
+
+## Switching Workspaces
+
+Use the `Workspace` action to switch to a workspace by index:
+
+```lua
+{ "Alt 1", "Workspace", { index = 1 } },
+{ "Alt 2", "Workspace", { index = 2 } },
+{ "..."}
+```
+
+If the workspace doesn't exist on the current monitor, it is created
+on demand.
+
+## Moving Windows Between Workspaces
+
+Use `MoveToWorkspace` to send the focused window to another workspace:
+
+```lua
+{ "Alt Shift 1", "MoveToWorkspace", { index = 1 } },
+{ "Alt Shift 2", "MoveToWorkspace", { index = 2 } },
+```
+
+If the target workspace doesn't exist globally, it is created on the
+current monitor.
+
+## Moving Workspaces Between Monitors
+
+Use `MoveWorkspaceToMonitor` to move the active workspace to a
+different display:
+
+```lua
+-- By display number
+{ "Alt Ctrl 2", "MoveWorkspaceToMonitor", { index = 2 } },
+
+-- By direction
+{ "Alt Ctrl Right", "MoveWorkspaceToMonitor", { direction = "right" } },
+```
+
+This is blocked for workspaces pinned to a monitor via
+`BFWM.workspaces` with `monitor` set.
+
+## Cross-Monitor Focus
+
+When `FocusWindow` is used in a direction that has no adjacent window
+on the current workspace (e.g. `"right"` at the rightmost edge), it
+falls back to the active workspace on the neighbouring monitor in that
+direction.
+
+## Per-Monitor Workspace Configuration
+
+You can configure workspace labels, monitor pinning, and layout
+overrides in `BFWM.workspaces`:
+
+```lua
+BFWM.workspaces = {
+  { "1", { label = "coding", monitor = 1, layout = "dwindle" } },
+  { "2", { label = "media",  monitor = 1 } },
+  { "3", { label = "chat",   monitor = 2 } },
+}
+```
+
+See [Workspace Configuration](/configuration/workspaces) for full
+details.

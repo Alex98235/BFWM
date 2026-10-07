@@ -38,14 +38,13 @@ Name: "autostart"; Description: "Start {#MyAppName} automatically when I log in"
 [Files]
 Source: "..\build\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\config.lua"; DestDir: "{userappdata}\BFWM"; DestName: "config.lua"; Flags: onlyifdoesntexist uninsneveruninstall
-Source: "..\docs\config-reference.md"; DestDir: "{app}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\BFWM Config Reference"; Filename: "{app}\config-reference.md"
+Name: "{group}\BFWM Documentation"; Filename: "https://alex98235.github.io/BFWM/"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]

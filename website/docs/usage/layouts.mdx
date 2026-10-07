@@ -1,0 +1,96 @@
+---
+title: "Layouts"
+---
+
+BFWM supports three layout algorithms: **dwindle** (default), **monocle**,
+and **master** (master-stack). The default for new workspaces is set with
+[`BFWM.layout`](/configuration/bfwm), and can be overridden per workspace via
+[`BFWM.workspaces`](/configuration/workspaces).
+
+## Dwindle
+
+Dwindle arranges windows in a binary tree. The screen is split
+alternating between horizontal and vertical divisions as new windows
+are added — the focused container is split in half and the new window
+takes one side.
+
+- A new window splits the currently focused container, pushing siblings
+  aside
+- Use `SwapSplit` to swap the two children of a container
+- Use `ToggleSplit` to flip the split orientation (horizontal ↔
+  vertical)
+- Use `ResizeWindow` to adjust the split ratio
+
+Dwindle works well with multiple windows on the same workspace, where one window
+is your primary focus. Each new window is given half the space of the last
+inserted window.
+
+## Monocle
+
+Monocle stacks all windows to fill the entire workspace, with only one
+window visible at a time. It behaves like a tabbed interface:
+
+- `FocusWindow` with `"next"` / `"prev"` cycles through stacked windows
+- Each window is full size — no gaps, no splits
+- Enabling the `show_position_bar` for the `"workspace"` indicator is recommended
+  here. As it will show the windows relative position in the workspace. See [`"workspace"`](/configuration/bar#indicator-types)
+
+Monocle is useful for maximized workflows where you only need to see
+one window at a time.
+
+## Master
+
+Master-stack divides the workspace into two regions. A **master area** on
+the left holds a fixed number of windows (one, by default) stacked
+vertically; the **stack** on the right holds every remaining window, split
+evenly from top to bottom. The master area takes 50% of the workspace width
+by default.
+
+- Windows are tracked in insertion order. The first window on the workspace
+  becomes the master; each new window is appended to the end of the order, so
+  it joins the **stack** on the right rather than becoming master.
+- `MoveWindow` with `"next"` / `"prev"` swaps the focused window with its
+  neighbour in that order — use it to promote a stack window into the master
+  slot, or push the master back into the stack. Directional `MoveWindow`
+  (`"left"` / `"right"` / `"up"` / `"down"`) does not rearrange windows within
+  the master layout.
+- With a single window, that window fills the whole workspace. The master/stack
+  split appears once a second window is added.
+- `ResizeWindow`, `ToggleSplit`, and `SwapSplit` are not supported by the
+  master layout and do nothing.
+
+Master-stack is useful when you want one large primary window alongside a
+column of secondary windows.
+
+## Changing Layouts
+
+Use the `CycleLayout` and `SetLayout` actions. `SetLayout` accepts
+`"dwindle"`, `"monocle"`, or `"master"`:
+
+```lua
+BFWM.keybinds = {
+  { "Alt Space",   "CycleLayout", { direction = "next" } },
+  { "Alt Shift D", "CycleLayout", { direction = "prev" } },
+  { "Alt D",       "SetLayout",   { layout = "dwindle" } },
+  { "Alt M",       "SetLayout",   { layout = "monocle" } },
+  { "Alt N",       "SetLayout",   { layout = "master" } },
+}
+```
+
+Set the default layout for new workspaces with
+[`BFWM.layout`](/configuration/bfwm):
+
+```lua
+BFWM.layout = "master"
+```
+
+You can also set a per-workspace layout override in
+[`BFWM.workspaces`](/configuration/workspaces):
+
+```lua
+BFWM.workspaces = {
+  { "1", { layout = "dwindle" } },
+  { "2", { layout = "monocle" } },
+  { "3", { layout = "master" } },
+}
+```

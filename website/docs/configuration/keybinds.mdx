@@ -1,0 +1,78 @@
+---
+title: "Keybinds"
+---
+
+# Keybinds
+
+Each entry in `BFWM.keybinds` is a Lua table:
+
+```lua
+{ "<key_combination>", "<ActionName>", { <options> } }
+```
+
+## Key Format
+
+`<key_combination>` is one or more modifier names followed by a key
+name, separated by spaces:
+
+| Modifier | Names |
+| --- | --- |
+| Super | `Super`, `Win` |
+| Ctrl | `Ctrl`, `Control` |
+| Shift | `Shift` |
+| Alt | `Alt` |
+
+Key names can be:
+
+- A single letter: `A`–`Z`
+- A digit: `0`–`9`
+- A named key: `Left`, `Right`, `Up`, `Down`, `Return`/`Enter`,
+  `Space`, `Tab`, `Escape`/`Esc`, `Backspace`, `F1`–`F24`
+
+Examples: `"Alt Return"`, `"Alt Shift H"`, `"Alt Ctrl Left"`.
+
+## Action Reference
+
+| Action | Options | Description |
+| --- | --- | --- |
+| `KillActive` | — | Close the focused window (`WM_CLOSE`) |
+| `Minimize` | — | Minimize the focused window |
+| `Fullscreen` | — | Toggle fullscreen on the focused window |
+| `ToggleFloat` | — | Toggle floating / tiled on the focused window |
+| `FocusWindow` | `direction` | Focus the adjacent window in `direction`: `"left"`, `"right"`, `"up"`, `"down"`, `"next"`, `"prev"`. Falls back to the neighbouring monitor's active workspace if no window exists in that direction |
+| `MoveWindow` | `direction` | Move / swap the focused window in `direction`. Moves across monitors when at a screen edge |
+| `ResizeWindow` | `direction`, `pixels` | Resize the focused window in `direction` by `pixels` (default `50`) |
+| `SwapSplit` | — | Swap the two children of the parent container |
+| `ToggleSplit` | — | Toggle split orientation (horizontal ↔ vertical) |
+| `Workspace` | `index` | Switch to workspace `index` (`1`–`10`). JIT-creates the workspace if it doesn't exist on the current monitor |
+| `MoveToWorkspace` | `index` | Move the focused window to workspace `index`. JIT-creates the workspace on the current monitor if it doesn't exist globally |
+| `MoveWorkspaceToMonitor` | `index` **or** `direction` | Move the active workspace to a different monitor. Use `index` to target a display number, or `direction` (`"left"`, `"right"`, `"next"`, `"prev"`) for relative movement |
+| `CycleLayout` | `direction` | Cycle through layout algorithms: `"next"` or `"prev"` |
+| `SetLayout` | `layout` | Switch to a specific layout: `"dwindle"`, `"monocle"`, or `"master"` |
+| `ToggleGaps` | — | Toggle all gaps on / off |
+| `Spawn` | `command` | Launch a GUI process (`command` is a string, e.g. `"code"`) |
+| `Exec` | `command` | Run a shell command without creating a window |
+| `Call` | `lua` | Call a Lua function by name (`lua` is a string, e.g. `"my_custom_action"`) |
+| `ReloadConfig` | — | Re-parse `config.lua` — updates all settings, keybinds, window rules, and bar appearance |
+
+## Common Options
+
+All actions accept an optional `repeatable = true` option. When set,
+the action fires repeatedly while the key is held (keyboard
+auto-repeat). By default actions fire only on the initial key press.
+
+## Example
+
+```lua
+BFWM.keybinds = {
+  { "Alt Q",           "KillActive",              {} },
+  { "Alt L",           "FocusWindow",             { direction = "right" } },
+  { "Alt Shift L",     "MoveWindow",              { direction = "right", repeatable = true } },
+  { "Alt 3",           "Workspace",               { index = 3 } },
+  { "Alt Shift 4",     "MoveToWorkspace",         { index = 4 } },
+  { "Alt Ctrl 2",      "MoveWorkspaceToMonitor",  { index = 2 } },
+  { "Alt Ctrl Right",  "MoveWorkspaceToMonitor",  { direction = "right" } },
+  { "Alt Return",      "Spawn",                   { command = "notepad" } },
+  { "Alt Shift R",     "ReloadConfig",            {} },
+}
+```

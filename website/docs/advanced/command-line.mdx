@@ -1,0 +1,34 @@
+---
+title: "Command Line"
+---
+
+## Usage
+
+```sh
+BFWM [options]
+```
+
+## Options
+
+| Flag | Description |
+| --- | --- |
+| `--no-bar` | Disable the per-monitor status bar |
+| `--config <path>` | Path to a custom `config.lua` |
+| `--notify <message>` | Send a notification toast to the running instance |
+
+## Examples
+
+```sh
+# Start without the status bar
+BFWM --no-bar
+
+# Use a different config file
+BFWM --config "C:\Users\me\my-bfwm-config.lua"
+
+# Send a notification to the running instance
+BFWM --notify "Hello World!"
+```
+
+The `--notify` flag forwards the message to an already running
+BFWM instance and immediately exits. The message appears as a
+notification toast via the Snackbar overlay.

@@ -1,0 +1,192 @@
+---
+title: "Default Configuration"
+---
+
+# Default Configuration
+
+BFWM ships with sensible defaults. It works out of the box
+without a config file. Below is the complete default configuration
+as a `config.lua` you can save and customize.
+
+> Save this as %APPDATA%\BFWM\config.lua and edit to your needs.
+
+```lua
+------------------------------
+-- BFWM.* (Window Manager)
+------------------------------
+
+BFWM.gap_between = 6
+BFWM.gap_edge = 8
+BFWM.border_color = "#ef9f76"
+BFWM.inactive_border = "#51576d"
+BFWM.border_width = 4
+BFWM.border_radius = 8
+BFWM.focus_follows_mouse = false
+BFWM.mouse_follows_focus = false
+BFWM.layout = "dwindle"
+BFWM.window_rules = {}
+BFWM.workspaces = {}
+BFWM.disabled_monitors = {}
+
+-- WIP / dead features — do not use:
+-- BFWM.unlock_window_resize = "LALT"
+-- BFWM.unlock_window_move = "LALT"
+
+------------------------------
+-- BFWM.keybinds
+------------------------------
+
+BFWM.keybinds = {
+
+  -- Window management
+  { "Alt Q", "KillActive", {} },
+  { "Alt F", "Fullscreen", {} },
+  { "Alt X", "Minimize", {} },
+  { "Alt W", "ToggleFloat", {} },
+
+  -- Focus (vim-style HJKL)
+  { "Alt H", "FocusWindow", { direction = "left" } },
+  { "Alt J", "FocusWindow", { direction = "down" } },
+  { "Alt K", "FocusWindow", { direction = "up" } },
+  { "Alt L", "FocusWindow", { direction = "right" } },
+
+  -- Move window
+  { "Alt Shift H", "MoveWindow", { direction = "left", repeatable = true } },
+  { "Alt Shift J", "MoveWindow", { direction = "down", repeatable = true } },
+  { "Alt Shift K", "MoveWindow", { direction = "up", repeatable = true } },
+  { "Alt Shift L", "MoveWindow", { direction = "right", repeatable = true } },
+
+  -- Workspaces
+  { "Alt 1", "Workspace", { index = 1 } },
+  { "Alt 2", "Workspace", { index = 2 } },
+  { "Alt 3", "Workspace", { index = 3 } },
+  { "Alt 4", "Workspace", { index = 4 } },
+  { "Alt 5", "Workspace", { index = 5 } },
+  { "Alt 6", "Workspace", { index = 6 } },
+  { "Alt 7", "Workspace", { index = 7 } },
+  { "Alt 8", "Workspace", { index = 8 } },
+  { "Alt 9", "Workspace", { index = 9 } },
+
+  -- Move to workspace
+  { "Alt Shift 1", "MoveToWorkspace", { index = 1 } },
+  { "Alt Shift 2", "MoveToWorkspace", { index = 2 } },
+  { "Alt Shift 3", "MoveToWorkspace", { index = 3 } },
+  { "Alt Shift 4", "MoveToWorkspace", { index = 4 } },
+  { "Alt Shift 5", "MoveToWorkspace", { index = 5 } },
+  { "Alt Shift 6", "MoveToWorkspace", { index = 6 } },
+  { "Alt Shift 7", "MoveToWorkspace", { index = 7 } },
+  { "Alt Shift 8", "MoveToWorkspace", { index = 8 } },
+  { "Alt Shift 9", "MoveToWorkspace", { index = 9 } },
+
+  -- Layout
+  { "Alt P", "SwapSplit", {} },
+  { "Alt Shift P", "ToggleSplit", {} },
+  { "Alt C", "ToggleGaps", {} },
+  { "Alt D", "CycleLayout", { direction = "next" } },
+  { "Alt Shift D", "CycleLayout", { direction = "prev" } },
+
+  -- System
+  { "Alt Shift R", "ReloadConfig", {} },
+}
+
+------------------------------
+-- Bar.* (Status Bar)
+------------------------------
+
+Bar.enabled = true
+Bar.height = 32
+Bar.corner_radius = 1
+
+Bar.margin = { top = 0, right = 0, bottom = 0, left = 0 }
+Bar.padding = { top = 0, right = 0, bottom = 0, left = 0 }
+Bar.border = { width = 1, color = "#ef9f76" }
+
+Bar.font = { name = "Segoe UI", size = 18, weight = 800 }
+
+Bar.colors = {
+  background = "#303446",
+  text = "#c6d0f5",
+  active_workspace = "#ef9f76",
+  inactive_workspace = "#626880",
+  tab_border = "#232634",
+}
+
+Bar.indicators = {
+  { type = "workspaces", align = "left", show_position_bar = false },
+  { type = "title",      align = "center", max_width = 300 },
+  { type = "network",    align = "right",
+    icons = { "󰤯", "󰤟", "󰤢", "󰤥", "󰤨" },
+    icon_disconnected = "󰤮",
+    icon_ethernet = "󰀂",
+    format_wifi = "{icon} {ssid}",
+    format_ethernet = "{icon}",
+    size = 22,
+    color_disconnected = "#e78284" },
+  { type = "volume",     align = "right",
+    icons = { "󰕿", "󰖀", "󰕾" },
+    icon_muted = "󰝟",
+    format = "{percent}% {icon}" },
+  { type = "cpu",        align = "right",
+    format = "{icon} {load}%",
+    icons = { "▁", "▂", "▃", "▄", "▅" } },
+  { type = "memory",     align = "right",
+    format = "{used_gb}/{total_gb}GB" },
+  { type = "clock",      align = "right",
+    format = "%m/%d, %H:%M" },
+}
+
+------------------------------
+-- Snackbar.* (Notifications)
+------------------------------
+
+Snackbar.enabled = true
+Snackbar.log_level = "info"
+Snackbar.display_duration_ms = 5000
+Snackbar.position = "top-right"
+
+Snackbar.margin_left = 0
+Snackbar.margin_right = 16
+Snackbar.margin_top = 48
+Snackbar.margin_bottom = 0
+
+Snackbar.min_width = 300
+Snackbar.max_width = 400
+
+Snackbar.padding_left = 8
+Snackbar.padding_right = 8
+Snackbar.padding_top = 8
+Snackbar.padding_bottom = 8
+
+Snackbar.background = "#303446"
+Snackbar.text = "#c6d0f5"
+Snackbar.divider = "#f2d5cf"
+Snackbar.divider_height = 1
+Snackbar.font_size = 20
+Snackbar.font_name = "Segoe UI"
+Snackbar.corner_radius = 1
+Snackbar.opacity = 200
+
+Snackbar.close_on_click = true
+Snackbar.pause_on_hover = true
+Snackbar.click_to_expand = true
+Snackbar.max_queue = 5
+Snackbar.monitor = -1
+
+Snackbar.colors = {
+  error = "#e78284",
+  warn = "#e5c890",
+  info = "#8caaee",
+  debug = "#737994",
+  normal = "#ef9f76",
+}
+```
+
+## Built-in Ignored Windows
+
+The following window classes are hardcoded in `src/window/filter.cpp`
+and are always ignored regardless of config:
+
+`Progman`, `WorkerW`, `Shell_TrayWnd`, `Shell_SecondaryTrayWnd`,
+`MultitaskingViewFrame`, `TaskManagerWindow`,
+`ApplicationFrameWindow`, `EdgeUiInputTopWndClass`,
+`BFWMMonitorHelper`

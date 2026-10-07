@@ -1,0 +1,66 @@
+---
+title: "Custom Lua Actions"
+---
+
+## Triggering Notifications with `BFWM.notify()`
+
+`BFWM.notify()` displays a notification toast from your config.
+This bypasses the `Snackbar.log_level` threshold and uses the
+**normal** severity color from `Snackbar.colors.normal`.
+
+## Calling Lua Functions with `Call`
+
+The `Call` action invokes a Lua function from your config:
+
+```lua
+-- Define a custom function in config.lua
+function my_custom_action()
+  BFWM.notify("Custom action triggered!")
+end
+
+-- Bind it to a key
+BFWM.keybinds = {
+  { "Alt C", "Call", { lua = "my_custom_action" } },
+   -- Or inline lua:
+  { "Alt C", "Call", { lua = "BFWM.notify('...')" } },
+}
+```
+
+The function name must be a globally accessible Lua function (not a
+local).
+
+> (WIP)
+>
+> Since the same keybind can trigger multiple actions,
+> we can do something like this:
+>
+> ```lua
+> { "Alt Shift R", "ReloadConfig", {} },
+> { "Alt Shift R", "Call", { lua = "BFWM.notify('Config Reloaded')" } },
+> ```
+
+## Starting a process with `Exec`/`Spawn`
+
+`Exec` runs a shell command without creating a visible window:
+
+```lua
+{ "Alt P", "Exec", { command = "powershell -Command Start-Process spotify" } },
+```
+
+Unlike `Spawn` (which launches GUI processes), `Exec` is suited for
+scripts, CLI tools, and commands that don't produce a window.
+
+## Combining with Keybinds
+
+Custom actions work with all keybind features, including
+`repeatable`:
+
+```lua
+function volume_up()
+  -- adjust system volume logic here
+end
+
+BFWM.keybinds = {
+  { "Alt Ctrl Up", "Call", { lua = "volume_up", repeatable = true } },
+}
+```

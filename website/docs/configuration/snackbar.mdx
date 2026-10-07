@@ -1,0 +1,70 @@
+---
+title: "Snackbar"
+---
+
+# Snackbar Configuration
+
+The snackbar is a notification toast overlay that displays events,
+errors, and custom messages.
+
+## Reference
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Master toggle for the notification toast |
+| `log_level` | string | `"info"` | Minimum severity: `"none"`, `"error"`, `"warn"`, `"info"`, `"debug"`. **Note**: `--notify` and `BFWM.notify()` bypass this check |
+| `display_duration_ms` | integer | `5000` | Milliseconds before auto-dismiss |
+| `position` | string | `"top-right"` | Screen corner: `"bottom-right"`, `"bottom-left"`, `"top-right"`, `"top-left"` |
+| `margin_left` | integer | `0` | Margin from left edge |
+| `margin_right` | integer | `16` | Margin from right edge |
+| `margin_top` | integer | `48` | Margin from top edge |
+| `margin_bottom` | integer | `0` | Margin from bottom edge |
+| `min_width` | integer | `300` | Minimum overlay width (`0` = no minimum) |
+| `max_width` | integer | `400` | Maximum overlay width (`0` = 30% of monitor width; `>0` = explicit pixels) |
+| `padding_*` | integer | `8` | Inner padding (left, right, top, bottom) |
+| `background` | string | `"#303446"` | Overlay background color |
+| `text` | string | `"#c6d0f5"` | Notification text color |
+| `divider` | string | `"#f2d5cf"` | Divider color between stacked notifications |
+| `divider_height` | integer | `1` | Divider thickness |
+| `font_size` | integer | `20` | Font size in points |
+| `font_name` | string | `"Segoe UI"` | Font face |
+| `corner_radius` | integer | `1` | Overlay corner rounding |
+| `opacity` | integer | `200` | Window opacity (`0`–`255`, `255` = opaque) |
+| `close_on_click` | boolean | `true` | Click to dismiss |
+| `pause_on_hover` | boolean | `true` | Hover pauses the auto-dismiss timer |
+| `click_to_expand` | boolean | `true` | Expand truncated notifications on click |
+| `max_queue` | integer | `5` | Max visible notifications (`1`–`16`) |
+| `monitor` | integer | `-1` | `0` = primary, `-1` = focused monitor, `N` = display number |
+
+## Snackbar.colors
+
+Colors for the left-hand severity bar:
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `error` | string | `"#e78284"` | Errors and fatal messages |
+| `warn` | string | `"#e5c890"` | Warnings |
+| `info` | string | `"#8caaee"` | Informational (programmatic) |
+| `debug` | string | `"#737994"` | Debug messages |
+| `normal` | string | `"#ef9f76"` | Default bar color (used by `--notify` / `BFWM.notify()`) |
+
+## Triggering Notifications
+
+```lua
+-- From config.lua:
+BFWM.notify("Your message here")
+```
+
+```sh
+# From the CLI (forwards to the running instance):
+BFWM --notify "Your message here"
+```
+
+Notifications via `--notify` or `BFWM.notify()` use the **normal**
+bar color and bypass the `log_level` threshold.
+
+## Typo Protection
+
+All `BFWM.*`, `Bar.*`, and `Snackbar.*` keys are validated at config
+load time. Unknown keys produce a Lua error with the exact option name,
+preventing silent misconfiguration.

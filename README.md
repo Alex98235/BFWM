@@ -2,6 +2,11 @@
 
 A tiling window manager for Windows.
 
+## Documentation
+
+Full documentation lives at <https://alex98235.github.io/BFWM/> (source in
+[`website/`](website/)).
+
 ## Prerequisites
 
 - CMake 3.20+

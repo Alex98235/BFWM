@@ -1,0 +1,105 @@
+---
+title: "Window Rules"
+---
+
+# Window Rules
+
+Window rules let you automatically apply behaviours to windows as they
+are created, based on their process name, window class, or title.
+
+## Rule Structure
+
+```lua
+BFWM.window_rules = {
+  {
+    match = {
+      { <field> = { <operator> = "<pattern>" }, ... },
+      ...
+    },
+    action = "<action>",
+    run_once = true,   -- optional, defaults to true
+  },
+}
+```
+
+## Match Entries
+
+Each rule has a `match` array with one or more entries. Entries are
+evaluated in order — the first entry that matches wins.
+
+An entry can match against three window properties:
+
+| Field | Description |
+| --- | --- |
+| `process` | The executable name (e.g. `"notepad.exe"`, `"chrome.exe"`) |
+| `class` | The window class name (e.g. `"Notepad"`, `"Chrome_WidgetWin_1"`) |
+| `title` | The window title bar text |
+
+Each field uses an **operator**:
+
+| Operator | Matches when |
+| --- | --- |
+| `equals` | The value equals the pattern exactly (**case-sensitive**) |
+| `not_equals` | The value does **not** equal the pattern |
+| `includes` | The value contains the pattern as a **case-insensitive** substring |
+| `regex` | The value matches the pattern as a regular expression (case-sensitive) |
+| `not_regex` | The value does **not** match the pattern |
+
+A rule's `match` array can contain multiple entries. The rule fires
+when a window matches **any** entry in the array. Within an entry,
+**all** comparisons must succeed.
+
+## Actions
+
+| Action | Effect |
+| --- | --- |
+| `"ignore"` | Do not manage this window at all — it behaves as an unmanaged overlay |
+| `"set-floating"` | Start the window in floating state; can toggle it back to tiled |
+| `"force-floating"` | Always keep the window floating; tile keybinds have no effect |
+| `"force-tiled"` | Always keep the window tiled; float keybinds have no effect |
+| `{ move_to_workspace = N }` | Move the window to workspace `N` on creation |
+
+## `run_once`
+
+Defaults to `true`. When `true`, the rule is applied only to the first
+window that matches it. Set to `false` to apply the rule to every
+matching window.
+
+## Examples
+
+```lua
+BFWM.window_rules = {
+  -- Send paint.net windows to workspace 3
+  {
+    match = {
+      { process = { equals = "paintdotnet.exe" } },
+    },
+    action = { move_to_workspace = 3 },
+    run_once = false,
+  },
+
+  -- Ignore Picture-in-Picture Chrome windows
+  {
+    match = {
+      { title = { regex = "[Pp]icture" },
+        class = { regex = "Chrome_WidgetWin_1" } },
+    },
+    action = "ignore",
+  },
+}
+```
+
+## Ignored Window Classes
+
+These window classes are hardcoded as ignored windows.
+User-defined `"ignore"` rules are evaluated after this list.
+
+| Class | Description |
+| --- | --- |
+| `Progman`, `WorkerW` | Desktop background |
+| `Shell_TrayWnd`, `Shell_SecondaryTrayWnd` | Taskbar |
+| `MultitaskingViewFrame` | Task View |
+| `TaskManagerWindow` | Task Manager |
+| `ApplicationFrameWindow` | UWP app container (Calculator, Settings) |
+| `EdgeUiInputTopWndClass` | Edge/Chrome UI overlays |
+| `BFWMMonitorHelper` | Internal hidden BFWM window |

@@ -1,0 +1,63 @@
+---
+title: "Troubleshooting"
+---
+
+## Common Issues
+
+### Windows are not being tiled
+
+- Check that the window class is not in the [hardcoded ignore
+  list](/configuration/window-rules#ignored-window-classes)
+- Check if a window rule is matching it with `"ignore"` or
+  `"force-floating"`
+- Some windows (e.g. popup menus, tooltips) are naturally unmanaged
+
+### Config is not reloading
+
+- Verify the config syntax with `luac -p config.lua`
+- Check the `bfwm.log` file for parse errors
+- Ensure you are pressing the correct keybind for `ReloadConfig`
+
+### Bar is not showing
+
+- Check that `Bar.enabled` is not set to `false`
+- If you launched with `--no-bar`, restart without it
+- Check `bfwm.log` for initialization errors
+
+### Notifications are not appearing
+
+- Verify `Snackbar.enabled` is not `false`
+- Check the `log_level` — set it to `"debug"` temporarily
+- If using `--notify`, ensure BFWM is already running
+
+## Checking the Log
+
+BFWM writes diagnostic information to `bfwm.log` in the
+application data directory (`%APPDATA%\BFWM\bfwm.log`).
+
+Look for lines starting with `[ERROR]` or `[WARN]` for configuration
+problems.
+
+## Hardcoded Ignored Windows
+
+Certain window classes are always ignored because they misbehave or
+serve no purpose when tiled:
+
+- Desktop (`Progman`, `WorkerW`)
+- Taskbar (`Shell_TrayWnd`, `Shell_SecondaryTrayWnd`)
+- Task View (`MultitaskingViewFrame`)
+- Task Manager (`TaskManagerWindow`)
+- UWP app containers (`ApplicationFrameWindow`)
+- Browser UI overlays (`EdgeUiInputTopWndClass`)
+- Internal BFWM windows (`BFWMMonitorHelper`)
+
+## Reporting Bugs
+
+Report issues at: [**GitHub Issues**](https://github.com/Alex98235/BFWM/issues)
+
+Include:
+
+- The version (git commit hash or tag)
+- Your `config.lua` if applicable
+- Relevant lines from `bfwm.log`
+- Steps to reproduce

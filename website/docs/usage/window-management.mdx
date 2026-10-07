@@ -1,0 +1,104 @@
+---
+title: "Window Management"
+---
+
+## Floating vs Tiled
+
+By default, BFWM tiles all managed windows. You can toggle a
+window to floating mode:
+
+```lua
+{ "Alt F", "ToggleFloat", {} }
+```
+
+Floating windows can be moved and resized freely.
+Tiled windows are arranged automatically by the active layout.
+
+Window rules can set the initial floating state:
+
+- `"set-floating"` — starts floating; can be toggled back to tiled
+- `"force-floating"` — always floating; tile keybinds have no effect
+- `"force-tiled"` — always tiled; float keybinds have no effect
+
+## Fullscreen
+
+Toggle fullscreen on the focused window:
+
+```lua
+{ "Alt F11", "Fullscreen", {} }
+```
+
+A fullscreen window fills the entire monitor, hiding the bar and gaps.
+
+## Mouse Operations
+
+### Resizing tiled windows (WIP)
+
+:::warning
+`BFWM.unlock_window_resize` is a **WIP** setting — it may or may not work as
+intended, so do not rely on it.
+:::
+
+By default, you can drag the border between tiled windows to resize
+them. To require a modifier key:
+
+```lua
+BFWM.unlock_window_resize = "LALT"
+```
+
+With this set, hold `Left Alt` while dragging to resize.
+
+### Moving tiled windows (WIP)
+
+:::warning
+`BFWM.unlock_window_move` is a **dead feature** — it is not functional, so do
+not rely on it.
+:::
+
+Drag a tiled window by its title bar to move it. To require a modifier
+key:
+
+```lua
+BFWM.unlock_window_move = "LALT"
+```
+
+### Floating windows
+
+Floating windows can always be dragged by their title bar and resized
+by their edges, regardless of the unlock settings.
+
+## Split Operations
+
+These only apply in the **dwindle** layout:
+
+- **`SwapSplit`** — swaps the two children of the focused container,
+  effectively swapping the positions of the master and stack areas
+- **`ToggleSplit`** — changes the split orientation (horizontal ↔
+  vertical) of the focused container
+
+```lua
+{ "Alt S",        "SwapSplit",   {} },
+{ "Alt Ctrl S",   "ToggleSplit", {} },
+```
+
+## Directional Focus and Movement
+
+Focus and move windows in four directions, wrapping across monitors:
+
+```lua
+-- Focus in a direction
+{ "Alt L", "FocusWindow", { direction = "right" } },
+{ "Alt H", "FocusWindow", { direction = "left" } },
+{ "Alt J", "FocusWindow", { direction = "down" } },
+{ "Alt K", "FocusWindow", { direction = "up" } },
+
+-- Move/swaps window in a direction
+{ "Alt Shift L", "MoveWindow", { direction = "right", repeatable = true } },
+```
+
+`MoveWindow` swaps the focused window with the adjacent one in the
+given direction. When at a screen edge, the window moves to the
+neighbouring monitor.
+
+> **Note**: Directional actions ignore floating/fullscreen windows.
+> To focus a floating or fullscreened window you need to Alt-Tab to it or click on it.
