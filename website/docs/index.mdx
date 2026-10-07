@@ -3,10 +3,8 @@ title: "BFWM"
 slug: '/'
 ---
 
-BFWM is a dynamic tiling window manager for Windows, inspired by
-GlazeWM and Hyprland. It automatically arranges windows using a
-tree-based tiling layout, supports multiple workspaces per monitor,
-and is fully configured via Lua.
+BFWM is a dynamic tiling window manager for Windows inspired by
+GlazeWM and Hyprland, fully configured via Lua.
 
 [//]: # (TODO: Add hero screenshot of BFWM in action)
 
@@ -22,10 +20,7 @@ and is fully configured via Lua.
 - **Multi-monitor**: independent workspaces on each display
 - **Lua configuration**: hot-reloadable config with full key validation
 - **Built-in status bar**: workspaces, clock, volume, network, CPU, memory indicators
-- **Notification toast**: themable overlay for events and errors
+- **Notification toast**: themable overlay for events and errors callable from the CLI or lua
 - **Window rules**: automatic float, ignore, or workspace assignment on window creation
-
-## Project Status
-
-BFWM is actively developed. See the [changelog](/changelog) for
-release history.
+- **Sleep/wake recovery**: BFWM remembers its state and restores your workspaces when the system wakes from sleep.
+- **Monitor hotplugging**: existing workspaces are reconciled when a monitor is plugged in/out.

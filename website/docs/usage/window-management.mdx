@@ -67,6 +67,18 @@ BFWM.unlock_window_move = "LALT"
 Floating windows can always be dragged by their title bar and resized
 by their edges, regardless of the unlock settings.
 
+:::important
+In the event that a window has been issued a move but has not yet landed within a
+reasonable time frame BFWM will attempt to regain control of the window by floating it instead.
+The window can be manually re-tiled again later.
+:::
+
+### Elevated processes
+
+Windows which run in an elevated process are
+inherently unmanageable unless BFWM is running as administrator.
+These windows will be ignored by BFWM.
+
 ## Split Operations
 
 These only apply in the **dwindle** layout:

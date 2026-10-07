@@ -42,7 +42,6 @@ const sidebars: SidebarsConfig = {
       ],
     },
     'troubleshooting',
-    'changelog',
   ],
 };
 

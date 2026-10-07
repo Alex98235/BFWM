@@ -11,10 +11,12 @@ title: "Troubleshooting"
 - Check if a window rule is matching it with `"ignore"` or
   `"force-floating"`
 - Some windows (e.g. popup menus, tooltips) are naturally unmanaged
+- If the window is slow to land at the tiled position it may be auto-floated by
+BFWM's internal recovery mechanism.
 
 ### Config is not reloading
 
-- Verify the config syntax with `luac -p config.lua`
+- Verify the config syntax with `luac -p <path-to-config.lua>`
 - Check the `bfwm.log` file for parse errors
 - Ensure you are pressing the correct keybind for `ReloadConfig`
 

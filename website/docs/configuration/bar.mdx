@@ -24,13 +24,6 @@ title: "Bar"
 | `colors.tab_border` | string | `"#232634"` | Tab border color |
 | `indicators` | array | 7 built-in indicators | Array of indicator entries |
 
-:::note
-If `Bar.indicators` is omitted, BFWM draws **7 built-in indicators**:
-`workspaces` (left), `title` (center), and `network`, `volume`, `cpu`,
-`memory`, `clock` (right). See the default configuration for their exact
-settings.
-:::
-
 ## Bar.indicators[]
 
 Each entry is a Lua table:
@@ -38,6 +31,12 @@ Each entry is a Lua table:
 ```lua
 { type = "<indicator_type>", align = "<alignment>", ... }
 ```
+
+:::tip
+I highly recommend installing a [Nerd Font](https://www.nerdfonts.com) (like JetBrainsMono Nerd Font)
+to get access to a variety of glyphs that can be used as icons for the bar indicators.
+Remember to set `Bar.font.name` if you decide to change font.
+:::
 
 ### Common options
 
@@ -52,22 +51,22 @@ Each entry is a Lua table:
 
 ### Indicator types
 
-**`"workspaces"`** — workspace tabs with click-to-switch
+#### `"workspaces"` Workspace tabs with click-to-switch
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `show_position_bar` | boolean | `false` | Show a 3px scrollbar-style position indicator |
 | `format` | string | `"{id}"` | Supports `{id}`, `{label}` |
 
-**`"title"`** — focused window title *(no type-specific options)*
+#### `"title"` Focused window title *(no type-specific options)*
 
-**`"clock"`** — date/time display
+#### `"clock"` date/time display
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `format` | string | `"%H:%M"` | `strftime`-style format |
 
-**`"volume"`** — audio level
+#### `"volume"` Audio level
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -76,7 +75,7 @@ Each entry is a Lua table:
 | `icon_muted` | string | — | Icon when muted |
 | `color_muted` | string | — | Text color when muted |
 
-**`"network"`** — WiFi / ethernet status
+#### `"network"` WiFi / ethernet status
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -87,14 +86,14 @@ Each entry is a Lua table:
 | `format_wifi` | string | `"{icon}"` | Supports `{icon}`, `{ssid}` |
 | `color_disconnected` | string | — | Text color when disconnected |
 
-**`"cpu"`** — CPU load
+#### `"cpu"` CPU load
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `icons` | string[5] | — | Load icons mapped 0%–100% |
 | `poll_rate` | integer | `500` | Data-fetch interval in milliseconds |
 
-**`"memory"`** — memory usage
+#### `"memory"` Memory usage
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -116,9 +115,10 @@ Each entry is a Lua table:
 | `{id}` | The workspace id | Workspaces |
 | `{label}` | The workspace label | Workspaces |
 
+:::note
 Without a `.Nf` suffix, `{load}`, `{percent}`, and `{level}` round to
-an integer and GB values show one decimal place.
-
+an integer and GB values show one decimal place. Example: `format = "{percent.2f}"`.
+:::
 ## Example
 
 ```lua

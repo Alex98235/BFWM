@@ -101,10 +101,7 @@ const config: Config = {
               label: 'GitHub',
               href: 'https://github.com/Alex98235/BFWM',
             },
-            {
-              label: 'Changelog',
-              to: '/changelog',
-            },
+            
           ],
         },
       ],
