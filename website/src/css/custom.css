@@ -1,0 +1,36 @@
+:root {
+  --ifm-color-primary: #fe640b;
+  --ifm-color-primary-dark: #e55a0a;
+  --ifm-color-primary-darker: #d85509;
+  --ifm-color-primary-darkest: #b24607;
+  --ifm-color-primary-light: #fe7425;
+  --ifm-color-primary-lighter: #fe7c31;
+  --ifm-color-primary-lightest: #fe9557;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-background-color: #eff1f5;
+  --ifm-background-surface-color: #e6e9ef;
+  --ifm-navbar-background-color: #e6e9ef;
+  --ifm-footer-background-color: #dce0e8;
+  --ifm-card-background-color: #e6e9ef;
+  --ifm-toc-border-color: #ccd0da;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #ef9f76;
+  --ifm-color-primary-dark: #ec8d5c;
+  --ifm-color-primary-darker: #eb844f;
+  --ifm-color-primary-darkest: #e76a2a;
+  --ifm-color-primary-light: #f2b190;
+  --ifm-color-primary-lighter: #f3ba9d;
+  --ifm-color-primary-lightest: #f8d6c5;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-background-color: #303446;
+  --ifm-background-surface-color: #292c3c;
+  --ifm-navbar-background-color: #292c3c;
+  --ifm-footer-background-color: #232634;
+  --ifm-card-background-color: #292c3c;
+  --ifm-toc-border-color: #414559;
+  --ifm-dropdown-background-color: #292c3c;
+  --ifm-code-background: #414559;
+}

@@ -1,0 +1,46 @@
+---
+title: "Workspaces"
+---
+
+# Workspace Configuration
+
+Each entry in `BFWM.workspaces` configures a workspace by ID with
+optional label, monitor assignment, and layout override.
+
+## Structure
+
+```lua
+BFWM.workspaces = {
+  { "<workspace_id>", { label = "<label>", monitor = <N>, layout = "<layout>" } },
+  ...
+}
+```
+
+## Reference
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `workspace_id` | string | — | Numeric workspace ID (e.g. `"1"`, `"2"`) |
+| `label` | string | — | User-facing label shown in the bar (e.g. `"coding"`, `"media"`). Requires a `format` string on the bar indicator |
+| `monitor` | integer | `0` (unassigned) | Display number to pin this workspace to. `0` = unassigned. When set, the workspace is **immovable** — `MoveWorkspaceToMonitor` is blocked. Keyboard shortcuts redirect to the assigned monitor |
+| `layout` | string | (default layout) | Layout algorithm for this workspace, overriding `BFWM.layout`. One of `"dwindle"`, `"monocle"`, or `"master"` |
+
+## Behavior
+
+- Pinned workspaces (`monitor = N`) activate on their assigned monitor
+  even when triggered from another display (cross-monitor jump)
+- Moving a window to a pinned workspace redirects it to the assigned
+  monitor
+- If the assigned monitor is disconnected, workspace activation falls
+  back to a remaining monitor
+
+## Example
+
+```lua
+BFWM.workspaces = {
+  { "1", { label = "coding", monitor = 1, layout = "dwindle" } },
+  { "2", { label = "media",  monitor = 1 } },
+  { "3", { label = "chat",   monitor = 2 } },
+  { "4", { } }, -- Technically valid but does nothing
+}
+```

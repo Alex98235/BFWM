@@ -1,0 +1,66 @@
+---
+title: "Installation"
+---
+
+# Installation
+
+## Building from Source
+
+### Prerequisites
+
+- **CMake** 3.20+
+- **C11 compiler**: MSYS2 clang (**do not use MSVC**, it's not tested or supported)
+- **C++20 compiler**: MSYS2 clang++
+- **Ninja** or the **MSYS Makefiles** generator
+
+> Lua 5.4.7 is vendored as a part of the project files.
+
+Using the MSYS Makefiles generator (as in the project README):
+
+```sh
+git clone https://github.com/Alex98235/BFWM.git
+cd BFWM
+cmake -S . -B build -G "MSYS Makefiles" \
+  -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/clang.exe \
+  -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/clang++.exe \
+  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
+cmake --build build
+```
+
+Alternatively, use Ninja with `-G Ninja` (and omit `-DCMAKE_MAKE_PROGRAM`).
+
+The output binary is `build/BFWM.exe`.
+
+### Building the Installer
+
+Packaging is handled by `scripts/build_installer.ps1`, which compiles the
+Inno Setup script `installer/bfwm.iss` with Inno Setup 6+:
+
+```powershell
+./scripts/build_installer.ps1
+```
+
+This produces `installer/output/BFWM-Setup-<version>.exe`. The installer
+places BFWM in `%LOCALAPPDATA%\Programs\BFWM`, seeds
+`%APPDATA%\BFWM\config.lua`, and offers an optional auto-start task that
+runs BFWM at login.
+
+### Running
+
+```sh
+cmake --build build --target run   # via CMake
+./build/BFWM.exe               # or directly from the build directory
+```
+
+BFWM looks for a `config.lua` in these two locations in order, using the
+first file found:
+
+1. `%APPDATA%\BFWM\config.lua`
+2. `%USERPROFILE%\.config\BFWM\config.lua`
+
+There is no working-directory or parent-directory fallback. If no file
+is found, BFWM runs entirely on its built-in defaults.
+
+## Post-Install
+
+See [Getting Started](/getting-started).

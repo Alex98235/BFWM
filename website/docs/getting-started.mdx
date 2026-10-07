@@ -1,0 +1,51 @@
+---
+title: "Getting Started"
+---
+
+# Getting Started
+
+It is not necessary to configure BFWM, but it is highly
+recommended. If no `config.lua` file is found at startup BFWM will
+use its [default configuration](/configuration/defaults).
+
+## First Experience
+
+When BFWM launches without a config file:
+
+- Windows are automatically tiled in the **dwindle** layout (binary tree)
+- Each monitor starts with one workspace; more are created on demand
+- A status bar appears at the top of each screen showing workspace
+  tabs, the focused window title, and a clock
+- A full set of default keybinds is active — see the
+  [default configuration](/configuration/defaults) for the complete list
+
+Essential default keybinds:
+
+| Key | Action |
+| --- | ------ |
+| `Alt` + `Q` | Close the focused window |
+| `Alt` + `H` / `J` / `K` / `L` | Focus left / down / up / right |
+| `Alt` + `Shift` + `H` / `J` / `K` / `L` | Move window left / down / up / right |
+| `Alt` + `1`–`9` | Switch to workspace `1`–`9` |
+| `Alt` + `Shift` + `1`–`9` | Move window to workspace `1`–`9` |
+| `Alt` + `Shift` + `R` | Reload config |
+
+## Config File Location
+
+BFWM loads its configuration from `config.lua` at startup. It searches
+these two locations in order and uses the first file found:
+
+1. `%APPDATA%\BFWM\config.lua`
+2. `%USERPROFILE%\.config\BFWM\config.lua`
+
+There is no working-directory or parent-directory fallback. If no file
+is found, BFWM runs entirely on its built-in defaults.
+
+## Next Steps
+
+- [Default Configuration](/configuration/defaults) — all options and
+  their factory values
+- [Keybinds](/configuration/keybinds) — full action reference with
+  examples
+- [Usage guides](/usage/layouts) — layouts, window management,
+  workspaces
