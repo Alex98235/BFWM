@@ -1,0 +1,115 @@
+/**
+ * @file defaults.h
+ * @brief Single source of truth for all BFWMWM default configuration values.
+ *
+ * All compile-time default constants live here so they are visible
+ * without opening the implementation file.
+ */
+
+#ifndef BFWM_CONFIG_DEFAULTS_H
+#define BFWM_CONFIG_DEFAULTS_H
+
+#include "../config/lua/parser.h"
+#include "../notification/snackbar.h"
+
+struct BFWMContext;
+
+// ── Layout / global ──────────────────────────────────────────
+// clang-format off
+enum {
+   BFWM_DEFAULT_GAP_BETWEEN = 6,
+   BFWM_DEFAULT_GAP_EDGE = 8,
+   BFWM_DEFAULT_BAR_HEIGHT = 32,
+   BFWM_DEFAULT_BORDER_COLOR = 0x00769fef,
+   BFWM_DEFAULT_INACTIVE_BORDER = 0x006d5751,
+   BFWM_DEFAULT_BORDER_WIDTH = 4,
+   BFWM_DEFAULT_BORDER_RADIUS = 8,
+   BFWM_DEFAULT_UNLOCK_MODIFIER = 0,
+   BFWM_DEFAULT_UNLOCK_MOVE_MODIFIER = 0,
+   BFWM_DEFAULT_DISABLED_MONITOR_COUNT = 0,
+};
+
+#define BFWM_DEFAULT_GAPS_ENABLED         TRUE
+#define BFWM_DEFAULT_FOCUS_FOLLOWS_MOUSE  FALSE
+#define BFWM_DEFAULT_MOUSE_FOLLOWS_FOCUS  FALSE
+#define BFWM_DEFAULT_LAYOUT               DWINDLE
+
+// ── Bar ──────────────────────────────────────────────────────
+
+enum {
+   BFWM_DEFAULT_BAR_HEIGHT_PX = 32,
+   BFWM_DEFAULT_BAR_CORNER_RADIUS = 1,
+   BFWM_DEFAULT_BAR_MARGIN = 0,
+   BFWM_DEFAULT_BAR_PADDING_LEFT = 0,
+   BFWM_DEFAULT_BAR_PADDING_RIGHT = 0,
+   BFWM_DEFAULT_BAR_PADDING_TOP = 0,
+   BFWM_DEFAULT_BAR_PADDING_BOTTOM = 0,
+   BFWM_DEFAULT_BAR_BORDER_WIDTH = 1,
+   BFWM_DEFAULT_BAR_FONT_SIZE = 18,
+   BFWM_DEFAULT_INDICATOR_MAX_WIDTH = 300
+};
+
+#define BFWM_DEFAULT_BAR_ENABLED          TRUE
+#define BFWM_DEFAULT_BAR_BORDER_COLOR     RGB(0xef, 0x9f, 0x76)
+#define BFWM_DEFAULT_BAR_FONT_WEIGHT      FW_BOLD
+#define BFWM_DEFAULT_BAR_FONT_NAME        "Segoe UI"
+#define BFWM_DEFAULT_BAR_BG               RGB(0x30, 0x34, 0x46)
+#define BFWM_DEFAULT_BAR_TEXT             RGB(0xc6, 0xd0, 0xf5)
+#define BFWM_DEFAULT_BAR_ACTIVE_WS        RGB(0xef, 0x9f, 0x76)
+#define BFWM_DEFAULT_BAR_INACTIVE_WS      RGB(0x62, 0x68, 0x80)
+#define BFWM_DEFAULT_BAR_TAB_BORDER       RGB(0x23, 0x26, 0x34)
+
+void BarConfigDefaults(BarConfig *cfg);
+
+// ── Snackbar ─────────────────────────────────────────────────
+
+#define BFWM_DEFAULT_SNACKBAR_ENABLED          TRUE
+#define BFWM_DEFAULT_SNACKBAR_LOG_LEVEL        SNACKBAR_LOG_INFO
+
+enum {
+   BFWM_DEFAULT_SNACKBAR_DISPLAY_DURATION = 5000,
+   BFWM_DEFAULT_SNACKBAR_MARGIN_LEFT = 0,
+   BFWM_DEFAULT_SNACKBAR_MARGIN_RIGHT = 16,
+   BFWM_DEFAULT_SNACKBAR_MARGIN_TOP = 48,
+   BFWM_DEFAULT_SNACKBAR_MARGIN_BOTTOM = 0,
+   BFWM_DEFAULT_SNACKBAR_MIN_WIDTH = 300,
+   BFWM_DEFAULT_SNACKBAR_MAX_WIDTH = 400,
+   BFWM_DEFAULT_SNACKBAR_PADDING_LEFT = 8,
+   BFWM_DEFAULT_SNACKBAR_PADDING_RIGHT = 8,
+   BFWM_DEFAULT_SNACKBAR_PADDING_TOP = 8,
+   BFWM_DEFAULT_SNACKBAR_PADDING_BOTTOM = 8,
+   BFWM_DEFAULT_SNACKBAR_DIVIDER_HEIGHT = 1,
+   BFWM_DEFAULT_SNACKBAR_FONT_SIZE = 20,
+   BFWM_DEFAULT_SNACKBAR_CORNER_RADIUS = 1,
+   BFWM_DEFAULT_SNACKBAR_OPACITY = 200,
+   BFWM_DEFAULT_SNACKBAR_MAX_QUEUE = 5,
+   BFWM_DEFAULT_SNACKBAR_MONITOR = -1,
+};
+
+#define BFWM_DEFAULT_SNACKBAR_POSITION         SNACKBAR_POSITION_TOP_RIGHT
+
+#define BFWM_DEFAULT_SNACKBAR_BACKGROUND       RGB(0x30, 0x34, 0x46)
+#define BFWM_DEFAULT_SNACKBAR_TEXT             RGB(0xc6, 0xd0, 0xf5)
+#define BFWM_DEFAULT_SNACKBAR_DIVIDER          RGB(0xf2, 0xd5, 0xcf)
+
+#define BFWM_DEFAULT_SNACKBAR_FONT_NAME        "Segoe UI"
+
+#define BFWM_DEFAULT_SNACKBAR_CLOSE_ON_CLICK   TRUE
+#define BFWM_DEFAULT_SNACKBAR_PAUSE_ON_HOVER   TRUE
+#define BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND  TRUE
+
+#define BFWM_DEFAULT_SNACKBAR_COLOR_ERROR      RGB(0xe7, 0x82, 0x84)
+#define BFWM_DEFAULT_SNACKBAR_COLOR_WARN       RGB(0xe5, 0xc8, 0x90)
+#define BFWM_DEFAULT_SNACKBAR_COLOR_INFO       RGB(0x8c, 0xaa, 0xee)
+#define BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG      RGB(0x73, 0x79, 0x94)
+#define BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL     RGB(0xef, 0x9f, 0x76)
+
+#define BFWM_DEFAULT_RESIZE_PX_AMOUNT          50
+// clang-format on
+
+// ── Master loader ────────────────────────────────────────────
+
+void ConfigLoadDefaults(struct BFWMContext *ctx);
+void ConfigLoadDefaultKeybinds(struct BFWMContext *ctx);
+
+#endif

@@ -1,0 +1,3 @@
+[submodule "cbelt"]
+	path = test/cbelt
+	url = https://github.com/Alex98235/CBelt.git

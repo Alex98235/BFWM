@@ -1,0 +1,29 @@
+Checks: >
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  misc-*,
+  -misc-no-recursion,
+  -misc-include-cleaner,
+  readability-*,
+  modernize-*,
+
+CheckOptions:
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: "2" # number of lines to trigger warning
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: "^[a-zL]$"
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: "^[a-z]$"
+  - key: readability-identifier-length.IgnoredLoopCounterNames
+    value: "^[a-z]_?$"
+  - key: readability-magic-numbers.IgnoredFloatingPointValues
+    value: "1.0;2.0;100.0;255.0"
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: "1;2;3;4;8;16;32;64;128;255;512;1024;4294967295"
+  - key: readability-function-cognitive-complexity.Threshold
+    value: "35"
+WarningsAsErrors: "*"
+HeaderFilterRegex: "^.*[/\\\\]BFWM[/\\\\](src|include)[/\\\\].*"
+FormatStyle: file

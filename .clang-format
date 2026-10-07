@@ -1,0 +1,7 @@
+BasedOnStyle: LLVM
+IndentWidth: 3
+---
+
+Language: Cpp
+ColumnLimit: 80
+PointerAlignment: Right

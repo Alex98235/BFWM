@@ -1,0 +1,6 @@
+CompileFlags:
+   Add:
+      - --target=x86_64-w64-windows-gnu
+      - -Iexternal/lua-5.4.7/src
+      - -Iexternal/tiny-regex-c
+   CompilationDatabase: .
