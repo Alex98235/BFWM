@@ -29,15 +29,17 @@ BFWM.keybinds = {
 The function name must be a globally accessible Lua function (not a
 local).
 
-> (WIP)
->
-> Since the same keybind can trigger multiple actions,
-> we can do something like this:
->
-> ```lua
-> { "Alt Shift R", "ReloadConfig", {} },
-> { "Alt Shift R", "Call", { lua = "BFWM.notify('Config Reloaded')" } },
-> ```
+:::tip
+
+Since the same keybind can trigger multiple actions,
+we can do something like this:
+
+```lua
+{ "Alt Shift R", "ReloadConfig", {} },
+{ "Alt Shift R", "Call", { lua = "BFWM.notify('Config Reloaded')" } },
+```
+
+:::
 
 ## Starting a process with `Exec`/`Spawn`
 
