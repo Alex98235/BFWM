@@ -877,8 +877,7 @@ void ProcessObjectDestroy(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->focus_guard.next_target = next_focus;
-         ctx->focus_guard.active = TRUE;
+         ctx->focus_intent.ArmKnown(next_focus);
       }
    }
 }
@@ -921,8 +920,7 @@ void ProcessObjectHide(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->focus_guard.next_target = next_focus;
-         ctx->focus_guard.active = TRUE;
+         ctx->focus_intent.ArmKnown(next_focus);
       }
    }
 }
@@ -968,8 +966,7 @@ void ProcessMinimizeStart(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->focus_guard.next_target = next_focus;
-         ctx->focus_guard.active = TRUE;
+         ctx->focus_intent.ArmKnown(next_focus);
       }
    }
 }
@@ -1157,29 +1154,30 @@ void ProcessObjectReorder(BFWMContext *ctx, HWND hwnd) {
 // ProcessCreateOrForeground — called from DrainEventQueue (main thread, in
 // transaction)
 void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
-   (void)event;
    if (ctx->setup_in_progress == TRUE)
       return;
 
-   // ── Auto-focus guard ──
-   // After a focused window is destroyed or minimized, the immediate next
-   // FOREGROUND is Windows auto-focusing a replacement.  Block it and
-   // force our own successor instead.
-   if (event == EVENT_SYSTEM_FOREGROUND && (ctx->focus_guard.active == TRUE)) {
-      ctx->focus_guard.active = FALSE;
-      HWND target = ctx->focus_guard.next_target;
-      ctx->focus_guard.next_target = nullptr;
-      if (target != nullptr) {
-         PostThreadMessage(ctx->main_thread_id, WM_FORCE_FOCUS, (WPARAM)target,
-                           0);
-      }
-      return; // auto-focus defeated — drop this FOREGROUND
+   // ── Focus intent ──
+   // A Windows-supplied foreground must not overrule the user's most recent
+   // explicit focus action. While the intent is armed, drop a registered
+   // non-target foreground and re-assert our planned target; STAY armed so a
+   // later stray in a spawn storm cannot slip through.
+   if (event == EVENT_SYSTEM_FOREGROUND &&
+       ctx->focus_intent.ShouldSuppress(
+           hwnd, ctx->windows->FindByHwnd(hwnd) != nullptr) == TRUE) {
+      if (ctx->focus_intent.Kind() == FocusIntentKind::Known)
+         PostThreadMessage(ctx->main_thread_id, WM_FORCE_FOCUS,
+                           (WPARAM)ctx->focus_intent.Target(), 0);
+      return; // drop the noise, STAY armed
    }
 
    HandleWindowCreate(hwnd, ctx);
 
    // Check for window state transitions (fullscreen, maximize, restore)
    CheckWindowTransitions(ctx, hwnd);
+
+   if (event == EVENT_SYSTEM_FOREGROUND)
+      ctx->focus_intent.NoteLanded(hwnd);
 }
 
 void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,

@@ -521,6 +521,9 @@ inline void AddPendingKill(HWND hwnd) {
 
 auto HandleSpawn(BFWMContext *ctx, BFWMAction *action) -> int {
    auto &args = std::get<ActionArgsSpawn>(action->args);
+   // The spawned window has not registered/focused yet: arm a learn intent so
+   // a stray foreground in the spawn storm cannot activate another window.
+   ctx->focus_intent.ArmLearn();
    return spawn_process(ctx, args.command.c_str(),
                         DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
 }
@@ -805,8 +808,6 @@ auto HandleFocus(BFWMContext *ctx, BFWMAction *action) -> int {
                                        neighbouring_ws != workspace);
 
       if (neighbor != nullptr) {
-         ctx->focus_guard.next_target = neighbor;
-         ctx->focus_guard.active = TRUE;
          ctx->transaction.QueueFocus(neighbor);
          if ((old_focused != nullptr) && old_focused != neighbor &&
              (IsWindow(old_focused) != 0) &&

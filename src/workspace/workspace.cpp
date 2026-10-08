@@ -573,6 +573,10 @@ auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL {
    // Lower the previous fullscreen window (z-order change, not DWM)
    LowerPreviousFullscreen(old_hwnd, old_valid, ctx);
 
+   // Single arm point for every "focus a specific window" path: the intent
+   // suppresses stray Windows-supplied foregrounds until this target lands.
+   ctx->focus_intent.ArmKnown(hwnd);
+
    FocusWindowReliable(hwnd);
    UpdateFocusTracking(hwnd, ctx);
 

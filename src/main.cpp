@@ -493,6 +493,10 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * once every window has settled. */
       ConvergeAsyncMoves(ctx);
 
+      /* Deadline backstop for the focus intent: retires an armed intent whose
+       * planned target never landed. */
+      ctx->focus_intent.Expire();
+
       /* Revert stuck layouts: if a window on the focused workspace has been
        * stalled (issued a move that never landed) for longer than
        * REVERT_TIMEOUT_MS, restore it to its last verifiably landed rect
