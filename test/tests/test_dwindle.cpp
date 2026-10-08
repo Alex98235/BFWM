@@ -1071,16 +1071,16 @@ CBELT_TEST(gap_size_applied) {
    DwindleLayout *layout = DwindleLayoutCreate(workspace, 0.5);
    DwindleLayoutSetGaps(layout, 10, 0);
 
-   // Single window should be inset by gap/2 = 5px on all edges
+   // Single window has no sibling, so gap_between does not apply: it fills
    HWND win1 = reinterpret_cast<HWND>(1);
    DwindleInsertWindow(layout, win1, reinterpret_cast<HWND>(0));
 
    RECT r1;
    DwindleGetWindowRect(layout, win1, &r1);
-   cbelt_assert(r1.left == 5);
-   cbelt_assert(r1.top == 5);
-   cbelt_assert(r1.right == 1595);
-   cbelt_assert(r1.bottom == 895);
+   cbelt_assert(r1.left == 0);
+   cbelt_assert(r1.top == 0);
+   cbelt_assert(r1.right == 1600);
+   cbelt_assert(r1.bottom == 900);
 
    // Two windows: horizontal split at 0.5, each inset by 5px
    HWND win2 = reinterpret_cast<HWND>(2);
@@ -1090,11 +1090,11 @@ CBELT_TEST(gap_size_applied) {
    RECT r2;
    DwindleGetWindowRect(layout, win2, &r2);
 
-   // Outer edges inset by 5px
-   cbelt_assert(r1.left == 5);
-   cbelt_assert(r1.top == 5);
-   cbelt_assert(r2.right == 1595);
-   cbelt_assert(r2.bottom == 895);
+   // Boundary edges get no between-gap (window fills to the workspace edge)
+   cbelt_assert(r1.left == 0);
+   cbelt_assert(r1.top == 0);
+   cbelt_assert(r2.right == 1600);
+   cbelt_assert(r2.bottom == 900);
 
    // 10px gap between the two windows
    cbelt_assert(r2.left - r1.right == 10);
