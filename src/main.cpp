@@ -25,6 +25,7 @@
 #include "window/border/overlay.h"
 #include "window/events/events.h"
 #include "wm/wm_worker.h"
+#include "workspace/placement.h"
 #include "workspace/workspace.h"
 #include <clocale>
 #include <consoleapi.h>
@@ -491,6 +492,14 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * in flight or pending. Stops automatically: moves_in_flight is cleared
        * once every window has settled. */
       ConvergeAsyncMoves(ctx);
+
+      /* Revert stuck layouts: if a window on the focused workspace has been
+       * stalled (issued a move that never landed) for longer than
+       * REVERT_TIMEOUT_MS, restore it to its last verifiably landed rect
+       * via the engine's resize_window_to_rect, which also updates ancestor
+       * split ratios so the whole layout recovers consistently.  Clears
+       * moves_in_flight so the convergence pass stops polling. */
+      RevertStuckLayouts(ctx);
 
       CheckPendingKills(ctx);
 

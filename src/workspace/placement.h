@@ -117,6 +117,21 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
  */
 void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
 
+/**
+ * @brief Check the focused workspace for windows stuck in-flight (issued a
+ *        position that was never accepted) and revert the layout when a window
+ *        has exceeded REVERT_TIMEOUT_MS.
+ *
+ * Uses the engine's resize_window_to_rect to restore the window to its last
+ * verifiably landed rect, which also updates ancestor split ratios so the
+ * whole layout recovers consistently.  Shows a snackbar notification when a
+ * revert occurs.  Clears moves_in_flight so the convergence pass stops
+ * polling.
+ *
+ * @param ctx The BFWM context
+ */
+void RevertStuckLayouts(struct BFWMContext *ctx);
+
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
 /// a scaled monitor (the physical<->logical round-trip can leave the landed

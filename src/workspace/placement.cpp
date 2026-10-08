@@ -473,3 +473,60 @@ void PlacementIssueMove(Window *win, const RECT *rect,
                         struct BFWMContext *ctx) {
    IssueMove(win, rect, ctx);
 }
+
+void RevertStuckLayouts(struct BFWMContext *ctx) {
+   if ((ctx == nullptr) || (ctx->focused_workspace == nullptr))
+      return;
+
+   Workspace *workspace = ctx->focused_workspace;
+   LayoutEngine *engine = workspace->GetEngine();
+   if (engine == nullptr)
+      return;
+
+   ULONGLONG const now = GetTickCount64();
+   BOOL reverted = FALSE;
+
+   for (Window *win : workspace->Windows()) {
+      if (!win->HasLastLanded())
+         continue;
+
+      RECT current_rect;
+      if (GetWindowRect(win->GetHwnd(), &current_rect) == FALSE)
+         continue;
+
+      RECT desired;
+      if (!engine->get_rect(win->GetHwnd(), &desired))
+         continue;
+
+      int const tol = DpiRoundingTolerance(ctx, win->GetHwnd());
+      if (RectEqualsWithinTolerance(current_rect, desired, tol) != 0) {
+         /* Window is at its desired rect — update last landed and continue. */
+         win->SetLastLanded(current_rect);
+         continue;
+      }
+
+      /* Window is not at its desired rect.  Has it been stalled long enough
+       * to justify a revert? */
+      if (!win->HasLastIssued())
+         continue;
+      if ((now - win->LastIssueTime()) < REVERT_TIMEOUT_MS)
+         continue;
+
+      /* Revert: restore the window to its last verifiably landed rect.
+       * The engine's resize_window_to_rect updates ancestor split ratios
+       * so the whole layout recovers consistently. */
+      if (static_cast<int>(engine->resize_window_to_rect(
+              win->GetHwnd(), win->LastLanded())) != FALSE) {
+         reverted = TRUE;
+         win->SetMoveInFlight(FALSE);
+         WarnW(L"Reverted window %p (%ls): refused to land at assigned rect",
+               win->GetHwnd(), win->GetTitle().c_str());
+      }
+   }
+
+   if (reverted != FALSE) {
+      workspace->ApplyLayout(ctx);
+      ctx->moves_in_flight = FALSE;
+      Snackbar::Warn(ctx, L"Layout reverted: window refused position change");
+   }
+}
