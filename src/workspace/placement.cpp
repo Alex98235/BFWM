@@ -338,8 +338,25 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
     * exact behaviour there. */
    int const tolerance = DpiRoundingTolerance(ctx, win->GetHwnd());
    if ((got_current == TRUE) &&
-       (RectEqualsWithinTolerance(current_rect, *desired, tolerance) != 0))
+       (RectEqualsWithinTolerance(current_rect, *desired, tolerance) != 0)) {
+      BOOL const was_in_flight = win->MoveInFlight();
+      BOOL const position_changed =
+          static_cast<BOOL>(!win->HasLastLanded() ||
+                            (RectEqualsWithinTolerance(
+                                 current_rect, win->LastLanded(), 0) == FALSE));
+      win->SetLastLanded(current_rect);
+      /* A layout move has now landed: clear the in-flight flag and re-sync the
+       * border ring. The commit-end flush no longer waits for the async move,
+       * so it may have synced the ring to the stale pre-move EFB; re-marking it
+       * dirty lets the next flush snap the ring to the landed rect. Only
+       * repaint when the position actually changed. */
+      if (was_in_flight != FALSE) {
+         win->SetMoveInFlight(FALSE);
+         if (position_changed != FALSE)
+            win->MarkOverlayDirty();
+      }
       return;
+   }
 
    /* Backpressure gate: only issue when the previous move landed
     * (current rect ~= last issued rect) or the stall timeout elapsed.

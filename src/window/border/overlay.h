@@ -452,12 +452,6 @@ class Overlay {
                             DWORD gate_cloaked, BOOL was_visible);
    void overlay_sync_position(BOOL suppress);
 
-   /* Tolerance-aware landing check matching MaybeIssueMove's landed
-    * detection, so a DPI-unaware window on a scaled monitor (whose landed
-    * rect rounds vs the issued rect) still clears MoveInFlight and converges
-    * the ring instead of deferring forever. */
-   auto overlay_landed_at_issued(Window *win) -> BOOL;
-
    static auto CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
                                         LPARAM lparam) -> LRESULT;
 };

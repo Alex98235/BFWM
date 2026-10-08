@@ -114,10 +114,6 @@ enum {
 /// ConvergeAsyncMoves).
 #define MOVE_CHECK_INTERVAL_MS 33U
 
-/// After a keyboard-driven resize action, suppress the periodic overlay
-/// reconcile tick for this long so it cannot inject an extra commit mid-resize.
-#define RESIZE_RECONCILE_GUARD_MS 100U
-
 /**
  * @brief Converge async moves at a throttled cadence while any layout move is
  *        in flight or pending.
@@ -485,9 +481,7 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * mouse drags, so without this guard the tick can inject an extra commit
        * mid keyboard-resize). */
       if (GetTickCount64() >= overlay_reconcile_deadline &&
-          ctx->resize_hwnd == nullptr && (ctx->suspended == FALSE) &&
-          (GetTickCount64() - ctx->last_keyboard_resize) >=
-              RESIZE_RECONCILE_GUARD_MS) {
+          ctx->resize_hwnd == nullptr && (ctx->suspended == FALSE)) {
          Overlay::OverlayReconcileAll(ctx);
          overlay_reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
       }

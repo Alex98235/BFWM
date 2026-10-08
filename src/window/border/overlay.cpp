@@ -334,15 +334,6 @@ void Overlay::OverlayMarkDirty() {
    this->reconcile_needed = TRUE;
 }
 
-auto Overlay::overlay_landed_at_issued(Window *win) -> BOOL {
-   RECT current_rect = {};
-   if (GetWindowRect(this->target, &current_rect) == FALSE)
-      return FALSE;
-   RECT const issued = win->LastIssued();
-   int const tol = DpiRoundingTolerance(this->ctx, this->target);
-   return RectEqualsWithinTolerance(current_rect, issued, tol);
-}
-
 auto Overlay::OverlayFlush() -> BOOL {
    if ((IsWindow(this->surfaces[0].hwnd) == FALSE) ||
        (IsWindow(this->target) == FALSE)) {
@@ -355,44 +346,9 @@ auto Overlay::OverlayFlush() -> BOOL {
        (win != nullptr) && ((win->IsFullscreen() != FALSE) ||
                             (win->IsUnmanagedFullscreen() != FALSE)));
 
-   /* Cross-monitor live tracking: during trust/hold a cross-monitor move may
-    * keep the window at a rect != issued briefly (the app is adapting to
-    * WM_DPICHANGED; the hold is capped at MOVE_STALL_TIMEOUT_MS), and the
-    * landed gate below would defer the ring sync until MoveInFlight clears —
-    * freezing the ring at the pre-move location for the whole hold. Sync the
-    * ring to the window's ACTUAL rect on every commit instead. The change-gate
-    * inside overlay_sync_position makes this a no-op when nothing moved; the
-    * flag is cleared on landing (here or ProcessMoveSizeEnd) so the normal
-    * gated path resumes. */
-   if ((win != nullptr) && (win->MoveInFlight() == TRUE) &&
-       (win->IsCrossMonitorTrusted() != FALSE)) {
-      if (overlay_landed_at_issued(win) != FALSE) {
-         win->SetMoveInFlight(
-             FALSE); /* landed at the issued rect (within DPI tol) */
-      }
-      overlay_sync_position(suppress);
-      return TRUE;
-   }
-
    if ((this->dirty == FALSE) || (IsWindow(this->surfaces[0].hwnd) == FALSE) ||
        (IsWindow(this->target) == FALSE)) {
       return FALSE;
-   }
-
-   /* Landed gate: an async layout move (SWP_ASYNCWINDOWPOS) lands on the
-    * target's thread after IssueMove returns, so a live EFB read at flush
-    * time would still see the pre-move rect. Defer only while a layout move
-    * is genuinely in flight (IssueMove set the flag and the window has not
-    * yet landed at the issued rect). The flag is cleared when the move lands
-    * (here) or when the window settles anywhere (ProcessMoveSizeEnd), so
-    * geometry changes that never went through IssueMove — floating drags,
-    * mouse resizes, app-driven moves — sync immediately to the live rect. */
-   if ((win != nullptr) && (win->MoveInFlight() == TRUE)) {
-      if (overlay_landed_at_issued(win) == FALSE) {
-         return FALSE; /* still in flight — stay dirty, retry next commit */
-      }
-      win->SetMoveInFlight(
-          FALSE); /* landed at the issued rect (within DPI tol) */
    }
 
    overlay_sync_position(suppress);
