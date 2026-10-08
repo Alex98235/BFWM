@@ -18,35 +18,27 @@ struct BFWMContext;
 class Window;
 class Workspace;
 
-/// Consecutive failed landings (stall re-issues without a landing) before a
-/// window is self-healed to floating.
-enum { FLOAT_AFTER_FAILED_LANDINGS = 3U };
-
 /**
  * @brief Decision for one window in the backpressure-gated move pass.
  */
 enum PlacementMoveDecision {
    PLACEMENT_MOVE_ISSUE, ///< issue (or re-issue) the move
    PLACEMENT_MOVE_DEFER, ///< move still in flight — wait
-   PLACEMENT_MOVE_FLOAT, ///< self-heal: convert the refusing window to
-                         ///< floating
 };
 
 /**
- * @brief Pure classifier: what should the move pass do for one window?
+ * @brief Pure classifier: should the move pass issue a move or defer?
  *
- *   - landed (current rect == last issued rect)  -> Issue (counter resets)
+ *   - landed (current rect == last issued rect)  -> Issue
  *   - move still in flight (not landed, not stalled) -> Defer
- *   - stalled without landing: the k-th consecutive failure; Float once the
- *     failure count reaches FLOAT_AFTER_FAILED_LANDINGS, else Issue.
+ *   - stalled without landing -> Issue (re-issue; the window may have
+ *     dropped the async message)
  *
- * @param landed          Whether the window sits at its last issued rect
- * @param stalled         Whether the stall timeout elapsed since the issue
- * @param failed_landings Consecutive failures so far (before this decision)
+ * @param landed  Whether the window sits at its last issued rect
+ * @param stalled Whether the stall timeout elapsed since the issue
  * @return The action the move pass must take
  */
-auto ClassifyPlacementMove(BOOL landed, BOOL stalled, UINT failed_landings)
-    -> PlacementMoveDecision;
+auto ClassifyPlacementMove(BOOL landed, BOOL stalled) -> PlacementMoveDecision;
 
 /// One monitor candidate for the floating-drag classifier: physical bounds +
 /// effective DPI (0 = unknown, treated as 96).

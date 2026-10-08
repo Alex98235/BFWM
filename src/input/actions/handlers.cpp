@@ -143,7 +143,8 @@ inline auto resize_in_direction(BFWMContext *ctx, BFWMDirection direction,
          // Clamp to monitor work area so the window stays fully visible
          win_center = {
              .x = (win->SavedRectPtr()->left + win->SavedRectPtr()->right) / 2,
-             .y = (win->SavedRectPtr()->top + win->SavedRectPtr()->bottom) / 2};
+             .y = (win->SavedRectPtr()->top + win->SavedRectPtr()->bottom) / 2,
+         };
       }
 
       Monitor *mon = FindMonitorByPoint(ctx, win_center);
@@ -220,7 +221,6 @@ inline void EnterFullscreenForHwnd(HWND hwnd, struct BFWMContext *ctx,
    win->SetLastIssued(fs_rect);
    win->SetLastIssueTime(GetTickCount64());
    win->SetMoveInFlight(FALSE);
-   win->SetFailedLandings(0);
    win->SetCrossMonitorTrusted(FALSE);
 
    win->SetFullscreen(TRUE);

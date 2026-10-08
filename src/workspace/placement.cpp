@@ -34,16 +34,17 @@
 /// (safety valve so a hung/refusing app can never stall the resize).
 enum { MOVE_STALL_TIMEOUT_MS = 250U };
 
-auto ClassifyPlacementMove(BOOL landed, BOOL stalled, UINT failed_landings)
-    -> PlacementMoveDecision {
+/// Max time a window may stay in flight before the layout is reverted
+/// (restored to last landed positions via the engine's resize_to_rect).
+enum { REVERT_TIMEOUT_MS = 2000U };
+
+auto ClassifyPlacementMove(BOOL landed, BOOL stalled) -> PlacementMoveDecision {
    if (landed == TRUE)
       return PLACEMENT_MOVE_ISSUE;
    if (stalled == FALSE)
       return PLACEMENT_MOVE_DEFER;
-   /* Stalled without landing: this stall is the (failed_landings + 1)-th
-    * consecutive failure. Float once the count reaches the threshold. */
-   if (failed_landings + 1U >= FLOAT_AFTER_FAILED_LANDINGS)
-      return PLACEMENT_MOVE_FLOAT;
+   /* Stalled without landing: re-issue. The window may have dropped the
+    * async message; convergence will catch it when it lands. */
    return PLACEMENT_MOVE_ISSUE;
 }
 
@@ -263,7 +264,7 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
  * @param ctx       The BFWM context
  */
 inline void MaybeIssueMove(Window *win, const RECT *desired,
-                           Workspace *workspace, struct BFWMContext *ctx) {
+                           Workspace * /*workspace*/, struct BFWMContext *ctx) {
    RECT current_rect;
    BOOL const got_current = GetWindowRect(win->GetHwnd(), &current_rect);
    /* Cross-monitor trust: a cross-monitor issue arms this flag. Once the
@@ -284,11 +285,9 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
       if (desired_changed != FALSE) {
          /* (a) New user intent / back-and-forth direction change: drop the
           * trust and fall through to the normal gate, clear the stall
-          * precondition so the fresh move is issued immediately, and reset
-          * the fight counter (fresh crossing = fresh start). */
+          * precondition so the fresh move is issued immediately. */
          win->SetCrossMonitorTrusted(FALSE);
          win->SetLastIssueTime(0);
-         win->SetFailedLandings(0);
       } else {
          HMONITOR cur_hmon =
              MonitorFromWindow(win->GetHwnd(), MONITOR_DEFAULTTONEAREST);
@@ -300,10 +299,10 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
                 * converged. Adopt the landed rect, clear in-flight state, and
                 * stop — the commit-end flush syncs the ring to the app's
                 * rect. */
+               win->SetLastLanded(current_rect);
                win->SetLastIssued(current_rect);
                win->SetMoveInFlight(FALSE);
                win->SetCrossMonitorTrusted(FALSE);
-               win->SetFailedLandings(0);
                win->MarkOverlayDirty();
                return;
             }
@@ -315,7 +314,6 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
              * the normal gate issues THIS pass — no settle wait. */
             win->SetCrossMonitorTrusted(FALSE);
             win->SetLastIssueTime(0);
-            win->SetFailedLandings(0);
          } else if ((GetTickCount64() - win->LastIssueTime()) <
                     MOVE_STALL_TIMEOUT_MS) {
             /* (c) In transit: the window has not processed the posted move
@@ -356,17 +354,8 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
    BOOL const stalled = static_cast<BOOL>(
        (GetTickCount64() - win->LastIssueTime()) > MOVE_STALL_TIMEOUT_MS);
 
-   switch (ClassifyPlacementMove(landed, stalled, win->FailedLandings())) {
+   switch (ClassifyPlacementMove(landed, stalled)) {
    case PLACEMENT_MOVE_ISSUE:
-      if (landed == TRUE) {
-         win->SetFailedLandings(0);
-      } else {
-         /* Stall re-issue: the only path to ISSUE with landed == FALSE is a
-          * stall, so this stall is one more failed landing. The classifier
-          * already accounted for it (failed_landings + 1 >= threshold); the
-          * count must actually advance here or the float can never fire. */
-         win->SetFailedLandings(win->FailedLandings() + 1U);
-      }
       IssueMove(win, desired, ctx);
       ctx->moves_in_flight = TRUE;
       break;
@@ -374,40 +363,6 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
    case PLACEMENT_MOVE_DEFER:
       ctx->moves_in_flight = TRUE;
       break;
-
-   case PLACEMENT_MOVE_FLOAT: {
-      /* A rule pinning the window tiled wins over self-healing: keep
-       * re-issuing instead of silently overriding the rule. */
-      if (win->ForceTiled() != 0) {
-         win->SetFailedLandings(0);
-         IssueMove(win, desired, ctx);
-         ctx->moves_in_flight = TRUE;
-         break;
-      }
-      RECT actual_rect;
-      if (GetWindowRect(win->GetHwnd(), &actual_rect) == FALSE) {
-         /* Window vanished mid-flight; nothing to float. */
-         win->SetFailedLandings(0);
-         break;
-      }
-      /* Float at the window's actual rect — the geometry it insists on
-       * (its opened size in the clamp case). Drop it from the tree; the
-       * convergence pass redistributes the freed slot. Raise the window
-       * like the float toggle does: the ring band sits exactly one level
-       * above its target, so a buried window leaves the ring hidden
-       * wherever other windows overlap it. */
-      win->SetSavedRect(actual_rect);
-      win->SetFloating(TRUE);
-      win->SetFailedLandings(0);
-      win->SetMoveInFlight(FALSE);
-      workspace->GetEngine()->remove(win->GetHwnd());
-      BFWMSetWindowPos(win->GetHwnd(), &actual_rect);
-      win->MarkOverlayDirty();
-      ctx->moves_in_flight = TRUE;
-      WarnW(L"Window %p (%ls) floated: refused to land at issued rects",
-            win->GetHwnd(), win->GetTitle().c_str());
-      break;
-   }
    }
 }
 
