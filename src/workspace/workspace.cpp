@@ -269,6 +269,15 @@ Workspace::Workspace(size_t identifier, const wchar_t *name, LayoutType layout,
    gap_between_ = gap_between;
    gap_edge_ = gap_edge;
    border_width_ = border_width;
+   /* Usable tiling area = workspace rect inset by the edge gap + border strip
+    * on every side. Kept in sync here (creation) and in RecalculateRect (later
+    * geometry / DPI / gap changes). See GetUsableRect. */
+   int const frame_inset = gap_edge + border_width;
+   usable_rect_ = rect;
+   usable_rect_.left += frame_inset;
+   usable_rect_.top += frame_inset;
+   usable_rect_.right -= frame_inset;
+   usable_rect_.bottom -= frame_inset;
    engine_ =
        CreateLayoutEngine(layout, rect, gap_between, gap_edge, border_width);
 }
@@ -572,6 +581,10 @@ auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL {
 
    // Lower the previous fullscreen window (z-order change, not DWM)
    LowerPreviousFullscreen(old_hwnd, old_valid, ctx);
+
+   // Single arm point for every "focus a specific window" path: the intent
+   // suppresses stray Windows-supplied foregrounds until this target lands.
+   ctx->focus_intent.ArmKnown(hwnd);
 
    FocusWindowReliable(hwnd);
    UpdateFocusTracking(hwnd, ctx);
@@ -1055,11 +1068,20 @@ void Workspace::RecalculateRect(Monitor *mon, struct BFWMContext *ctx) {
    gap_between_ = scaled.gap_between;
    gap_edge_ = scaled.gap_edge;
    border_width_ = scaled.border_width;
+   int const eff_between =
+       (ctx->config.gaps_enabled != 0) ? scaled.gap_between : 0;
+   int const eff_edge = (ctx->config.gaps_enabled != 0) ? scaled.gap_edge : 0;
+   /* Usable tiling area = workspace rect inset by the effective edge gap plus
+    * the border strip on every side. Matches the tiled area each engine derives
+    * (dwindle: workspace rect minus border; master/monocle: tiled_rect), so a
+    * rect clamped to it is representable by the engine. See GetUsableRect. */
+   int const frame_inset = eff_edge + scaled.border_width;
+   usable_rect_ = new_rect;
+   usable_rect_.left += frame_inset;
+   usable_rect_.top += frame_inset;
+   usable_rect_.right -= frame_inset;
+   usable_rect_.bottom -= frame_inset;
    if (engine_ != nullptr) {
-      int const eff_between =
-          (ctx->config.gaps_enabled != 0) ? scaled.gap_between : 0;
-      int const eff_edge =
-          (ctx->config.gaps_enabled != 0) ? scaled.gap_edge : 0;
       LayoutConfig const cfg = {
           .gap_between = eff_between,
           .gap_edge = eff_edge,

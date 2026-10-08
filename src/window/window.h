@@ -152,6 +152,16 @@ class Window {
       return *last_issued_;
    }
    void SetLastIssued(RECT value) { last_issued_ = value; }
+   /// Last rect that was verifiably confirmed landed (current == desired).
+   [[nodiscard]] auto HasLastLanded() const -> bool {
+      return last_landed_.has_value();
+   }
+   /// Last landed layout rect; callers MUST check HasLastLanded() first.
+   [[nodiscard]] auto LastLanded() const -> RECT {
+      // NOLINTNEXTLINE
+      return *last_landed_;
+   }
+   void SetLastLanded(RECT value) { last_landed_ = value; }
    /// Whether a layout move is currently in flight (issued, not yet landed).
    [[nodiscard]] auto MoveInFlight() const -> BOOL { return move_in_flight_; }
    void SetMoveInFlight(BOOL value) { move_in_flight_ = value; }
@@ -159,12 +169,6 @@ class Window {
       return last_issue_time_;
    }
    void SetLastIssueTime(ULONGLONG value) { last_issue_time_ = value; }
-   /// Consecutive layout moves that failed to land (stall re-issues without
-   /// a landing). Reset on any landing; drives the self-healing float.
-   [[nodiscard]] auto FailedLandings() const -> UINT {
-      return failed_landings_;
-   }
-   void SetFailedLandings(UINT value) { failed_landings_ = value; }
    /// Whether the last issued move crossed monitors; while set, the landing
    /// gate trusts the app's own post-DPI rect once the window reaches the
    /// destination monitor (see MaybeIssueMove in placement.cpp).
@@ -172,6 +176,15 @@ class Window {
       return cross_monitor_trusted_;
    }
    void SetCrossMonitorTrusted(BOOL value) { cross_monitor_trusted_ = value; }
+   /// Consecutive layout moves issued for this window that never landed
+   /// (current rect never reached the last issued rect). Incremented by
+   /// MaybeIssueMove on every stalled re-issue and reset on landing or a fresh
+   /// layout intent. Drives the adopt-the-rect escape for apps that enforce
+   /// their own size (see AdoptStuckLayouts in placement.cpp); a count is used
+   /// because the re-issue loop resets LastIssueTime every
+   /// MOVE_STALL_TIMEOUT_MS, so a time-since-issue gate can never mature.
+   [[nodiscard]] auto StuckFailures() const -> int { return stuck_failures_; }
+   void SetStuckFailures(int value) { stuck_failures_ = value; }
    /** @} */
 
    /** @name Cloak state
@@ -206,10 +219,11 @@ class Window {
    int rule_target_workspace_ = -1;
    std::unique_ptr<Overlay> overlay_;
    std::optional<RECT> last_issued_ = std::nullopt;
+   std::optional<RECT> last_landed_ = std::nullopt;
    ULONGLONG last_issue_time_ = 0;
    BOOL move_in_flight_ = FALSE;
-   UINT failed_landings_ = 0;
    BOOL cross_monitor_trusted_ = FALSE;
+   int stuck_failures_ = 0;
    BOOL cloaked_ = FALSE;
 };
 

@@ -23,6 +23,8 @@
 #ifndef BFWM_CONTEXT_H
 #define BFWM_CONTEXT_H
 
+#include "focus_intent.h"
+
 #include "../config/keybinds.h"
 #include "../config/lua/parser.h"
 #include "../dpi/dpi.h"
@@ -226,6 +228,10 @@ using BFWMContext = struct BFWMContext {
    ULONGLONG last_keyboard_resize = 0;
    /// HWND in ToggleFullscreenForHwnd, or NULL
    HWND toggling_fullscreen_hwnd = nullptr;
+   /// General focus-intent model: suppresses Windows-supplied foreground
+   /// events until the planned focus target actually lands. Replaces the
+   /// one-shot auto-focus guard.
+   FocusIntent focus_intent;
    /** @} */
 };
 

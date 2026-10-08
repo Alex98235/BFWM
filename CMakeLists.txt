@@ -38,6 +38,7 @@ message(STATUS "Source directory: ${CMAKE_CURRENT_SOURCE_DIR}")
 set(CORE_SOURCES
     src/core/action_dispatcher.cpp
     src/core/bfwm_context.cpp
+    src/core/focus_intent.cpp
     src/core/bfwm_def.h
     src/core/portable.cpp
 )

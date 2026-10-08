@@ -35,6 +35,29 @@ auto DwindleLayoutCreate(RECT workspace_rect, double split_ratio)
    return layout;
 }
 
+namespace {
+
+/// Per-side frame inset for a leaf: border_width on every side, plus half the
+/// between-gap on any side that faces a sibling. A side whose node edge lies on
+/// the workspace boundary faces no sibling — gap_edge already spaced the
+/// workspace rect there — so it gets no between-gap inset. This keeps
+/// gap_between strictly between adjacent windows and gap_edge at the boundary.
+inline void WindowSideInsets(const DwindleLayout *layout,
+                             const DwindleNode *node, int *left, int *top,
+                             int *right, int *bottom) {
+   int const half = layout->gap_between / 2;
+   int const border = layout->border_width;
+   *left =
+       border + ((node->rect.left > layout->workspace_rect.left) ? half : 0);
+   *top = border + ((node->rect.top > layout->workspace_rect.top) ? half : 0);
+   *right =
+       border + ((node->rect.right < layout->workspace_rect.right) ? half : 0);
+   *bottom = border +
+             ((node->rect.bottom < layout->workspace_rect.bottom) ? half : 0);
+}
+
+} // namespace
+
 auto DwindleGetWindowRect(DwindleLayout *layout, HWND hwnd, RECT *out_rect)
     -> bool {
    if ((layout == nullptr) || (hwnd == nullptr))
@@ -48,20 +71,15 @@ auto DwindleGetWindowRect(DwindleLayout *layout, HWND hwnd, RECT *out_rect)
 
    *out_rect = node->rect;
 
-   if (layout->gap_between > 0) {
-      int const half = layout->gap_between / 2;
-      out_rect->left += half;
-      out_rect->top += half;
-      out_rect->right -= half;
-      out_rect->bottom -= half;
-   }
-
-   if (layout->border_width > 0) {
-      out_rect->left += layout->border_width;
-      out_rect->top += layout->border_width;
-      out_rect->right -= layout->border_width;
-      out_rect->bottom -= layout->border_width;
-   }
+   int left;
+   int top;
+   int right;
+   int bottom;
+   WindowSideInsets(layout, node, &left, &top, &right, &bottom);
+   out_rect->left += left;
+   out_rect->top += top;
+   out_rect->right -= right;
+   out_rect->bottom -= bottom;
 
    return true;
 }
@@ -142,8 +160,9 @@ inline void RecalculatePositions(DwindleNode *node) {
 
 inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
                                        RECT new_rect, BOOL *width_changed,
-                                       BOOL *height_changed, int inset)
-    -> BOOL {
+                                       BOOL *height_changed, int inset_left,
+                                       int inset_top, int inset_right,
+                                       int inset_bottom) -> BOOL {
    BOOL match = FALSE;
    if (((*width_changed) == TRUE) && (parent->split_horizontal == TRUE)) {
       match = TRUE;
@@ -163,6 +182,10 @@ inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
       double const container_w = parent->rect.right - parent->rect.left;
       if (container_w <= 0.0)
          return FALSE;
+      /* The split line sits at the leaf's sibling-facing edge; that side's
+       * frame inset separates the requested frame edge from the node edge the
+       * ratio is computed from. */
+      int const inset = (leaf_in_first == TRUE) ? inset_right : inset_left;
       double const split_pos =
           (leaf_in_first == TRUE)
               ? (double)(new_rect.right + inset - parent->rect.left)
@@ -172,6 +195,7 @@ inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
       double const container_h = parent->rect.bottom - parent->rect.top;
       if (container_h <= 0.0)
          return FALSE;
+      int const inset = (leaf_in_first == TRUE) ? inset_bottom : inset_top;
       double const split_pos =
           (leaf_in_first == TRUE)
               ? (double)(new_rect.bottom + inset - parent->rect.top)
@@ -462,9 +486,16 @@ auto DwindleResizeWindowToRect(DwindleLayout *layout, HWND hwnd, RECT new_rect)
    if ((leaf == nullptr) || (leaf->is_leaf == FALSE))
       return false;
 
-   int const inset = (layout->gap_between / 2) + layout->border_width;
-   int const tiled_w = (leaf->rect.right - leaf->rect.left) - (2 * inset);
-   int const tiled_h = (leaf->rect.bottom - leaf->rect.top) - (2 * inset);
+   int inset_left;
+   int inset_top;
+   int inset_right;
+   int inset_bottom;
+   WindowSideInsets(layout, leaf, &inset_left, &inset_top, &inset_right,
+                    &inset_bottom);
+   int const tiled_w =
+       (leaf->rect.right - leaf->rect.left) - inset_left - inset_right;
+   int const tiled_h =
+       (leaf->rect.bottom - leaf->rect.top) - inset_top - inset_bottom;
    int const new_w = new_rect.right - new_rect.left;
    int const new_h = new_rect.bottom - new_rect.top;
 
@@ -480,7 +511,8 @@ auto DwindleResizeWindowToRect(DwindleLayout *layout, HWND hwnd, RECT new_rect)
 
    while (parent != nullptr) {
       if (UpdateDwindleAncestorRatio(parent, hwnd, new_rect, &width_changed,
-                                     &height_changed, inset) == TRUE) {
+                                     &height_changed, inset_left, inset_top,
+                                     inset_right, inset_bottom) == TRUE) {
          updated = TRUE;
          if ((width_changed == FALSE) && (height_changed == FALSE))
             break;

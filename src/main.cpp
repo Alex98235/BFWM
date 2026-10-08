@@ -25,6 +25,7 @@
 #include "window/border/overlay.h"
 #include "window/events/events.h"
 #include "wm/wm_worker.h"
+#include "workspace/placement.h"
 #include "workspace/workspace.h"
 #include <clocale>
 #include <consoleapi.h>
@@ -113,10 +114,6 @@ enum {
 /// Throttled cadence of the async-move convergence pass (see
 /// ConvergeAsyncMoves).
 #define MOVE_CHECK_INTERVAL_MS 33U
-
-/// After a keyboard-driven resize action, suppress the periodic overlay
-/// reconcile tick for this long so it cannot inject an extra commit mid-resize.
-#define RESIZE_RECONCILE_GUARD_MS 100U
 
 /**
  * @brief Converge async moves at a throttled cadence while any layout move is
@@ -485,9 +482,7 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * mouse drags, so without this guard the tick can inject an extra commit
        * mid keyboard-resize). */
       if (GetTickCount64() >= overlay_reconcile_deadline &&
-          ctx->resize_hwnd == nullptr && (ctx->suspended == FALSE) &&
-          (GetTickCount64() - ctx->last_keyboard_resize) >=
-              RESIZE_RECONCILE_GUARD_MS) {
+          ctx->resize_hwnd == nullptr && (ctx->suspended == FALSE)) {
          Overlay::OverlayReconcileAll(ctx);
          overlay_reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
       }
@@ -497,6 +492,18 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * in flight or pending. Stops automatically: moves_in_flight is cleared
        * once every window has settled. */
       ConvergeAsyncMoves(ctx);
+
+      /* Deadline backstop for the focus intent: retires an armed intent whose
+       * planned target never landed. */
+      ctx->focus_intent.Expire();
+
+      /* Adopt stuck layouts: if a window on the focused workspace keeps
+       * refusing its assigned rect (an app that self-resizes), write its actual
+       * rect into the layout tree via the engine's resize_window_to_rect so
+       * `desired` matches reality. This ends the re-issue loop instead of
+       * fighting the app; the relayout that follows issues the moves that pull
+       * the affected windows onto their new slots. */
+      AdoptStuckLayouts(ctx);
 
       CheckPendingKills(ctx);
 
