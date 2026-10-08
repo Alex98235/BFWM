@@ -67,12 +67,6 @@ BFWM.unlock_window_move = "LALT"
 Floating windows can always be dragged by their title bar and resized
 by their edges, regardless of the unlock settings.
 
-:::important
-In the event that a window has been issued a move but has not yet landed within a
-reasonable time frame BFWM will attempt to regain control of the window by floating it instead.
-The window can be manually re-tiled again later.
-:::
-
 ### Elevated processes
 
 Windows which run in an elevated process are
@@ -112,5 +106,5 @@ Focus and move windows in four directions, wrapping across monitors:
 given direction. When at a screen edge, the window moves to the
 neighbouring monitor.
 
-> **Note**: Directional actions ignore floating/fullscreen windows.
+> **Note**: Directional focus actions ignore floating/fullscreen windows.
 > To focus a floating or fullscreened window you need to Alt-Tab to it or click on it.
