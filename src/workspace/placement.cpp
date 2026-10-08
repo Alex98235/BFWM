@@ -34,9 +34,12 @@
 /// (safety valve so a hung/refusing app can never stall the resize).
 enum { MOVE_STALL_TIMEOUT_MS = 250U };
 
-/// Max time a window may stay in flight before the layout is reverted
-/// (restored to last landed positions via the engine's resize_to_rect).
-enum { REVERT_TIMEOUT_MS = 2000U };
+/// Consecutive stalled re-issues (current rect never reached the issued rect)
+/// before the layout adopts the window's actual rect, see AdoptStuckLayouts.
+/// A count is used rather than a timeout: the re-issue loop refreshes
+/// LastIssueTime every MOVE_STALL_TIMEOUT_MS, so any "time since last issue"
+/// gate can never mature while the loop runs.
+enum { ADOPT_AFTER_FAILURES = 8 };
 
 auto ClassifyPlacementMove(BOOL landed, BOOL stalled) -> PlacementMoveDecision {
    if (landed == TRUE)
@@ -300,6 +303,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
                 * stop — the commit-end flush syncs the ring to the app's
                 * rect. */
                win->SetLastLanded(current_rect);
+               win->SetStuckFailures(0);
                win->SetLastIssued(current_rect);
                win->SetMoveInFlight(FALSE);
                win->SetCrossMonitorTrusted(FALSE);
@@ -373,6 +377,10 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
 
    switch (ClassifyPlacementMove(landed, stalled)) {
    case PLACEMENT_MOVE_ISSUE:
+      /* A re-issue while the window is still not at its last issued rect is a
+       * failed landing; a fresh issue from the landed reconcile (landed ==
+       * TRUE) is a normal layout step and clears the count. */
+      win->SetStuckFailures((landed != FALSE) ? 0 : win->StuckFailures() + 1);
       IssueMove(win, desired, ctx);
       ctx->moves_in_flight = TRUE;
       break;
@@ -474,7 +482,7 @@ void PlacementIssueMove(Window *win, const RECT *rect,
    IssueMove(win, rect, ctx);
 }
 
-void RevertStuckLayouts(struct BFWMContext *ctx) {
+void AdoptStuckLayouts(struct BFWMContext *ctx) {
    if ((ctx == nullptr) || (ctx->focused_workspace == nullptr))
       return;
 
@@ -483,11 +491,13 @@ void RevertStuckLayouts(struct BFWMContext *ctx) {
    if (engine == nullptr)
       return;
 
-   ULONGLONG const now = GetTickCount64();
-   BOOL reverted = FALSE;
+   BOOL adopted = FALSE;
 
    for (Window *win : workspace->Windows()) {
-      if (!win->HasLastLanded())
+      /* Only a window that has repeatedly failed to land is a candidate. The
+       * count is incremented by MaybeIssueMove on every stalled re-issue and is
+       * immune to the loop resetting LastIssueTime. */
+      if (win->StuckFailures() < ADOPT_AFTER_FAILURES)
          continue;
 
       RECT current_rect;
@@ -500,33 +510,69 @@ void RevertStuckLayouts(struct BFWMContext *ctx) {
 
       int const tol = DpiRoundingTolerance(ctx, win->GetHwnd());
       if (RectEqualsWithinTolerance(current_rect, desired, tol) != 0) {
-         /* Window is at its desired rect — update last landed and continue. */
+         /* Window is at its desired rect after all — clear the count. */
          win->SetLastLanded(current_rect);
+         win->SetStuckFailures(0);
          continue;
       }
 
-      /* Window is not at its desired rect.  Has it been stalled long enough
-       * to justify a revert? */
-      if (!win->HasLastIssued())
-         continue;
-      if ((now - win->LastIssueTime()) < REVERT_TIMEOUT_MS)
-         continue;
+      /* Bind the rect we adopt to the workspace's USABLE area — the rect the
+       * layout can actually represent (workspace inset by the edge gap and
+       * border strip), not the raw workspace rect. ClampToRect preserves the
+       * window's size when it fits and shifts the rect inside the bound, which
+       * is exactly the "offset the opposite edge" needed when an app has grown
+       * to the monitor edge: the frame keeps the app's size, anchored at the
+       * (pinned) boundary, instead of being shrunk and re-fought. */
+      RECT usable = workspace->GetUsableRect();
+      /* Defensive: a degenerate usable rect would collapse the clamp to zero
+       * and corrupt the tree. Fall back to the raw workspace rect if it is
+       * ever unset (should not happen — both the ctor and RecalculateRect set
+       * it). */
+      if ((usable.right <= usable.left) || (usable.bottom <= usable.top))
+         usable = workspace->GetWorkspaceRect();
+      RECT adopt_rect = current_rect;
+      ClampToRect(usable, &adopt_rect);
 
-      /* Revert: restore the window to its last verifiably landed rect.
-       * The engine's resize_window_to_rect updates ancestor split ratios
-       * so the whole layout recovers consistently. */
+      /* Re-arm first so a window that cannot be adopted is retried only after
+       * another ADOPT_AFTER_FAILURES failed landings, not every loop pass. */
+      win->SetStuckFailures(0);
+
+      /* Adopt: write the (bounded) window rect into the layout tree — the same
+       * adjustment a manual resize performs via CheckResizeSettle. The
+       * engine's resize_window_to_rect updates ancestor split ratios so
+       * `desired` becomes the window's real rect: the move converges and the
+       * convergence pass stops re-issuing. Clamping to the usable rect above
+       * keeps the requested rect representable, so the app's size is preserved
+       * and anchored at the boundary. A window with no ancestor to redistribute
+       * (a lone or root leaf, master, or monocle) cannot be adopted and is left
+       * as-is. */
       if (static_cast<int>(engine->resize_window_to_rect(
-              win->GetHwnd(), win->LastLanded())) != FALSE) {
-         reverted = TRUE;
+              win->GetHwnd(), adopt_rect)) != FALSE) {
+         adopted = TRUE;
          win->SetMoveInFlight(FALSE);
-         WarnW(L"Reverted window %p (%ls): refused to land at assigned rect",
-               win->GetHwnd(), win->GetTitle().c_str());
+         /* The window already sits at its adopted rect, so no move is issued
+          * and MaybeIssueMove's landed path won't re-mark the ring (it only
+          * does so when the in-flight flag was set). Mark it dirty here so the
+          * commit-end flush snaps the border to the new rect instead of
+          * waiting for an unrelated event to dirty it. */
+         win->MarkOverlayDirty();
+         DebugW(L"Adopted window %p (%ls): layout adjusted to its actual rect",
+                win->GetHwnd(), win->GetTitle().c_str());
       }
    }
 
-   if (reverted != FALSE) {
+   if (adopted != FALSE) {
+      /* The tree changed, so relayout: this issues the moves that pull every
+       * window (the adopted one and its resized siblings) onto their new slots
+       * and refreshes their borders. Do NOT clear moves_in_flight afterwards —
+       * PlacementApply has already recomputed it, and when the stall timer has
+       * not elapsed the adopted move is DEFERred and needs the convergence
+       * pass to land. Forcing the flag off would strand the new layout
+       * un-applied until the next unrelated interaction. */
       workspace->ApplyLayout(ctx);
-      ctx->moves_in_flight = FALSE;
-      Snackbar::Warn(ctx, L"Layout reverted: window refused position change");
+      /* One toast per pass (not per window) so a multi-window pass can't spam.
+       * The per-window detail stays in the Debug terminal log above. */
+      Snackbar::Warn(ctx,
+                     L"A window refused its size, adjusting layout to match");
    }
 }

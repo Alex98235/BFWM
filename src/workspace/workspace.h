@@ -67,6 +67,14 @@ class Workspace {
    }
    void SetWorkspaceRect(RECT value) { workspace_rect_ = value; }
 
+   /// Usable tiling area: the workspace rect inset by the effective edge gap
+   /// plus the border strip on every side. This is the outermost frame a tiled
+   /// window can occupy (it matches the tiled_rect each engine derives), so the
+   /// placement failure path clamps adopted rects to it — keeping them
+   /// representable instead of asking the engine for an unreachable rect.
+   /// Recomputed in RecalculateRect.
+   [[nodiscard]] auto GetUsableRect() const -> RECT { return usable_rect_; }
+
    /// Managed windows in this workspace (read-only iteration)
    [[nodiscard]] auto Windows() const -> std::vector<Window *> const & {
       return windows_;
@@ -115,6 +123,9 @@ class Workspace {
    int gap_between_ = 0;
    int gap_edge_ = 0;
    int border_width_ = 0;
+   /// Workspace rect inset by (effective edge gap + border width): the frame
+   /// bound for placement/adoption. See GetUsableRect.
+   RECT usable_rect_{};
 };
 
 /**

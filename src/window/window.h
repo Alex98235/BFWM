@@ -176,6 +176,15 @@ class Window {
       return cross_monitor_trusted_;
    }
    void SetCrossMonitorTrusted(BOOL value) { cross_monitor_trusted_ = value; }
+   /// Consecutive layout moves issued for this window that never landed
+   /// (current rect never reached the last issued rect). Incremented by
+   /// MaybeIssueMove on every stalled re-issue and reset on landing or a fresh
+   /// layout intent. Drives the adopt-the-rect escape for apps that enforce
+   /// their own size (see AdoptStuckLayouts in placement.cpp); a count is used
+   /// because the re-issue loop resets LastIssueTime every
+   /// MOVE_STALL_TIMEOUT_MS, so a time-since-issue gate can never mature.
+   [[nodiscard]] auto StuckFailures() const -> int { return stuck_failures_; }
+   void SetStuckFailures(int value) { stuck_failures_ = value; }
    /** @} */
 
    /** @name Cloak state
@@ -214,6 +223,7 @@ class Window {
    ULONGLONG last_issue_time_ = 0;
    BOOL move_in_flight_ = FALSE;
    BOOL cross_monitor_trusted_ = FALSE;
+   int stuck_failures_ = 0;
    BOOL cloaked_ = FALSE;
 };
 

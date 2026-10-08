@@ -118,19 +118,25 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
 void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
 
 /**
- * @brief Check the focused workspace for windows stuck in-flight (issued a
- *        position that was never accepted) and revert the layout when a window
- *        has exceeded REVERT_TIMEOUT_MS.
+ * @brief Check the focused workspace for windows that persistently refuse
+ *        their assigned rect and adopt their actual size into the layout once
+ *        a window has failed to land ADOPT_AFTER_FAILURES consecutive times.
  *
- * Uses the engine's resize_window_to_rect to restore the window to its last
- * verifiably landed rect, which also updates ancestor split ratios so the
- * whole layout recovers consistently.  Shows a snackbar notification when a
- * revert occurs.  Clears moves_in_flight so the convergence pass stops
- * polling.
+ * An app that enforces its own size (self-resizing on WM_SIZE) never lands at
+ * the rect the layout assigns, so the backpressure gate re-issues forever and
+ * the workspace oscillates. This pass breaks that loop by writing the
+ * window's real rect into the layout tree via the engine's
+ * resize_window_to_rect — the same adjustment a manual resize performs via
+ * CheckResizeSettle — so `desired` becomes reality and the move converges.
+ * Unlike a revert it does not re-impose the refused rect. Windows with no
+ * ancestor to redistribute (lone/root leaf, master, monocle) cannot be
+ * adopted and are left unchanged. A relayout follows so the affected windows
+ * move onto their new slots, and a warning toast notifies the user (once per
+ * pass) that a window refused its size.
  *
  * @param ctx The BFWM context
  */
-void RevertStuckLayouts(struct BFWMContext *ctx);
+void AdoptStuckLayouts(struct BFWMContext *ctx);
 
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on

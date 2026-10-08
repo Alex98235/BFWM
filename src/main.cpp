@@ -497,13 +497,13 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * planned target never landed. */
       ctx->focus_intent.Expire();
 
-      /* Revert stuck layouts: if a window on the focused workspace has been
-       * stalled (issued a move that never landed) for longer than
-       * REVERT_TIMEOUT_MS, restore it to its last verifiably landed rect
-       * via the engine's resize_window_to_rect, which also updates ancestor
-       * split ratios so the whole layout recovers consistently.  Clears
-       * moves_in_flight so the convergence pass stops polling. */
-      RevertStuckLayouts(ctx);
+      /* Adopt stuck layouts: if a window on the focused workspace keeps
+       * refusing its assigned rect (an app that self-resizes), write its actual
+       * rect into the layout tree via the engine's resize_window_to_rect so
+       * `desired` matches reality. This ends the re-issue loop instead of
+       * fighting the app; the relayout that follows issues the moves that pull
+       * the affected windows onto their new slots. */
+      AdoptStuckLayouts(ctx);
 
       CheckPendingKills(ctx);
 
