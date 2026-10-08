@@ -97,3 +97,6 @@ build-profile
 .opencode
 build_errors.txt
 build_log.txt
+
+# Graphify
+graphify-out
