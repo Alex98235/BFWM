@@ -39,17 +39,6 @@ enum {
 
 namespace {
 
-// ── Auto-focus guard ──
-// After a focused window is destroyed or minimized, the immediate next
-// FOREGROUND event is Windows auto-focusing a replacement.  We block it
-// unconditionally and post WM_FORCE_FOCUS with our own successor.
-using AutoFocusGuard = struct {
-   HWND next_target; // our chosen successor (nullptr = no windows left)
-   BOOL active;      // removal just happened — guard is armed
-};
-
-inline AutoFocusGuard auto_focus_guard = {};
-
 // ── UTF-8 helper ──
 // Convert a wide string to its UTF-8 narrow representation (two-pass
 // WideCharToMultiByte with an exact-size output buffer).
@@ -888,8 +877,8 @@ void ProcessObjectDestroy(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         auto_focus_guard.next_target = next_focus;
-         auto_focus_guard.active = TRUE;
+         ctx->focus_guard.next_target = next_focus;
+         ctx->focus_guard.active = TRUE;
       }
    }
 }
@@ -932,8 +921,8 @@ void ProcessObjectHide(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         auto_focus_guard.next_target = next_focus;
-         auto_focus_guard.active = TRUE;
+         ctx->focus_guard.next_target = next_focus;
+         ctx->focus_guard.active = TRUE;
       }
    }
 }
@@ -979,8 +968,8 @@ void ProcessMinimizeStart(BFWMContext *ctx, HWND hwnd) {
       if (next_focus == nullptr)
          next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
       if (next_focus != nullptr) {
-         auto_focus_guard.next_target = next_focus;
-         auto_focus_guard.active = TRUE;
+         ctx->focus_guard.next_target = next_focus;
+         ctx->focus_guard.active = TRUE;
       }
    }
 }
@@ -1176,10 +1165,10 @@ void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
    // After a focused window is destroyed or minimized, the immediate next
    // FOREGROUND is Windows auto-focusing a replacement.  Block it and
    // force our own successor instead.
-   if (event == EVENT_SYSTEM_FOREGROUND && (auto_focus_guard.active == TRUE)) {
-      auto_focus_guard.active = FALSE;
-      HWND target = auto_focus_guard.next_target;
-      auto_focus_guard.next_target = nullptr;
+   if (event == EVENT_SYSTEM_FOREGROUND && (ctx->focus_guard.active == TRUE)) {
+      ctx->focus_guard.active = FALSE;
+      HWND target = ctx->focus_guard.next_target;
+      ctx->focus_guard.next_target = nullptr;
       if (target != nullptr) {
          PostThreadMessage(ctx->main_thread_id, WM_FORCE_FOCUS, (WPARAM)target,
                            0);

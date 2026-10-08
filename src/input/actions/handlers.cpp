@@ -805,6 +805,8 @@ auto HandleFocus(BFWMContext *ctx, BFWMAction *action) -> int {
                                        neighbouring_ws != workspace);
 
       if (neighbor != nullptr) {
+         ctx->focus_guard.next_target = neighbor;
+         ctx->focus_guard.active = TRUE;
          ctx->transaction.QueueFocus(neighbor);
          if ((old_focused != nullptr) && old_focused != neighbor &&
              (IsWindow(old_focused) != 0) &&

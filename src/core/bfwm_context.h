@@ -226,6 +226,13 @@ using BFWMContext = struct BFWMContext {
    ULONGLONG last_keyboard_resize = 0;
    /// HWND in ToggleFullscreenForHwnd, or NULL
    HWND toggling_fullscreen_hwnd = nullptr;
+   /// Auto-focus guard: blocks stray EVENT_SYSTEM_FOREGROUND while a focus
+   /// operation is in flight (destroy/minimize/keyboard-navigation).
+   struct {
+      HWND next_target =
+          nullptr;         ///< our chosen successor (nullptr = no windows left)
+      BOOL active = FALSE; ///< removal just happened — guard is armed
+   } focus_guard;
    /** @} */
 };
 
