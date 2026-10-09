@@ -10,6 +10,7 @@ namespace {
 
 /* Context-menu command ids. */
 #define ID_TRAY_EXIT 1
+#define ID_TRAY_LOGS 2
 
 const wchar_t *TRAY_CLASS = L"BFWMTrayHelper";
 
@@ -22,6 +23,40 @@ HWND g_hwnd = nullptr;
 HICON g_icon = nullptr;
 NOTIFYICONDATA g_nid = {};
 
+auto OpenTextFileWithEnv(const std::wstring &pathWithVars) -> bool {
+   DWORD size = ExpandEnvironmentStringsW(pathWithVars.c_str(), nullptr, 0);
+   if (size == 0) {
+      return false;
+   }
+
+   std::wstring expandedPath(size, L'\0');
+   if (ExpandEnvironmentStringsW(pathWithVars.c_str(), expandedPath.data(),
+                                 size) == 0U) {
+      return false;
+   }
+
+   // Remove the trailing null character that ExpandEnvironmentStrings includes
+   // in the size
+   expandedPath.resize(size - 1);
+
+   // Pass the fully resolved path to ShellExecuteEx
+   SHELLEXECUTEINFOW sei = {};
+   sei.cbSize = sizeof(sei);
+   sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+   sei.lpVerb = L"open";
+   sei.lpFile = expandedPath.c_str();
+   sei.lpDirectory = nullptr;
+   sei.nShow = SW_SHOWNORMAL;
+
+   if (ShellExecuteExW(&sei) == 0) {
+      return false;
+   }
+
+   if (sei.hProcess != nullptr) {
+      CloseHandle(sei.hProcess);
+   }
+   return true;
+}
 inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                  LPARAM lParam) -> LRESULT {
    if (msg == WM_TRAY_CALLBACK) {
@@ -38,6 +73,7 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
          HMENU menu = CreatePopupMenu();
          if (menu != nullptr) {
             AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
+            AppendMenuW(menu, MF_STRING, ID_TRAY_LOGS, L"Open logs");
             UINT const cmd_id = TrackPopupMenu(
                 menu, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY, cursor.x,
                 cursor.y, 0, hwnd, nullptr);
@@ -50,6 +86,17 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                g_ctx->running = FALSE;
                Keystroke const dummy = {};
                g_ctx->keystroke_queue.Enqueue(dummy);
+            }
+            std::wstring path;
+            if (cmd_id == ID_TRAY_LOGS && g_ctx != nullptr) {
+               int const wlen = MultiByteToWideChar(CP_UTF8, 0, BFWM_LOG_PATH,
+                                                    -1, nullptr, 0);
+               MultiByteToWideChar(CP_UTF8, 0, BFWM_LOG_PATH, -1, path.data(),
+                                   wlen);
+               if (!OpenTextFileWithEnv(path)) {
+                  Snackbar::Error(g_ctx, L"Could not open log file at %s",
+                                  BFWM_LOG_PATH);
+               }
             }
          }
       }
@@ -82,12 +129,13 @@ auto TrayInit(struct BFWMContext *ctx) -> BOOL {
    }
 
    /* Load the embedded icon (resource ID 1 from app.rc) at tray size. */
-   g_icon = (HICON)LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCE(1),
-                              IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+   g_icon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),
+                                          MAKEINTRESOURCE(1), IMAGE_ICON, 16,
+                                          16, LR_DEFAULTCOLOR));
    if (g_icon == nullptr) {
       Warn("TrayInit: LoadImage failed to load icon resource (error %lu) — "
            "tray icon will be blank",
-           (unsigned long)GetLastError());
+           static_cast<unsigned long>(GetLastError()));
       /* Continue without an icon; the tray entry still works. */
    }
 

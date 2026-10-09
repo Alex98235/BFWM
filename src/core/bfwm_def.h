@@ -33,4 +33,7 @@ using BFWMDirection = enum BFWMDirection {
    DirPrev,
 };
 
+/** @brief Default log file location for BFWM */
+#define BFWM_LOG_PATH "%APPDATA%\\BFWM\\bfwm.log"
+
 #endif
