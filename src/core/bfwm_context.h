@@ -31,6 +31,7 @@
 #include "../input/queue.h"
 #include "../monitor/monitor.h"
 #include "../notification/snackbar.h"
+#include "../system/exec_cache.h"
 #include "../transaction/spsc_queue.h"
 #include "../transaction/transaction.h"
 #include "../window/rules/rules.h"
@@ -89,6 +90,9 @@ using BFWMContext = struct BFWMContext {
    size_t window_rule_count = 0;
    /// Lua state and config file path
    LuaConfig lua;
+   /// Main-thread-only non-blocking child-process stdout cache
+   /// (BFWM.exec_cache)
+   ExecCache *exec_cache = nullptr;
    /// Thread-safe circular keystroke buffer
    KeystrokeQueue keystroke_queue;
    /// Current Ctrl/Shift/Alt/Super state

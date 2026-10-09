@@ -32,11 +32,12 @@ Bar.colors = {
   tab_border         = "#232634"
 }
 Bar.indicators = {
-  { type = "workspaces", align = "left", show_position_bar = false },
-  { type = "title", align = "center", max_width = 300 },
+  { type = "workspaces", align = "left", id = "workspaces", position_bar = false, format = "{id}" },
+  { type = "title", align = "center", id = "title", max_width = 300 },
   {
     type = "clock",
     align = "right",
+    id = "clock",
     format = "%m/%d, %H:%M"
   }
 }

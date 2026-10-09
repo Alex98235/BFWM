@@ -50,22 +50,34 @@
 ---@field left integer
 
 ---@class BarIndicatorConfig
----@field type string `"workspaces"|"title"|"clock"|"volume"|"network"|"cpu"|"memory"`
+---@field type string `"workspaces"|"title"|"clock"|"volume"|"network"|"cpu"|"memory"|"custom"`
 ---@field align? string `"left"|"center"|"right"`
+---@field id? string stable identifier for this indicator instance
 ---@field max_width? integer
----@field format? string
----@field show_position_bar? boolean
----@field icons? string[]
----@field icon_muted? string
----@field icon_disconnected? string
----@field icon_ethernet? string
----@field format_wifi? string
----@field format_ethernet? string
----@field size? integer font size for this indicator
----@field poll_rate? integer ms between updates
+---@field format? string unified format dialect: `{name}` / `{name:.Nf}` (clock uses strftime)
 ---@field color? string
----@field color_disconnected? string
----@field color_muted? string
+---@field size? integer font size for this indicator
+---@field poll_rate? integer ms between updates (0 = provider default)
+---@field states? IndicatorStateRule[] conditional icon/color/format overrides
+---@field position_bar? boolean workspaces: show the position indicator
+---@field on_click? string global Lua function called on left click: on_click(id, button, mods)
+---@field on_scroll? string global Lua function called on mouse wheel: on_scroll(id, dir)
+---@field output? string custom: global Lua `output(id)` returning a string or table
+
+---@class CustomOutput
+---@field text? string literal text (kept when `format` is empty)
+---@field state? string discrete state name (matched by `states`)
+---@field icon? string glyph used by `{icon}`
+---@field value? number primary numeric value (`{value}`)
+---@field color? string `#rrggbb`
+---@field values? table<string, number|string> extra named values
+
+---@class IndicatorStateRule
+---@field state? string discrete state name (volume `"muted"`, network `"disconnected"|"ethernet"`)
+---@field at? number numeric threshold: applies when the primary value is >= at
+---@field icon? string
+---@field format? string
+---@field color? string
 
 ---@class SnackbarConfig
 ---@field enabled boolean

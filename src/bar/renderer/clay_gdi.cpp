@@ -24,14 +24,14 @@ inline auto TryFontName(const wchar_t *name, int size, int weight) -> BOOL {
    if (hdc.get() == nullptr)
       return FALSE;
    GdiObject const font(CreateFontW(size, 0, 0, 0, weight, FALSE, FALSE, FALSE,
-                                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS,
                                     CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
                                     DEFAULT_PITCH, name));
    SelectObjectGuard const font_guard(hdc.get(), font.get());
    std::wstring actual;
    actual.resize(FONT_NAME_BUF_SIZE);
    int const n = GetTextFaceW(hdc.get(), FONT_NAME_BUF_SIZE, actual.data());
-   actual.resize(n > 0 ? (size_t)n : 0);
+   actual.resize(n > 0 ? static_cast<size_t>(n) : 0);
    return static_cast<BOOL>(name == actual);
 }
 
@@ -49,7 +49,7 @@ void ClayGdiRendererInit(ClayGdiRendererConfig *cfg, BarConfig *bar_cfg) {
    int const wide_len =
        MultiByteToWideChar(CP_UTF8, 0, cfg->font_name.c_str(), -1, wname.data(),
                            FONT_NAME_BUF_SIZE);
-   wname.resize(wide_len > 1 ? (size_t)wide_len - 1 : 0);
+   wname.resize(wide_len > 1 ? static_cast<size_t>(wide_len) - 1 : 0);
 
    if (TryFontName(wname.c_str(), cfg->font_size, cfg->font_weight) != 0) {
       cfg->font_name_w = wname;
@@ -83,25 +83,29 @@ enum { MAX_TEXT_UTF16 = 512 };
 auto ClayGdiMeasureText(Clay_StringSlice text, Clay_TextElementConfig *config,
                         void *userData) -> Clay_Dimensions {
    (void)config;
-   auto *cfg = (ClayGdiRendererConfig *)userData;
+   auto *cfg = static_cast<ClayGdiRendererConfig *>(userData);
 
    int const req_len =
        MultiByteToWideChar(CP_UTF8, 0, text.chars, text.length, nullptr, 0);
-   Clay_Dimensions dimensions = {.width = 0, .height = (float)cfg->font_size};
+   Clay_Dimensions dimensions = {
+       .width = 0,
+       .height = static_cast<float>(cfg->font_size),
+   };
    if (req_len <= 0) {
       return dimensions;
    }
    int const wlen = std::min(req_len, MAX_TEXT_UTF16 - 1);
    std::wstring wbuf;
-   wbuf.resize((size_t)wlen);
+   wbuf.resize(static_cast<size_t>(wlen));
    MultiByteToWideChar(CP_UTF8, 0, text.chars, text.length, wbuf.data(), wlen);
 
-   uint16_t const font_size =
-       config->fontSize > 0 ? config->fontSize : (uint16_t)cfg->font_size;
+   uint16_t const font_size = config->fontSize > 0
+                                  ? config->fontSize
+                                  : static_cast<uint16_t>(cfg->font_size);
    HDC hdc = cfg->mem_dc.get();
    GdiObject const font(
        CreateFontW(font_size, 0, 0, 0, cfg->font_weight, FALSE, FALSE, FALSE,
-                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                    DEFAULT_QUALITY, DEFAULT_PITCH, cfg->font_name_w.c_str()));
    SelectObjectGuard const font_guard(hdc, font.get());
    SIZE size;
@@ -115,7 +119,10 @@ auto ClayGdiMeasureText(Clay_StringSlice text, Clay_TextElementConfig *config,
          size.cx -= abc.abcC;
    }
 
-   dimensions = {.width = (float)size.cx, .height = (float)size.cy};
+   dimensions = {
+       .width = static_cast<float>(size.cx),
+       .height = static_cast<float>(size.cy),
+   };
    return dimensions;
 }
 
@@ -124,10 +131,12 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
    for (int32_t i = 0; i < commands->length; i++) {
       Clay_RenderCommand *cmd = &commands->internalArray[i];
       RECT r = {
-          .left = (LONG)cmd->boundingBox.x,
-          .top = (LONG)cmd->boundingBox.y,
-          .right = (LONG)(cmd->boundingBox.x + cmd->boundingBox.width),
-          .bottom = (LONG)(cmd->boundingBox.y + cmd->boundingBox.height),
+          .left = static_cast<LONG>(cmd->boundingBox.x),
+          .top = static_cast<LONG>(cmd->boundingBox.y),
+          .right =
+              static_cast<LONG>(cmd->boundingBox.x + cmd->boundingBox.width),
+          .bottom =
+              static_cast<LONG>(cmd->boundingBox.y + cmd->boundingBox.height),
       };
 
       switch (cmd->commandType) {
@@ -137,7 +146,7 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
                                     (BYTE)render_data->backgroundColor.g,
                                     (BYTE)render_data->backgroundColor.b);
          GdiObject const brush(CreateSolidBrush(color));
-         FillRect(hdc, &r, (HBRUSH)brush.get());
+         FillRect(hdc, &r, static_cast<HBRUSH>(brush.get()));
          break;
       }
       case CLAY_RENDER_COMMAND_TYPE_BORDER: {
@@ -150,39 +159,43 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
          SelectObjectGuard const pen_guard(hdc, GetStockObject(NULL_PEN));
          // Draw top border
          if (border_data->width.top > 0) {
-            RECT const top_rect = {.left = r.left,
-                                   .top = r.top,
-                                   .right = r.right,
-                                   .bottom =
-                                       r.top + (LONG)border_data->width.top};
-            FillRect(hdc, &top_rect, (HBRUSH)bg_brush.get());
+            RECT const top_rect = {
+                .left = r.left,
+                .top = r.top,
+                .right = r.right,
+                .bottom = r.top + static_cast<LONG>(border_data->width.top),
+            };
+            FillRect(hdc, &top_rect, static_cast<HBRUSH>(bg_brush.get()));
          }
          // Draw bottom border
          if (border_data->width.bottom > 0) {
-            RECT const bottom_rect = {.left = r.left,
-                                      .top = r.bottom -
-                                             (LONG)border_data->width.bottom,
-                                      .right = r.right,
-                                      .bottom = r.bottom};
-            FillRect(hdc, &bottom_rect, (HBRUSH)bg_brush.get());
+            RECT const bottom_rect = {
+                .left = r.left,
+                .top = r.bottom - static_cast<LONG>(border_data->width.bottom),
+                .right = r.right,
+                .bottom = r.bottom,
+            };
+            FillRect(hdc, &bottom_rect, static_cast<HBRUSH>(bg_brush.get()));
          }
          // Draw left border
          if (border_data->width.left > 0) {
-            RECT const left_rect = {.left = r.left,
-                                    .top = r.top,
-                                    .right =
-                                        r.left + (LONG)border_data->width.left,
-                                    .bottom = r.bottom};
-            FillRect(hdc, &left_rect, (HBRUSH)bg_brush.get());
+            RECT const left_rect = {
+                .left = r.left,
+                .top = r.top,
+                .right = r.left + static_cast<LONG>(border_data->width.left),
+                .bottom = r.bottom,
+            };
+            FillRect(hdc, &left_rect, static_cast<HBRUSH>(bg_brush.get()));
          }
          // Draw right border
          if (border_data->width.right > 0) {
-            RECT const right_rect = {.left = r.right -
-                                             (LONG)border_data->width.right,
-                                     .top = r.top,
-                                     .right = r.right,
-                                     .bottom = r.bottom};
-            FillRect(hdc, &right_rect, (HBRUSH)bg_brush.get());
+            RECT const right_rect = {
+                .left = r.right - static_cast<LONG>(border_data->width.right),
+                .top = r.top,
+                .right = r.right,
+                .bottom = r.bottom,
+            };
+            FillRect(hdc, &right_rect, static_cast<HBRUSH>(bg_brush.get()));
          }
          break;
       }
@@ -194,16 +207,16 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
          if (req_len > 0) {
             int const wlen = std::min(req_len, MAX_TEXT_UTF16 - 1);
             std::wstring wbuf;
-            wbuf.resize((size_t)wlen);
+            wbuf.resize(static_cast<size_t>(wlen));
             MultiByteToWideChar(CP_UTF8, 0, text_data->stringContents.chars,
                                 text_data->stringContents.length, wbuf.data(),
                                 wlen);
-            uint16_t const font_size = text_data->fontSize > 0
-                                           ? text_data->fontSize
-                                           : (uint16_t)cfg->font_size;
+            uint16_t const font_size =
+                text_data->fontSize > 0 ? text_data->fontSize
+                                        : static_cast<uint16_t>(cfg->font_size);
             GdiObject const font(CreateFontW(
                 font_size, 0, 0, 0, cfg->font_weight, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                 DEFAULT_QUALITY, DEFAULT_PITCH, cfg->font_name_w.c_str()));
             SelectObjectGuard const font_guard(hdc, font.get());
             SetBkMode(hdc, TRANSPARENT);
@@ -212,7 +225,7 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
                                   (BYTE)text_data->textColor.b));
             DrawTextW(hdc, wbuf.data(), wlen, &r,
                       DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_EDITCONTROL |
-                          DT_NOCLIP);
+                          DT_NOCLIP | DT_NOPREFIX);
          }
          break;
       }

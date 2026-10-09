@@ -15,6 +15,8 @@ set(TEST_SOURCES
     tests/test_keystroke.cpp
     tests/test_keybind_dictionary.cpp
     tests/test_lua_config.cpp
+    tests/test_bar_indicators.cpp
+    tests/test_exec_cache.cpp
     tests/test_bfwm_action.cpp
     tests/test_window_registry.cpp
     tests/test_action_dispatcher.cpp

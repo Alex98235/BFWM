@@ -1,12 +1,12 @@
 #ifndef BFWM_FOCUS_INTENT_H
 #define BFWM_FOCUS_INTENT_H
 #include <cstdint>
-#include <windows.h>   // HWND, BOOL, ULONGLONG, LASTINPUTINFO, GetLastInputInfo
+#include <windows.h> // HWND, BOOL, ULONGLONG, LASTINPUTINFO, GetLastInputInfo
 
 enum class FocusIntentKind : std::uint8_t { None = 0, Known, Learn };
 
 class FocusIntent {
-public:
+ public:
    // Arm for a specific successor we are about to focus.
    void ArmKnown(HWND target);
    // Arm for a spawn whose window has not registered/focused yet.
@@ -21,10 +21,11 @@ public:
    void Clear();
    [[nodiscard]] auto Kind() const -> FocusIntentKind { return kind_; }
    [[nodiscard]] auto Target() const -> HWND { return target_; }
-private:
+
+ private:
    FocusIntentKind kind_ = FocusIntentKind::None;
    HWND target_ = nullptr;
-   DWORD baseline_input_ = 0;   // GetLastInputInfo dwTime at arm time
-   ULONGLONG deadline_ = 0;      // GetTickCount64 backstop
+   DWORD baseline_input_ = 0; // GetLastInputInfo dwTime at arm time
+   ULONGLONG deadline_ = 0;   // GetTickCount64 backstop
 };
 #endif

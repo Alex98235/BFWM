@@ -38,12 +38,16 @@ void BarConfigDefaults(BarConfig *cfg) {
    cfg->indicator_count = 3;
    cfg->indicators[0].type = BAR_INDICATOR_WORKSPACES;
    cfg->indicators[0].align = BAR_ALIGN_LEFT;
-   cfg->indicators[0].show_position_bar = false;
+   cfg->indicators[0].id = "workspaces";
+   cfg->indicators[0].format = "{id}";
+   cfg->indicators[0].position_bar = false;
    cfg->indicators[1].type = BAR_INDICATOR_TITLE;
    cfg->indicators[1].align = BAR_ALIGN_CENTER;
+   cfg->indicators[1].id = "title";
    cfg->indicators[1].max_width = BFWM_DEFAULT_INDICATOR_MAX_WIDTH;
    cfg->indicators[2].type = BAR_INDICATOR_CLOCK;
    cfg->indicators[2].align = BAR_ALIGN_RIGHT;
+   cfg->indicators[2].id = "clock";
    cfg->indicators[2].format = "%m/%d, %H:%M";
 }
 

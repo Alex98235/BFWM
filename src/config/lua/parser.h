@@ -22,14 +22,13 @@ extern "C" {
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 enum {
    BAR_MAX_INDICATORS = 8,
+   BAR_MAX_STATES = 8,
    BAR_DEFAULT_HEIGHT = 30,
 };
-
-/// Number of per-indicator icon strings (volume states) in BarIndicator.
-enum { BAR_MAX_ICONS = 5 };
 
 using BarIndicatorType = enum {
    BAR_INDICATOR_WORKSPACES,
@@ -39,6 +38,7 @@ using BarIndicatorType = enum {
    BAR_INDICATOR_NETWORK,
    BAR_INDICATOR_CPU,
    BAR_INDICATOR_MEMORY,
+   BAR_INDICATOR_CUSTOM,
    BAR_INDICATOR_COUNT,
 };
 
@@ -48,25 +48,65 @@ using BarIndicatorAlign = enum {
    BAR_ALIGN_RIGHT,
 };
 
+/**
+ * @brief One conditional rule within a Bar.indicators entry.
+ *
+ * A rule carries exactly one condition and its effects. When `state` is
+ * non-empty the rule matches a runtime's discrete state by name; otherwise
+ * it is a numeric threshold on the indicator's primary value ("when the
+ * primary value >= at").
+ */
+struct IndicatorStateRule {
+   /// Discrete state name to match; empty => numeric rule.
+   std::string state;
+   /// Whether this numeric rule carries a threshold.
+   bool has_at = false;
+   /// Numeric threshold: matches when primary >= at.
+   double at = 0.0;
+   /// Glyph override.
+   std::string icon;
+   /// Format override for this state/range.
+   std::string format;
+   /// Text colour override.
+   COLORREF color = 0;
+   /// Whether `color` was actually supplied (0 is a valid colour: #000000).
+   bool has_color = false;
+};
+
 using BarIndicatorConfig = struct BarIndicatorConfig {
    BarIndicatorType type;
    BarIndicatorAlign align;
-   int max_width;
-   int font_size;
+   /// Stable per-indicator id (Lua callbacks / addressing).
+   std::string id;
+   /// Maximum rendered width in pixels (0 = unlimited).
+   int max_width = 0;
+   /// Font size override (0 = bar default).
+   int font_size = 0;
+   /// Poll interval in ms (0 = provider default).
+   int poll_rate_ms = 0;
+   /// Format string (dialect: `{name}`, `{name:.Nf}`).
    std::string format;
-   bool show_position_bar;
-   std::array<std::string, BAR_MAX_ICONS> icons;
-   int icon_count;
-   std::string icon_muted;
-   std::string icon_disconnected;
-   std::string icon_ethernet;
-   std::string format_ethernet;
-   std::string format_wifi;
-   int poll_rate_ms;            /* 0 = bar default (500ms) */
-   COLORREF color;              /* 0 = use bar default text */
-   COLORREF color_disconnected; /* network: disconnected state */
-   COLORREF color_muted;        /* volume: muted state */
+   /// Lua callback name invoked on click.
+   std::string on_click;
+   /// Lua callback name invoked on scroll.
+   std::string on_scroll;
+   /// Named output target (reserved; phase 2).
+   std::string output;
+   /// Text colour override.
+   COLORREF color = 0;
+   /// Whether `color` was actually supplied (0 is a valid colour: #000000).
+   bool color_set = false;
+   /// Per-state / per-range rules.
+   std::array<IndicatorStateRule, BAR_MAX_STATES> states = {};
+   /// Number of valid entries in `states`.
+   int state_count = 0;
+   /// Workspaces: show the scrollbar-style position indicator.
+   bool position_bar = false;
 };
+
+/// Canonical config name for an indicator type (e.g. "volume"). Used for
+/// defaulting `BarIndicatorConfig::id`.
+auto BarIndicatorTypeName(BarIndicatorType type) -> const char *;
 
 using BarConfig = struct BarConfig {
    int height;
@@ -125,6 +165,41 @@ using LuaConfig = struct LuaConfig {
    std::string config_path;
 };
 
+/**
+ * @brief One named value returned by a custom indicator's `output`.
+ *
+ * Neutral mirror of the bar's value-bag entry (no bar.h dependency), so the
+ * Lua bridge can be built and tested in isolation.
+ */
+struct LuaIndicatorValue {
+   std::string name;
+   bool is_num = false;
+   double num = 0.0;
+   std::string str;
+   int precision = 0;
+};
+
+/**
+ * @brief Result of calling a custom indicator's `output(id)` global.
+ *
+ * A bare string return sets `valid`/`has_text`; a table return fills the
+ * optional fields below. `valid` means "the function returned a value".
+ */
+struct LuaIndicatorOutput {
+   bool valid = false; ///< output existed and returned a value
+   bool has_text = false;
+   std::string text;
+   bool has_state = false;
+   std::string state;
+   bool has_icon = false;
+   std::string icon;
+   bool has_value = false;
+   double value = 0.0;
+   bool has_color = false;
+   COLORREF color = 0;
+   std::vector<LuaIndicatorValue> values;
+};
+
 class KeybindDictionary;
 struct BFWMContext;
 
@@ -170,5 +245,71 @@ void LuaConfigFree(LuaConfig *config);
  */
 auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
                    const char *func_name) -> bool;
+
+/**
+ * @brief Invoke a named global Lua indicator click callback.
+ *
+ * Signature: `on_click(id, button, mods)` where `button` is
+ * "left"|"right"|"middle" and `mods` is `{ctrl=, shift=, alt=}`. The function
+ * is looked up as a global only (no inline-source fallback). Missing,
+ * non-function, or erroring callbacks return false and are logged once (at
+ * Warn) per function name.
+ *
+ * @param config The Lua config state
+ * @param ctx    The BFWM context (unused today; reserved)
+ * @param func   Global function name (the indicator's `on_click`)
+ * @param id     The indicator's `id`
+ * @param button Mouse button name
+ * @param ctrl   Ctrl modifier state
+ * @param shift  Shift modifier state
+ * @param alt    Alt modifier state
+ * @return true if the function was found and callable and completed
+ */
+auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
+                        const char *func, const char *indicator_id,
+                        const char *button, bool ctrl, bool shift, bool alt)
+    -> bool;
+
+/**
+ * @brief Invoke a named global Lua indicator scroll callback.
+ *
+ * Signature: `on_scroll(id, dir)` where `dir` is "up"|"down". Missing,
+ * non-function, or erroring callbacks return false and are logged once (at
+ * Warn) per function name.
+ *
+ * @param config The Lua config state
+ * @param ctx    The BFWM context (unused today; reserved)
+ * @param func   Global function name (the indicator's `on_scroll`)
+ * @param id     The indicator's `id`
+ * @param dir    Scroll direction ("up"|"down")
+ * @return true if the function was found and callable and completed
+ */
+auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
+                         const char *func, const char *indicator_id,
+                         const char *dir) -> bool;
+
+/**
+ * @brief Call a custom indicator's `output(id)` global.
+ *
+ * Global-only lookup (no inline-source fallback), called as `output(id)` and
+ * expecting one return value:
+ *   - a bare string -> `valid=true, has_text=true` (raw UTF-8 bytes preserved);
+ *   - a table      -> optional `text`, `state`, `icon`, `value` (number),
+ *                     `color` (`"#rrggbb"`), and `values` (a nested
+ *                     `name -> number|string` table).
+ * `nil`/`false`/a missing function/any error -> `valid=false`, returns false.
+ * Quiet: failures are logged once (at Warn) per function name; the Lua stack
+ * is balanced on every path.
+ *
+ * @param config The Lua config state
+ * @param ctx    The BFWM context (unused today; reserved)
+ * @param func   Global function name (the indicator's `output`)
+ * @param id     The indicator's `id` (passed as the sole argument)
+ * @param out    Filled on success; left `valid=false` otherwise
+ * @return true when the function ran and returned a string or table
+ */
+auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
+                         const char *func, const char *indicator_id,
+                         LuaIndicatorOutput *out) -> bool;
 
 #endif
