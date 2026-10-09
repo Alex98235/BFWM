@@ -295,9 +295,9 @@ class Bar {
    auto ComputeWorkspaceTabWidth(const BarIndicatorConfig *indicator_config,
                                  const char *label) -> int;
 
-   /// Truncate a title to fit max_width, appending an ellipsis.
-   void TruncateTitleWithEllipsis(std::wstring &wtitle, int max_width,
-                                  int font_size);
+   /// Truncate text to fit max_width, appending an ellipsis.
+   void TruncateTextWithEllipsis(std::wstring &wtitle, int max_width,
+                                 int font_size);
 
    // -- Unified indicator pipeline (runs before measure + render) --
 

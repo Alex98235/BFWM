@@ -1111,7 +1111,7 @@ void Bar::RefreshTitle(const BarIndicatorConfig &cfg,
    }
 
 if (cfg.max_width > 0)
-       TruncateTitleWithEllipsis(wtitle, cfg.max_width, IndicatorFontSize(&cfg));
+       TruncateTextWithEllipsis(wtitle, cfg.max_width, IndicatorFontSize(&cfg));
 
    std::string utf8;
    if (!wtitle.empty()) {
@@ -1283,6 +1283,41 @@ void Bar::ComposeIndicator(int slot) {
    } else if (!provider->is_collection) {
       runtime.text = IndicatorComposeFormat(cfg, runtime);
    }
+   // Truncate non-collection text with ellipsis when max_width is exceeded.
+   if (cfg.max_width > 0 && !runtime.text.empty() && !provider->is_collection &&
+       cfg.type != BAR_INDICATOR_CLOCK) {
+      int const font_size = IndicatorFontSize(&cfg);
+      Clay_TextElementConfig tcfg = {};
+      tcfg.fontSize = static_cast<uint16_t>(font_size);
+      Clay_StringSlice const slice = {
+          .length = static_cast<int>(runtime.text.size()),
+          .chars = runtime.text.c_str(),
+          .baseChars = runtime.text.c_str(),
+      };
+      float const text_w = ClayGdiMeasureText(slice, &tcfg, &clay_cfg).width;
+      if (text_w > static_cast<float>(cfg.max_width)) {
+         std::wstring wtext;
+         int const req_len = MultiByteToWideChar(CP_UTF8, 0, runtime.text.c_str(),
+                                                 -1, nullptr, 0);
+         if (req_len > 0) {
+            wtext.resize(static_cast<size_t>(req_len));
+            MultiByteToWideChar(CP_UTF8, 0, runtime.text.c_str(), -1,
+                                wtext.data(), req_len);
+            wtext.resize(static_cast<size_t>(req_len) - 1);
+            TruncateTextWithEllipsis(wtext, cfg.max_width, font_size);
+            std::string new_text;
+            new_text.resize((wtext.size() * 4) + 1);
+            int const out_len = WideCharToMultiByte(
+                CP_UTF8, 0, wtext.c_str(), -1, new_text.data(),
+                static_cast<int>(new_text.size()), nullptr, nullptr);
+            if (out_len > 0) {
+               new_text.resize(static_cast<size_t>(out_len) - 1);
+               runtime.text = std::move(new_text);
+            }
+         }
+      }
+   }
+
    // Collections (workspaces) compose per-item text during refresh.
 
    if (provider->is_collection) {
@@ -1522,8 +1557,8 @@ void Bar::RenderIndicator(int slot) {
    ClayIndicatorText(slot, str, runtime.color, 0);
 }
 
-void Bar::TruncateTitleWithEllipsis(std::wstring &wtitle, int max_width,
-                                    int font_size) {
+void Bar::TruncateTextWithEllipsis(std::wstring &wtitle, int max_width,
+                                   int font_size) {
    if (wtitle.empty() || max_width <= 0)
       return;
 

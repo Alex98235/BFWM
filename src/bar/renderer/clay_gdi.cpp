@@ -24,7 +24,7 @@ inline auto TryFontName(const wchar_t *name, int size, int weight) -> BOOL {
    if (hdc.get() == nullptr)
       return FALSE;
    GdiObject const font(CreateFontW(size, 0, 0, 0, weight, FALSE, FALSE, FALSE,
-                                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS,
                                     CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
                                     DEFAULT_PITCH, name));
    SelectObjectGuard const font_guard(hdc.get(), font.get());
@@ -105,7 +105,7 @@ auto ClayGdiMeasureText(Clay_StringSlice text, Clay_TextElementConfig *config,
    HDC hdc = cfg->mem_dc.get();
    GdiObject const font(
        CreateFontW(font_size, 0, 0, 0, cfg->font_weight, FALSE, FALSE, FALSE,
-                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                    DEFAULT_QUALITY, DEFAULT_PITCH, cfg->font_name_w.c_str()));
    SelectObjectGuard const font_guard(hdc, font.get());
    SIZE size;
@@ -216,7 +216,7 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
                                         : static_cast<uint16_t>(cfg->font_size);
             GdiObject const font(CreateFontW(
                 font_size, 0, 0, 0, cfg->font_weight, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                 DEFAULT_QUALITY, DEFAULT_PITCH, cfg->font_name_w.c_str()));
             SelectObjectGuard const font_guard(hdc, font.get());
             SetBkMode(hdc, TRANSPARENT);
@@ -225,7 +225,7 @@ void ClayGdiRender(HDC hdc, Clay_RenderCommandArray *commands,
                                   (BYTE)text_data->textColor.b));
             DrawTextW(hdc, wbuf.data(), wlen, &r,
                       DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_EDITCONTROL |
-                          DT_NOCLIP);
+                          DT_NOCLIP | DT_NOPREFIX);
          }
          break;
       }
