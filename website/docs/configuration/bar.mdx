@@ -22,7 +22,7 @@ title: "Bar"
 | `colors.active_workspace` | string | `"#ef9f76"` | Active workspace tab color |
 | `colors.inactive_workspace` | string | `"#626880"` | Inactive workspace tab color |
 | `colors.tab_border` | string | `"#232634"` | Tab border color |
-| `indicators` | array | 7 built-in indicators | Array of indicator entries |
+| `indicators` | array | built-in indicators | Array of indicator entries |
 
 ## Bar.indicators[]
 
@@ -38,87 +38,245 @@ to get access to a variety of glyphs that can be used as icons for the bar indic
 Remember to set `Bar.font.name` if you decide to change font.
 :::
 
+:::warning Flag day — legacy per-type keys removed
+The pre-unification per-type option keys were **removed**: `show_position_bar`,
+`icons`, `icon_muted`, `icon_disconnected`, `icon_ethernet`, `format_wifi`,
+`format_ethernet`, `color_muted`, and `color_disconnected`. Using any of them
+now triggers a parser warning and does nothing. Migrate to `position_bar`,
+`states` (with `icon`/`color`/`format`), and the unified `format` dialect.
+:::
+
 ### Common options
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `type` | string | `"workspaces"` | Indicator type (see below) |
 | `align` | string | `"left"` | `"left"`, `"center"`, or `"right"` |
-| `max_width` | integer | `0` | Maximum width in pixels |
+| `id` | string | type name | Stable identifier for this instance |
+| `max_width` | integer | `0` | Maximum width in pixels (0 = unlimited) |
 | `size` | integer | `0` (bar default) | Font size override (points) |
 | `format` | string | varies | Format string (see [Format specifiers](#format-specifiers)) |
 | `color` | string | bar default text | Text color override |
+| `poll_rate` | integer | provider default | Data-fetch interval in milliseconds |
+| `states` | table | none | Per-state / per-range overrides (see [States](#states)) |
+| `position_bar` | boolean | `false` | Workspaces only: show the 3px position indicator |
+| `on_click` | string | none | Global Lua function called on left click (see [Input callbacks](#input-callbacks)) |
+| `on_scroll` | string | none | Global Lua function called on mouse wheel (see [Input callbacks](#input-callbacks)) |
+| `output` | string | none | `"custom"` only: global Lua `output(id)` returning a string or table (see [`"custom"`](#custom-lua-driven-indicator)) |
+
+### States
+
+The `states` array gives an indicator conditional icons, colors, and format
+overrides. Each rule carries exactly one condition plus its effects:
+
+```lua
+states = {
+  -- discrete match against the runtime's state name
+  { state = "muted", icon = "", color = "#e78284" },
+  -- numeric match: applies when the primary value is >= at
+  { at = 90, icon = "", color = "#e78284" },
+  { at = 50, icon = "" },
+}
+```
+
+Rule fields:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `state` | string | Discrete state name (empty = numeric rule) |
+| `at` | number | Threshold: matches when the primary value is `>= at` |
+| `icon` | string | Glyph override used for `{icon}` |
+| `color` | string | Text color override |
+| `format` | string | Format override for the matched rule (replaces the indicator format for that render) |
+
+Resolution order:
+
+1. A `state=` rule matching the runtime's discrete state wins.
+2. Otherwise the rule with the highest `at` that is `<=` the primary value.
+3. If none match, the lowest `at` rule is used as the fallback.
+
+### Input callbacks
+
+Every indicator accepts `on_click` and `on_scroll` — the name of a **global**
+Lua function. v1 only delivers **left click** and the **mouse wheel**; right and
+middle click are deferred. The callback is looked up as a global (there is no
+inline-source fallback) and is called with:
+
+```lua
+-- on_click(id, button, mods)
+--   id      : the indicator's `id` (defaults to the type name)
+--   button  : "left" (only "left" is delivered in v1)
+--   mods    : { ctrl = <bool>, shift = <bool>, alt = <bool> }
+function my_click(id, button, mods)
+  if mods.ctrl then BFWM.notify("ctrl-clicked " .. id) end
+end
+
+-- on_scroll(id, dir)
+--   id      : the indicator's `id`
+--   dir     : "up" | "down"
+function my_scroll(id, dir)
+  BFWM.notify("scrolled " .. dir .. " on " .. id)
+end
+```
+
+```lua
+Bar.indicators = {
+  { type = "cpu", align = "right", id = "cpu",
+    on_click = "my_click", on_scroll = "my_scroll" },
+}
+```
+
+If the named global is missing, is not a function, or raises an error, the
+event is dropped and the problem is logged once per function name at the Debug
+level. When no `on_click`/`on_scroll` is configured, the indicator falls back to
+its built-in default: **workspaces** activate the clicked tab and cycle on
+scroll; all other indicators have no default action.
+
+The bar consumes `WM_MOUSEWHEEL` while the pointer is hovering it, so wheel
+events over the bar are handled by the indicators (and no longer fall through to
+the window beneath).
+
+:::note v1 limitations
+- Only **left click** and the **mouse wheel** are delivered; right/middle click
+  are deferred.
+- **Collection overrides cannot identify the pressed item.** For `"workspaces"`,
+  an `on_click`/`on_scroll` override receives only `(id, button, mods)` /
+  `(id, dir)` with no tab identity, so a user callback cannot tell which tab was
+  hit. Rely on the built-in workspace defaults for per-tab behaviour.
+:::
 
 ### Indicator types
 
 #### `"workspaces"` Workspace tabs with click-to-switch
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `show_position_bar` | boolean | `false` | Show a 3px scrollbar-style position indicator |
-| `format` | string | `"{id}"` | Supports `{id}`, `{label}` |
+Per-tab values: `{id}` (string), `{label}` (string). Supports `position_bar`.
 
-#### `"title"` Focused window title *(no type-specific options)*
+#### `"title"` Focused window title
+
+When `format` is empty the raw window title is shown. Value: `{title}` (string).
 
 #### `"clock"` date/time display
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `format` | string | `"%H:%M"` | `strftime`-style format |
+`format` is a `strftime`-style string (it does **not** use the `{...}` dialect).
+Defaults to `%H:%M`.
 
 #### `"volume"` Audio level
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `format` | string | `"{icon}"` | Supports `{icon}`, `{percent}`, `{level}` |
-| `icons` | string[5] | — | Level icons mapped 0%–100% |
-| `icon_muted` | string | — | Icon when muted |
-| `color_muted` | string | — | Text color when muted |
+- Default format: `{icon}{value:.0f}%`.
+- Primary value `{value}`: volume percentage `0`–`100` (precision `0`).
+- Discrete state: `"muted"` when the output is muted.
 
 #### `"network"` WiFi / ethernet status
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `icons` | string[5] | — | Signal strength icons |
-| `icon_disconnected` | string | — | Icon when disconnected |
-| `icon_ethernet` | string | — | Icon for ethernet |
-| `format_ethernet` | string | `"{icon}"` | Supports `{icon}` |
-| `format_wifi` | string | `"{icon}"` | Supports `{icon}`, `{ssid}` |
-| `color_disconnected` | string | — | Text color when disconnected |
+- Default format: `{icon}{value:.0f}%`.
+- Primary value `{value}`: WiFi signal `0`–`100` (`0` while connected via
+  ethernet or disconnected).
+- Extra value: `{ssid}` (string).
+- Discrete states: `"disconnected"` and `"ethernet"`.
 
 #### `"cpu"` CPU load
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `icons` | string[5] | — | Load icons mapped 0%–100% |
-| `poll_rate` | integer | `500` | Data-fetch interval in milliseconds |
+- Default format: `{icon}{value:.0f}%`.
+- Primary value `{value}`: CPU utilisation `0`–`100`.
 
 #### `"memory"` Memory usage
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `icons` | string[5] | — | Load icons mapped 0%–100% |
-| `poll_rate` | integer | `500` | Data-fetch interval in milliseconds |
+- Default format: `{icon}{value:.1f}G`.
+- Primary value `{value}`: used memory in GB, aliasing `{used_gb}` (precision `1`).
+- Extra values: `{total_gb}` and `{avail_gb}` (precision `1`).
+
+#### `"custom"` Lua-driven indicator
+
+`output` names a **global** Lua function, called as `output(id)` on the poll
+timer (default `1000` ms; override with `poll_rate`). It may return either a
+bare string or a table:
+
+```lua
+function my_output(id)
+  -- bare string: shown verbatim (kept when `format` is empty)
+  return os.date("%H:%M:%S")
+end
+
+function my_status(id)
+  return {
+    text  = "syncing",       -- literal text (kept when `format` is empty)
+    state = "busy",          -- discrete state, matched by `states`
+    icon  = "",             -- glyph used by `{icon}`
+    value = 42,              -- primary numeric value (`{value}`)
+    color = "#f9e2af",       -- text color
+    values = { done = 3, of = 7, name = "backup" },  -- extra named values
+  }
+end
+
+Bar.indicators = {
+  { type = "custom", align = "right", id = "clock2", output = "my_output" },
+  {
+    type = "custom", align = "right", id = "sync", output = "my_status",
+    format = "{icon} {name} {done}/{of}",
+    states = { { state = "busy", color = "#f9e2af" } },
+  },
+}
+```
+
+Behavior:
+
+- A returned **string** sets the text. A returned **table** fills whichever
+  fields are present (`text`, `state`, `icon`, `value`, `color`, `values`).
+- When `format` is empty the returned `text` is shown as-is. When `format` is
+  set, it is composed from the value bag: `{value}`, `{name}`, `{name:.Nf}`,
+  `{icon}`, and `{state}` all resolve against the returned data.
+- Returned numbers (`value` and numeric `values`) default to **0 decimals**;
+  use `{name:.Nf}` (e.g. `{value:.2f}`) to show fractional digits.
+- `states` rules and `on_click`/`on_scroll` work exactly as for the built-in
+  types, so a matched rule can override icon/color/format.
+- Returning `nil`/`false`, a missing `output` function, or an error hides the
+  indicator; on a later failure the **last good** value is retained (no
+  flicker).
+- `output` is ignored on every non-`custom` type.
+
+External data (a media player, a status CLI, ...) can be read without blocking
+the UI via `BFWM.exec_cache`:
+
+```lua
+function media_status(id)
+  -- argv-only (no shell); returns the last cached stdout, or nil until ready
+  local out = BFWM.exec_cache({ "my-media-cli", "status" }, "media", 1500)
+  if not out then return nil end
+  -- e.g. parse "Artist - Title" or a JSON blob here
+  return { text = out, icon = "" }
+end
+
+Bar.indicators = {
+  { type = "custom", align = "right", id = "media", output = "media_status" },
+}
+```
+
+:::note
+The repository's `config.lua` ships a commented Spotify-style example built on
+`BFWM.exec_cache`/`BFWM.spawn` (using any media CLI: WinKlang, spotifyctl, or a
+playerctl-for-Windows build).
+:::
 
 ## Format Specifiers
 
-| Specifier | Description | Types |
-| --- | --- | --- |
-| `{icon}` | The selected icon for the current level/state | All icon-based types |
-| `{ssid}` | The WiFi network name | Network |
-| `{load}` / `{load:.Nf}` | CPU, memory, or volume load (0–100) | CPU, Memory, Volume |
-| `{percent}` / `{percent:.Nf}` | Same as `{load}` (0–100) | Volume |
-| `{level}` / `{level:.Nf}` | Raw volume level (0.0–1.0) | Volume |
-| `{total_gb}` / `{total_gb:.Nf}` | Total physical memory in GB | Memory |
-| `{used_gb}` / `{used_gb:.Nf}` | Used physical memory in GB | Memory |
-| `{avail_gb}` / `{avail_gb:.Nf}` | Available physical memory in GB | Memory |
-| `{id}` | The workspace id | Workspaces |
-| `{label}` | The workspace label | Workspaces |
+The unified dialect is `{name}` or `{name:.Nf}` (e.g. `{value:.2f}`). Two tokens
+are always available; the rest are provided by the indicator type.
 
-:::note
-Without a `.Nf` suffix, `{load}`, `{percent}`, and `{level}` round to
-an integer and GB values show one decimal place. Example: `format = "{percent.2f}"`.
-:::
+| Specifier | Description | Availability |
+| --- | --- | --- |
+| `{icon}` | Resolved glyph for the current state/range | All icon-based types |
+| `{state}` | The discrete state name | Volume, Network |
+| `{value}` | The indicator's primary numeric value | Volume, Network, CPU, Memory |
+| `{ssid}` | The WiFi network name | Network |
+| `{used_gb}` / `{total_gb}` / `{avail_gb}` | Memory in GB | Memory |
+| `{id}` / `{label}` | Workspace id / label | Workspaces |
+| `{title}` | Focused window title | Title |
+
+Without a `.Nf` suffix, numeric values use the indicator's default precision
+(volume/network/cpu `0`, memory `1`). Unknown specifiers are emitted literally
+and logged once at the Debug level. For `"custom"`, every name returned in
+`values` is addressable and `{value}` aliases the returned `value`.
+
 ## Example
 
 ```lua
@@ -129,9 +287,16 @@ Bar.colors.text = "#c6d0f5"
 Bar.colors.active_workspace = "#ef9f76"
 Bar.colors.tab_border = "#232634"
 Bar.indicators = {
-  { type = "workspaces", align = "left" },
-  { type = "title",      align = "center", max_width = 200 },
-  { type = "volume",     align = "right",  icons = { " ", "▁", "▂", "▄", "▆" } },
-  { type = "clock",      align = "right",  format = "%H:%M" },
+  { type = "workspaces", align = "left",   id = "workspaces", format = "{id}", position_bar = true },
+  { type = "title",      align = "center", id = "title",      max_width = 200 },
+  {
+    type = "memory", align = "right", id = "memory",
+    format = "{icon} {value:.1f}/{total_gb:.1f}G",
+    states = {
+      { at = 90, icon = "", color = "#e78284" },
+      { at = 0,  icon = "" },
+    },
+  },
+  { type = "clock", align = "right", id = "clock", format = "%H:%M" },
 }
 ```

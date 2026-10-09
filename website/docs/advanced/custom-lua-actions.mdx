@@ -52,6 +52,50 @@ we can do something like this:
 Unlike `Spawn` (which launches GUI processes), `Exec` is suited for
 scripts, CLI tools, and commands that don't produce a window.
 
+## Non-blocking process data with `BFWM.exec_cache()`
+
+Custom bar indicators can read data from an external CLI without stalling the
+UI. `BFWM.exec_cache(argv, key[, ttl_ms])` runs `argv` with its stdout captured,
+caches the result under `key`, and returns the **last cached stdout** (or `nil`
+until the first run completes):
+
+```lua
+function media_status(id)
+  -- argv only — there is no shell. The first element is the executable.
+  local out = BFWM.exec_cache({ "my-media-cli", "status" }, "media", 1500)
+  if not out then return nil end
+  return out
+end
+
+Bar.indicators = {
+  { type = "custom", align = "right", id = "media", output = "media_status" },
+}
+```
+
+- **argv only, no shell.** Pass each token as a separate string. A bare string
+  is accepted as a single `argv[0]`. To use a shell, invoke it explicitly
+  (e.g. `{ "cmd.exe", "/c", "..." }`).
+- **Non-blocking.** `output` is called on the bar's poll timer; if no child is
+  running for `key`, one is started and the call returns the previous value
+  immediately. It returns `nil` until the first successful run completes, then
+  the cached stdout (picked up on a later poll).
+- **stdout only.** Only stdout is captured; the child's stderr is discarded
+  (`NUL`) so it never contaminates the data channel.
+- **TTL + coalescing.** A cached value younger than `ttl_ms` (default `1000`)
+  is returned as-is. Otherwise a refresh is started, unless one is already in
+  flight for that key (at most one child per key at a time).
+- **Limits.** At most 16 children run at once; at most 64 distinct keys are
+  retained; captured stdout is capped at 64 KB per child; a child that runs
+  longer than 5 s is terminated. When the concurrency cap is hit the key is
+  left untouched and retried on the next call.
+- **Failures.** A genuine start failure (e.g. the CLI is missing) returns `nil`
+  and backs off for one `ttl_ms` so the key cannot hot-loop. Values are returned
+  as raw bytes (embedded NULs and UTF-8 are preserved).
+- **`BFWM.spawn(argv)`** starts a process and discards its output (fire and
+  forget). It still uses argv-only semantics and is reaped by the next poll.
+- The cache is **main-thread only** and touches no Lua state; it is intended for
+  custom indicator `output` functions.
+
 ## Combining with Keybinds
 
 Custom actions work with all keybind features, including
