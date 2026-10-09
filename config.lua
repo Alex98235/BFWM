@@ -32,11 +32,12 @@ Bar.colors = {
   tab_border         = "#232634"
 }
 Bar.indicators = {
-  { type = "workspaces", align = "left", show_position_bar = false },
-  { type = "title", align = "center", max_width = 300 },
+  { type = "workspaces", align = "left", id = "workspaces", position_bar = false, format = "{id}" },
+  { type = "title", align = "center", id = "title", max_width = 300 },
   {
     type = "clock",
     align = "right",
+    id = "clock",
     format = "%m/%d, %H:%M"
   }
 }
@@ -174,3 +175,48 @@ BFWM.workspaces = { { "1", { layout = "dwindle" } }, { "2", {} } }
 local function my_custom_action()
   BFWM.notify("Custom action triggered!")
 end
+
+-- ── Spotify-style custom indicator (commented; requires a media CLI) ─────
+-- BFWM.exec_cache(argv, key[, ttl_ms]) runs a CLI with stdout captured and
+-- returns the last cached output (or nil until the first run). It never blocks
+-- the UI. `argv` is a plain table of arguments (no shell). Any of these CLIs
+-- work if installed: WinKlang, spotifyctl, or a playerctl-for-Windows build.
+--
+-- Example using a generic "playerctl"-style CLI that prints JSON:
+--   playerctl --player=spotify metadata --format '{{status}}|{{artist}}|{{title}}'
+--
+-- local function spotify_status(id)
+--   local out = BFWM.exec_cache(
+--     { "playerctl", "--player=spotify", "metadata", "--format",
+--       "{{status}}|{{artist}}|{{title}}" },
+--     "spotify", 1500)
+--   if not out or out == "" then return nil end
+--   -- Parse the delimited output (status|artist|title).
+--   local status, artist, title = out:match("^([^|]*)|([^|]*)|(.*)$")
+--   if not title then return nil end
+--   if status ~= "Playing" then
+--     return { icon = "", text = title ~= "" and title or "Paused" }
+--   end
+--   return {
+--     text = artist ~= "" and (artist .. " - " .. title) or title,
+--     icon = "",
+--   }
+-- end
+--
+-- local function spotify_click(id, button, mods)
+--   if button ~= "left" then return end
+--   BFWM.spawn({ "playerctl", "--player=spotify", "play-pause" })
+-- end
+--
+-- local function spotify_scroll(id, dir)
+--   if dir == "up" then
+--     BFWM.spawn({ "playerctl", "--player=spotify", "volume", "0.05+" })
+--   else
+--     BFWM.spawn({ "playerctl", "--player=spotify", "volume", "0.05-" })
+--   end
+-- end
+--
+-- Then add to Bar.indicators:
+--   { type = "custom", align = "right", id = "spotify",
+--     output = "spotify_status", on_click = "spotify_click",
+--     on_scroll = "spotify_scroll", poll_rate = 1500 }

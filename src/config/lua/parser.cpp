@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #ifdef __cplusplus
 extern "C" {
@@ -40,12 +41,36 @@ extern "C" {
 enum {
    KEY_NAME_BUF_SIZE = 64,
    STRTOUL_BASE_HEX = 16,
-   BAR_INDICATOR_ICON_MAX = 5,
    MAX_DISABLED_MONITORS = 16,
    WIDE_TEXT_BUF_SIZE = 1024,
    OPACITY_MAX = 255,
    MAX_SNACKBAR_QUEUE = 16,
+   MAX_CUSTOM_TEXT_LEN = 16384,
+   MAX_CUSTOM_VALUES = 32,
 };
+
+auto BarIndicatorTypeName(BarIndicatorType type) -> const char * {
+   switch (type) {
+   case BAR_INDICATOR_WORKSPACES:
+      return "workspaces";
+   case BAR_INDICATOR_TITLE:
+      return "title";
+   case BAR_INDICATOR_CLOCK:
+      return "clock";
+   case BAR_INDICATOR_VOLUME:
+      return "volume";
+   case BAR_INDICATOR_NETWORK:
+      return "network";
+   case BAR_INDICATOR_CPU:
+      return "cpu";
+   case BAR_INDICATOR_MEMORY:
+      return "memory";
+   case BAR_INDICATOR_CUSTOM:
+      return "custom";
+   default:
+      return "unknown";
+   }
+}
 
 // ---------------------------------------------------------------------------
 // Lua -> Window rules parser
@@ -526,22 +551,24 @@ inline auto parse_layout_name(const char *name) -> LayoutType {
    return LAYOUT_NONE;
 }
 
-const std::array<std::string, 16> known_BFWM_keys = {"gap_between",
-                                                     "gap_edge",
-                                                     "border_color",
-                                                     "inactive_border",
-                                                     "border_width",
-                                                     "border_radius",
-                                                     "focus_follows_mouse",
-                                                     "mouse_follows_focus",
-                                                     "unlock_window_resize",
-                                                     "unlock_window_move",
-                                                     "keybinds",
-                                                     "window_rules",
-                                                     "layout",
-                                                     "workspaces",
-                                                     "disabled_monitors",
-                                                     "notify"};
+const std::array<std::string, 18> known_BFWM_keys = {"gap_between",
+                                                    "gap_edge",
+                                                    "border_color",
+                                                    "inactive_border",
+                                                    "border_width",
+                                                    "border_radius",
+                                                    "focus_follows_mouse",
+                                                    "mouse_follows_focus",
+                                                    "unlock_window_resize",
+                                                    "unlock_window_move",
+                                                    "keybinds",
+                                                    "window_rules",
+                                                    "layout",
+                                                    "workspaces",
+                                                    "disabled_monitors",
+                                                    "notify",
+                                                    "exec_cache",
+                                                    "spawn"};
 
 inline auto BFWM_newindex(lua_State *lua_state) -> int {
    auto *ctx =
@@ -573,22 +600,14 @@ const std::array<std::string, 5> known_colors_keys = {
     "background", "text", "active_workspace", "inactive_workspace",
     "tab_border"};
 const std::array<std::string, 3> known_font_keys = {"size", "name", "weight"};
-const std::array<std::string, 16> known_indicator_keys = {"type",
-                                                          "align",
-                                                          "max_width",
-                                                          "format",
-                                                          "show_position_bar",
-                                                          "icons",
-                                                          "icon_muted",
-                                                          "icon_disconnected",
-                                                          "icon_ethernet",
-                                                          "format_ethernet",
-                                                          "format_wifi",
-                                                          "size",
-                                                          "poll_rate",
-                                                          "color",
-                                                          "color_disconnected",
-                                                          "color_muted"};
+const std::array<std::string, 13> known_indicator_keys = {
+    "type",     "align",     "id",        "format",    "color", "max_width",
+    "size",     "poll_rate", "states",    "position_bar",
+    "on_click", "on_scroll", "output"};
+
+const std::array<std::string, 5> known_state_keys = {"state", "at", "icon",
+                                                     "format", "color"};
+
 
 const std::array<std::string, 4> known_margin_padding_keys = {"top", "right",
                                                               "bottom", "left"};
@@ -876,14 +895,17 @@ inline void parse_string_field(lua_State *lua_state, struct BFWMContext *ctx,
    lua_pop(lua_state, 1);
 }
 
-inline void parse_color_field(lua_State *lua_state, struct BFWMContext *ctx,
-                              const char *key, COLORREF *out) {
+inline void parse_color_field_opt(lua_State *lua_state,
+                                  struct BFWMContext *ctx, const char *key,
+                                  COLORREF *out, bool *has_color) {
+   *has_color = false;
    lua_getfield(lua_state, -1, key);
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if ((s != nullptr) && s[0] == '#') {
          unsigned long const hex = strtoul(s + 1, nullptr, STRTOUL_BASE_HEX);
          *out = RGB((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
+         *has_color = true;
       } else {
          Snackbar::Warn(ctx, L"Color value for '%hs' should start with '#'",
                         key);
@@ -892,6 +914,12 @@ inline void parse_color_field(lua_State *lua_state, struct BFWMContext *ctx,
       Snackbar::Warn(ctx, L"Expected '%hs' to be a color string", key);
    }
    lua_pop(lua_state, 1);
+}
+
+inline void parse_color_field(lua_State *lua_state, struct BFWMContext *ctx,
+                              const char *key, COLORREF *out) {
+   bool ignored = false;
+   parse_color_field_opt(lua_state, ctx, key, out, &ignored);
 }
 
 inline void validate_indicator_keys(lua_State *lua_state, int i) {
@@ -913,30 +941,66 @@ inline void validate_indicator_keys(lua_State *lua_state, int i) {
    }
 }
 
-inline void parse_indicator_type(lua_State *lua_state,
-                                 BarIndicatorConfig *indicator_cfg, int i) {
+inline void validate_state_keys(lua_State *lua_state, int entry_idx, int i,
+                                int j) {
+   lua_pushnil(lua_state);
+   while (lua_next(lua_state, entry_idx) != 0) {
+      const char *field = lua_tostring(lua_state, -2);
+      if (field != nullptr) {
+         bool found = false;
+         for (const auto &known_state_key : known_state_keys) {
+            if (known_state_key == field) {
+               found = true;
+               break;
+            }
+         }
+         if (!found)
+            Warn("Unknown key '%s' in Bar.indicators[%d].states[%d]", field, i,
+                 j);
+      }
+      lua_pop(lua_state, 1);
+   }
+}
+
+inline auto parse_indicator_type(lua_State *lua_state,
+                                 BarIndicatorConfig *indicator_cfg, int i)
+    -> bool {
    lua_getfield(lua_state, -1, "type");
    const char *type = lua_tostring(lua_state, -1);
-   if (type != nullptr) {
-      if (strcmp(type, "workspaces") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_WORKSPACES;
-      } else if (strcmp(type, "title") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_TITLE;
-      } else if (strcmp(type, "clock") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_CLOCK;
-      } else if (strcmp(type, "volume") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_VOLUME;
-      } else if (strcmp(type, "network") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_NETWORK;
-      } else if (strcmp(type, "cpu") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_CPU;
-      } else if (strcmp(type, "memory") == 0) {
-         indicator_cfg->type = BAR_INDICATOR_MEMORY;
-      } else {
-         Warn("Unknown indicator type '%s' in Bar.indicators[%d]", type, i);
-      }
+   bool ok = false;
+   if (type == nullptr) {
+      Warn("Missing 'type' in Bar.indicators[%d]; dropping indicator", i);
+   } else if (strcmp(type, "workspaces") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_WORKSPACES;
+      ok = true;
+   } else if (strcmp(type, "title") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_TITLE;
+      ok = true;
+   } else if (strcmp(type, "clock") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_CLOCK;
+      ok = true;
+   } else if (strcmp(type, "volume") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_VOLUME;
+      ok = true;
+   } else if (strcmp(type, "network") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_NETWORK;
+      ok = true;
+   } else if (strcmp(type, "cpu") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_CPU;
+      ok = true;
+   } else if (strcmp(type, "memory") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_MEMORY;
+      ok = true;
+   } else if (strcmp(type, "custom") == 0) {
+      indicator_cfg->type = BAR_INDICATOR_CUSTOM;
+      ok = true;
+   } else {
+      Warn("Unknown indicator type '%s' in Bar.indicators[%d]; dropping "
+           "indicator",
+           type, i);
    }
    lua_pop(lua_state, 1);
+   return ok;
 }
 
 inline void parse_indicator_align(lua_State *lua_state,
@@ -958,23 +1022,96 @@ inline void parse_indicator_align(lua_State *lua_state,
    lua_pop(lua_state, 1);
 }
 
-inline void parse_indicator_icons(lua_State *lua_state,
-                                  BarIndicatorConfig *indicator_cfg) {
-   lua_getfield(lua_state, -1, "icons");
-   if (lua_istable(lua_state, -1)) {
-      int n = (int)lua_rawlen(lua_state, -1);
-      n = std::min<int>(n, BAR_INDICATOR_ICON_MAX);
-      for (int j = 0; j < n; j++) {
-         lua_rawgeti(lua_state, -1, j + 1);
-         if (lua_isstring(lua_state, -1) != 0) {
-            const char *s = lua_tostring(lua_state, -1);
-            if (s != nullptr)
-               indicator_cfg->icons[j] = s;
-            indicator_cfg->icon_count++;
-         }
-         lua_pop(lua_state, 1);
-      }
+inline void parse_states(lua_State *lua_state, int table_idx,
+                         BarIndicatorConfig *indicator_cfg,
+                         int indicator_index) {
+   lua_getfield(lua_state, table_idx, "states");
+   if (!lua_istable(lua_state, -1)) {
+      lua_pop(lua_state, 1);
+      return;
    }
+
+   int const states_idx = lua_gettop(lua_state);
+   int n = (int)lua_rawlen(lua_state, states_idx);
+   if (n > BAR_MAX_STATES) {
+      Warn("Bar.indicators[%d].states has more than %d entries; dropping the "
+           "rest",
+           indicator_index, BAR_MAX_STATES);
+   }
+   n = std::min<int>(n, BAR_MAX_STATES);
+   for (int j = 0; j < n; j++) {
+      lua_rawgeti(lua_state, states_idx, j + 1);
+      if (!lua_istable(lua_state, -1)) {
+         lua_pop(lua_state, 1);
+         continue;
+      }
+
+      int const entry_idx = lua_gettop(lua_state);
+      IndicatorStateRule rule = {};
+
+      validate_state_keys(lua_state, entry_idx, indicator_index, j + 1);
+
+      lua_getfield(lua_state, -1, "state");
+      if (lua_isstring(lua_state, -1) != 0) {
+         const char *s = lua_tostring(lua_state, -1);
+         if (s != nullptr)
+            rule.state = s;
+      }
+      lua_pop(lua_state, 1);
+
+      lua_getfield(lua_state, -1, "at");
+      if (lua_isnumber(lua_state, -1) != 0) {
+         rule.has_at = true;
+         rule.at = static_cast<double>(lua_tonumber(lua_state, -1));
+      }
+      lua_pop(lua_state, 1);
+
+      if (rule.state.empty() && !rule.has_at) {
+         Warn("Bar.indicators[%d].states[%d] has neither 'state' nor 'at'; "
+              "rule ignored",
+              indicator_index, j + 1);
+      }
+
+      lua_getfield(lua_state, -1, "icon");
+      if (lua_isstring(lua_state, -1) != 0) {
+         const char *s = lua_tostring(lua_state, -1);
+         if (s != nullptr)
+            rule.icon = s;
+      }
+      lua_pop(lua_state, 1);
+
+      lua_getfield(lua_state, -1, "format");
+      if (lua_isstring(lua_state, -1) != 0) {
+         const char *s = lua_tostring(lua_state, -1);
+         if (s != nullptr)
+            rule.format = s;
+      }
+      lua_pop(lua_state, 1);
+
+      lua_getfield(lua_state, -1, "color");
+      if (lua_isstring(lua_state, -1) != 0) {
+         const char *s = lua_tostring(lua_state, -1);
+         if ((s != nullptr) && s[0] == '#') {
+            unsigned long const hex =
+                strtoul(s + 1, nullptr, STRTOUL_BASE_HEX);
+            rule.color = RGB((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
+            rule.has_color = true;
+         } else {
+            Warn("Color value for 'color' in Bar.indicators[%d].states[%d] "
+                 "should start with '#'",
+                 indicator_index, j + 1);
+         }
+      } else if (lua_type(lua_state, -1) != LUA_TNIL) {
+         Warn("Expected 'color' in Bar.indicators[%d].states[%d] to be a "
+              "color string",
+              indicator_index, j + 1);
+      }
+      lua_pop(lua_state, 1);
+
+      indicator_cfg->states[indicator_cfg->state_count++] = rule;
+      lua_pop(lua_state, 1);
+   }
+
    lua_pop(lua_state, 1);
 }
 
@@ -985,35 +1122,45 @@ inline auto parse_single_indicator(lua_State *lua_state,
    *indicator_cfg = BarIndicatorConfig{};
 
    validate_indicator_keys(lua_state, i);
-   parse_indicator_type(lua_state, indicator_cfg, i);
+   if (!parse_indicator_type(lua_state, indicator_cfg, i))
+      return FALSE; // unknown/missing type: drop this indicator entry
    parse_indicator_align(lua_state, indicator_cfg);
+   parse_string_field(lua_state, ctx, "id", indicator_cfg->id);
+   bool const had_id = !indicator_cfg->id.empty();
+   if (indicator_cfg->id.empty())
+      indicator_cfg->id = BarIndicatorTypeName(indicator_cfg->type);
    parse_int_field(lua_state, ctx, "max_width", &indicator_cfg->max_width);
-   parse_string_field(lua_state, ctx, "format", indicator_cfg->format);
-   lua_getfield(lua_state, -1, "show_position_bar");
-   if (lua_isboolean(lua_state, -1)) {
-      indicator_cfg->show_position_bar =
-          (static_cast<int>(lua_toboolean(lua_state, -1) != 0) != 0);
-   } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected 'show_position_bar' to be a boolean");
-   }
-   lua_pop(lua_state, 1);
    parse_int_field(lua_state, ctx, "size", &indicator_cfg->font_size);
    parse_int_field(lua_state, ctx, "poll_rate", &indicator_cfg->poll_rate_ms);
-   parse_indicator_icons(lua_state, indicator_cfg);
-   parse_string_field(lua_state, ctx, "icon_muted", indicator_cfg->icon_muted);
-   parse_string_field(lua_state, ctx, "icon_disconnected",
-                      indicator_cfg->icon_disconnected);
-   parse_string_field(lua_state, ctx, "icon_ethernet",
-                      indicator_cfg->icon_ethernet);
-   parse_string_field(lua_state, ctx, "format_ethernet",
-                      indicator_cfg->format_ethernet);
-   parse_string_field(lua_state, ctx, "format_wifi",
-                      indicator_cfg->format_wifi);
-   parse_color_field(lua_state, ctx, "color", &indicator_cfg->color);
-   parse_color_field(lua_state, ctx, "color_disconnected",
-                     &indicator_cfg->color_disconnected);
-   parse_color_field(lua_state, ctx, "color_muted",
-                     &indicator_cfg->color_muted);
+   parse_string_field(lua_state, ctx, "format", indicator_cfg->format);
+   parse_color_field_opt(lua_state, ctx, "color", &indicator_cfg->color,
+                         &indicator_cfg->color_set);
+   parse_string_field(lua_state, ctx, "on_click", indicator_cfg->on_click);
+   parse_string_field(lua_state, ctx, "on_scroll", indicator_cfg->on_scroll);
+   parse_string_field(lua_state, ctx, "output", indicator_cfg->output);
+
+   if (indicator_cfg->type == BAR_INDICATOR_CUSTOM) {
+      if (indicator_cfg->output.empty()) {
+         Warn("Bar.indicators[%d] (custom) has no 'output'; dropping "
+              "indicator",
+              i);
+         return FALSE;
+      }
+      if (!had_id)
+         Warn("Bar.indicators[%d] (custom) has no 'id'; click/scroll/output "
+              "callbacks are keyed by it",
+              i);
+   }
+
+   lua_getfield(lua_state, -1, "position_bar");
+   if (lua_isboolean(lua_state, -1)) {
+      indicator_cfg->position_bar = (lua_toboolean(lua_state, -1) != 0);
+   } else if (lua_type(lua_state, -1) != LUA_TNIL) {
+      Snackbar::Warn(ctx, L"Expected 'position_bar' to be a boolean");
+   }
+   lua_pop(lua_state, 1);
+
+   parse_states(lua_state, lua_gettop(lua_state), indicator_cfg, i);
    return TRUE;
 }
 
@@ -1136,8 +1283,13 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
    lua_getfield(lua_state, -1, "indicators");
    if (lua_istable(lua_state, -1)) {
       int const n = (int)lua_rawlen(lua_state, -1);
-      for (int i = 1; i <= n && cfg->indicator_count < BAR_MAX_INDICATORS;
-           i++) {
+      for (int i = 1; i <= n; i++) {
+         if (cfg->indicator_count >= BAR_MAX_INDICATORS) {
+            Warn("Bar.indicators has more than %d entries; dropping "
+                 "indicator %d and any after it",
+                 BAR_MAX_INDICATORS, i);
+            break;
+         }
          lua_rawgeti(lua_state, -1, i);
          if (!lua_istable(lua_state, -1)) {
             lua_pop(lua_state, 1);
@@ -1153,6 +1305,40 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
       }
    }
    lua_pop(lua_state, 1);
+
+   // Ensure every indicator has a unique id. Defaults (the type name) can
+   // collide when the same type is used more than once; suffix the later
+   // duplicates (volume, volume_2, volume_3, ...).
+   for (int i = 0; i < cfg->indicator_count; i++) {
+      std::string const original = cfg->indicators[i].id;
+      bool duplicate = false;
+      for (int j = 0; j < i; j++) {
+         if (cfg->indicators[j].id == original) {
+            duplicate = true;
+            break;
+         }
+      }
+      if (!duplicate)
+         continue;
+
+      int suffix = 2;
+      std::string candidate;
+      for (;;) {
+         candidate = original + "_" + std::to_string(suffix++);
+         bool taken = false;
+         for (int j = 0; j < i; j++) {
+            if (cfg->indicators[j].id == candidate) {
+               taken = true;
+               break;
+            }
+         }
+         if (!taken)
+            break;
+      }
+      Warn("Bar.indicators[%d].id '%s' is duplicated; using '%s'", i + 1,
+           original.c_str(), candidate.c_str());
+      cfg->indicators[i].id = candidate;
+   }
 
    lua_pop(lua_state, 1);
 }
@@ -1287,6 +1473,86 @@ inline auto lua_BFWM_notify(lua_State *lua_state) -> int {
    if (wlen > 0)
       MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext.data(), wlen);
    Snackbar::Show(ctx, LogLevel::Info, &wtext, TRUE);
+   return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Lua-callable BFWM.exec_cache(argv, key[, ttl_ms]) / BFWM.spawn(argv)
+// ---------------------------------------------------------------------------
+
+/// Warn (once) about a malformed argv argument.
+inline void WarnExecArgvOnce() {
+   static bool warned = false;
+   if (warned)
+      return;
+   warned = true;
+   Debug("BFWM.exec_cache/spawn: invalid argv (expected a non-empty string or "
+         "an array of strings)");
+}
+
+/// Collect argv from the Lua value at `idx`: a string is a single argv[0], a
+/// non-empty array of strings is used as-is. Returns false when invalid.
+inline auto CollectArgv(lua_State *lua_state, int idx,
+                        std::vector<std::string> *argv) -> bool {
+   if (lua_type(lua_state, idx) == LUA_TSTRING) {
+      argv->emplace_back(lua_tostring(lua_state, idx));
+      return !argv->front().empty();
+   }
+   if (lua_istable(lua_state, idx) == 0)
+      return false;
+   int const count = static_cast<int>(lua_rawlen(lua_state, idx));
+   if (count <= 0)
+      return false;
+   for (int i = 1; i <= count; i++) {
+      lua_rawgeti(lua_state, idx, i);
+      if (lua_type(lua_state, -1) != LUA_TSTRING) {
+         lua_pop(lua_state, 1);
+         return false;
+      }
+      argv->emplace_back(lua_tostring(lua_state, -1));
+      lua_pop(lua_state, 1);
+   }
+   return !argv->front().empty();
+}
+
+inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
+   auto *ctx =
+       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   std::vector<std::string> argv;
+   const char *key =
+       (lua_type(lua_state, 2) == LUA_TSTRING) ? lua_tostring(lua_state, 2)
+                                               : nullptr;
+   if ((ctx == nullptr) || (ctx->exec_cache == nullptr)) {
+      lua_pushnil(lua_state);
+      return 1;
+   }
+   if (!CollectArgv(lua_state, 1, &argv) || (key == nullptr) || (key[0] == '\0')) {
+      WarnExecArgvOnce();
+      lua_pushnil(lua_state);
+      return 1;
+   }
+   lua_Integer const ttl = luaL_optinteger(lua_state, 3, 1000);
+   uint64_t const ttl_ms = (ttl > 0) ? static_cast<uint64_t>(ttl) : 0;
+   const std::string *value =
+       ExecCacheGet(ctx->exec_cache, argv, std::string(key), ttl_ms);
+   if (value != nullptr)
+      lua_pushlstring(lua_state, value->data(), value->size());
+   else
+      lua_pushnil(lua_state);
+   return 1;
+}
+
+inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
+   auto *ctx =
+       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   std::vector<std::string> argv;
+   if ((ctx == nullptr) || (ctx->exec_cache == nullptr))
+      return 0;
+   if (!CollectArgv(lua_state, 1, &argv)) {
+      WarnExecArgvOnce();
+      return 0;
+   }
+   ExecCacheSpawn(ctx->exec_cache, argv);
    return 0;
 }
 
@@ -1585,6 +1851,15 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
    lua_pushlightuserdata(config->L, ctx);
    lua_pushcclosure(config->L, lua_BFWM_notify, 1);
    lua_setfield(config->L, -2, "notify");
+
+   /* BFWM.exec_cache(argv, key[, ttl_ms]) and BFWM.spawn(argv): non-blocking
+      external-process data for custom indicators. */
+   lua_pushlightuserdata(config->L, ctx);
+   lua_pushcclosure(config->L, lua_BFWM_exec_cache, 1);
+   lua_setfield(config->L, -2, "exec_cache");
+   lua_pushlightuserdata(config->L, ctx);
+   lua_pushcclosure(config->L, lua_BFWM_spawn, 1);
+   lua_setfield(config->L, -2, "spawn");
    lua_pop(config->L, 1);
 
    /* Reset config to defaults before (re-)parsing.  Settings removed
@@ -1692,4 +1967,290 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
       return false;
    }
    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Indicator click / scroll callbacks
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// Log a missing/failed indicator callback once per function name, at Debug.
+inline void LogIndicatorCallbackOnce(const char *func, bool missing,
+                                     const char *detail) {
+   static std::set<std::string> warned;
+   if (func == nullptr)
+      return;
+   if (!warned.insert(func).second)
+      return;
+   if (missing)
+      Debug("Indicator callback '%s' is missing or not a function", func);
+   else
+      Debug("Indicator callback '%s' failed: %s", func,
+            (detail != nullptr) ? detail : "(unknown error)");
+}
+
+/// Push a `{ctrl=, shift=, alt=}` table.
+inline void PushModsTable(lua_State *lua_state, bool ctrl, bool shift,
+                          bool alt) {
+   lua_createtable(lua_state, 0, 3);
+   lua_pushboolean(lua_state, ctrl ? 1 : 0);
+   lua_setfield(lua_state, -2, "ctrl");
+   lua_pushboolean(lua_state, shift ? 1 : 0);
+   lua_setfield(lua_state, -2, "shift");
+   lua_pushboolean(lua_state, alt ? 1 : 0);
+   lua_setfield(lua_state, -2, "alt");
+}
+
+/// Shared engine: look up a global and call it with the arguments pushed by
+/// `push_args` (which returns the argument count). The stack is balanced on
+/// every path. No inline-source fallback; failures are logged once per name.
+template <typename PushArgs>
+auto CallGlobalLua(LuaConfig *config, const char *func, PushArgs push_args)
+    -> bool {
+   if ((config == nullptr) || (config->L == nullptr) || (func == nullptr) ||
+       (func[0] == '\0'))
+      return false;
+
+   lua_State *lua_state = config->L;
+   int const top = lua_gettop(lua_state);
+   lua_getglobal(lua_state, func);
+   if (lua_isfunction(lua_state, -1) == 0) {
+      lua_settop(lua_state, top);
+      LogIndicatorCallbackOnce(func, true, nullptr);
+      return false;
+   }
+
+   int const arg_count = push_args(lua_state);
+   if (lua_pcall(lua_state, arg_count, 0, 0) != LUA_OK) {
+      LogIndicatorCallbackOnce(func, false, lua_tostring(lua_state, -1));
+      lua_settop(lua_state, top);
+      return false;
+   }
+   lua_settop(lua_state, top);
+   return true;
+}
+
+} // namespace
+
+auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
+                        const char *func, const char *id, const char *button,
+                        bool ctrl, bool shift, bool alt) -> bool {
+   (void)ctx; // reserved for future use (notifications)
+   return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
+      lua_pushstring(lua_state, (id != nullptr) ? id : "");
+      lua_pushstring(lua_state, (button != nullptr) ? button : "left");
+      PushModsTable(lua_state, ctrl, shift, alt);
+      return 3;
+   });
+}
+
+auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
+                         const char *func, const char *id, const char *dir)
+    -> bool {
+   (void)ctx; // reserved for future use (notifications)
+   return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
+      lua_pushstring(lua_state, (id != nullptr) ? id : "");
+      lua_pushstring(lua_state, (dir != nullptr) ? dir : "down");
+      return 2;
+   });
+}
+
+// ---------------------------------------------------------------------------
+// Custom indicator output
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// Log a custom-output data cap once, at Debug.
+inline void LogIndicatorLimitOnce(const char *what) {
+   static std::set<std::string> warned;
+   if (what == nullptr)
+      return;
+   if (warned.insert(what).second)
+      Debug("Custom indicator output: %s exceeded the limit; truncated", what);
+}
+
+/// Assign `len` bytes of `s` to `out`, truncating to the text cap.
+inline void AssignTextCapped(std::string *out, const char *s, size_t len) {
+   if (len > MAX_CUSTOM_TEXT_LEN) {
+      len = MAX_CUSTOM_TEXT_LEN;
+      LogIndicatorLimitOnce("text");
+   }
+   out->assign(s, len);
+}
+
+/// Push `table[key]` without invoking `__index` metamethods.
+inline void RawGetField(lua_State *lua_state, int table_idx, const char *key) {
+   lua_pushstring(lua_state, key);
+   lua_rawget(lua_state, table_idx);
+}
+
+/// Read a string field from a Lua table, preserving raw bytes.
+inline void ReadLuaStringField(lua_State *lua_state, int table_idx,
+                               const char *key, std::string *out, bool *has) {
+   RawGetField(lua_state, table_idx, key);
+   if (lua_type(lua_state, -1) == LUA_TSTRING) {
+      size_t len = 0;
+      const char *s = lua_tolstring(lua_state, -1, &len);
+      if (s != nullptr) {
+         AssignTextCapped(out, s, len);
+         *has = true;
+      }
+   }
+   lua_pop(lua_state, 1);
+}
+
+/// Parse a `"#rrggbb"` string into a COLORREF. Requires exactly six hex
+/// digits; anything else is rejected (and logged once) with no colour set.
+inline auto ParseHexColorString(const char *s, COLORREF *out) -> bool {
+   bool ok = (s != nullptr) && (s[0] == '#');
+   unsigned long hex = 0;
+   int digits = 0;
+   if (ok) {
+      for (; digits < 6; digits++) {
+         char const c = s[1 + digits];
+         if (c == '\0')
+            break;
+         int value = -1;
+         if (c >= '0' && c <= '9')
+            value = c - '0';
+         else if (c >= 'a' && c <= 'f')
+            value = c - 'a' + 10;
+         else if (c >= 'A' && c <= 'F')
+            value = c - 'A' + 10;
+         if (value < 0)
+            break;
+         hex = (hex << 4) | (unsigned long)value;
+      }
+      ok = (digits == 6) && (s[7] == '\0');
+   }
+   if (!ok) {
+      static bool warned = false;
+      if (!warned) {
+         Debug("Custom indicator output: malformed color '%s' (expected "
+               "#rrggbb)",
+               (s != nullptr) ? s : "(null)");
+         warned = true;
+      }
+      return false;
+   }
+   *out = RGB((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
+   return true;
+}
+
+/// Parse the `values` nested table (`name -> number|string`), capped.
+inline void ReadLuaValues(lua_State *lua_state, int table_idx,
+                          LuaIndicatorOutput *out) {
+   RawGetField(lua_state, table_idx, "values");
+   if (lua_istable(lua_state, -1) == 0) {
+      lua_pop(lua_state, 1);
+      return;
+   }
+   int const values_idx = lua_gettop(lua_state);
+   lua_pushnil(lua_state);
+   while (lua_next(lua_state, values_idx) != 0) {
+      // key at -2, value at -1
+      bool stop = false;
+      if (static_cast<int>(out->values.size()) >= MAX_CUSTOM_VALUES) {
+         LogIndicatorLimitOnce("values");
+         stop = true;
+      } else if (lua_type(lua_state, -2) == LUA_TSTRING) {
+         LuaIndicatorValue v;
+         v.name = lua_tostring(lua_state, -2);
+         v.precision = 0;
+         if (lua_type(lua_state, -1) == LUA_TNUMBER) {
+            v.is_num = true;
+            v.num = static_cast<double>(lua_tonumber(lua_state, -1));
+            out->values.push_back(std::move(v));
+         } else if (lua_type(lua_state, -1) == LUA_TSTRING) {
+            size_t len = 0;
+            const char *s = lua_tolstring(lua_state, -1, &len);
+            if (s != nullptr)
+               v.str.assign(s, len);
+            out->values.push_back(std::move(v));
+         }
+      }
+      lua_pop(lua_state, 1); // pop value; key remains for lua_next
+      if (stop) {
+         lua_pop(lua_state, 1); // pop the key we broke on
+         break;
+      }
+   }
+   lua_pop(lua_state, 1); // values table
+}
+
+/// Parse the value returned by `output` into `out`. Returns true for a string
+/// or table (i.e. the output "returned a value"); false for nil/false/other.
+inline auto ParseIndicatorOutput(lua_State *lua_state, int idx,
+                                 LuaIndicatorOutput *out) -> bool {
+   int const abs_idx = lua_absindex(lua_state, idx);
+   if (lua_type(lua_state, abs_idx) == LUA_TSTRING) {
+      size_t len = 0;
+      const char *s = lua_tolstring(lua_state, abs_idx, &len);
+      out->has_text = true;
+      out->valid = true;
+      if (s != nullptr)
+         AssignTextCapped(&out->text, s, len);
+      return true;
+   }
+   if (lua_istable(lua_state, abs_idx) == 0)
+      return false;
+
+   ReadLuaStringField(lua_state, abs_idx, "text", &out->text, &out->has_text);
+   ReadLuaStringField(lua_state, abs_idx, "state", &out->state,
+                      &out->has_state);
+   ReadLuaStringField(lua_state, abs_idx, "icon", &out->icon, &out->has_icon);
+
+   RawGetField(lua_state, abs_idx, "value");
+   if (lua_type(lua_state, -1) == LUA_TNUMBER) {
+      out->has_value = true;
+      out->value = static_cast<double>(lua_tonumber(lua_state, -1));
+   }
+   lua_pop(lua_state, 1);
+
+   RawGetField(lua_state, abs_idx, "color");
+   if (lua_type(lua_state, -1) == LUA_TSTRING) {
+      out->has_color = ParseHexColorString(lua_tostring(lua_state, -1),
+                                           &out->color);
+   }
+   lua_pop(lua_state, 1);
+
+   ReadLuaValues(lua_state, abs_idx, out);
+   out->valid = true;
+   return true;
+}
+
+} // namespace
+
+auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
+                         const char *func, const char *id,
+                         LuaIndicatorOutput *out) -> bool {
+   (void)ctx; // reserved for future use (notifications)
+   if (out == nullptr)
+      return false;
+   *out = LuaIndicatorOutput{};
+   if ((config == nullptr) || (config->L == nullptr) || (func == nullptr) ||
+       (func[0] == '\0'))
+      return false;
+
+   lua_State *lua_state = config->L;
+   int const top = lua_gettop(lua_state);
+   lua_getglobal(lua_state, func);
+   if (lua_isfunction(lua_state, -1) == 0) {
+      lua_settop(lua_state, top);
+      LogIndicatorCallbackOnce(func, true, nullptr);
+      return false;
+   }
+
+   lua_pushstring(lua_state, (id != nullptr) ? id : "");
+   if (lua_pcall(lua_state, 1, 1, 0) != LUA_OK) {
+      LogIndicatorCallbackOnce(func, false, lua_tostring(lua_state, -1));
+      lua_settop(lua_state, top);
+      return false;
+   }
+
+   bool const ok = ParseIndicatorOutput(lua_state, -1, out);
+   lua_settop(lua_state, top);
+   return ok;
 }
