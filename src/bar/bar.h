@@ -29,6 +29,9 @@ auto BarProviderTable() -> const IndicatorProvider *;
 /** @brief Maximum number of workspace labels that can be displayed. */
 enum { BAR_MAX_WS_LABELS = 32 };
 
+/** @brief The maximum number of decimals of precision */
+enum { MAX_FORMAT_PRECISION = 15 };
+
 /**
  * @brief A single named value in an indicator's value bag.
  *
@@ -51,17 +54,17 @@ struct IndicatorValue {
  * same indicator type own distinct runtimes.
  */
 struct IndicatorRuntime {
-   std::string text;                    // composed text; also the poll cache
-   Clay_Color color{};                  // resolved color
-   std::string state;                   // discrete state ("" if none)
-   std::string icon;                    // resolved glyph
-   std::vector<IndicatorValue> values;  // value bag
-   std::vector<std::string> item_text;  // workspaces: per-tab text
-   std::vector<int> item_width;         // workspaces: per-tab measured width
+   std::string text;                   // composed text; also the poll cache
+   Clay_Color color{};                 // resolved color
+   std::string state;                  // discrete state ("" if none)
+   std::string icon;                   // resolved glyph
+   std::vector<IndicatorValue> values; // value bag
+   std::vector<std::string> item_text; // workspaces: per-tab text
+   std::vector<int> item_width;        // workspaces: per-tab measured width
    ULONGLONG last_poll_ms = 0;
-   bool polled = false;                 // true once a provider refresh has run
-   bool valid = false;                  // false => nothing to draw
-   bool color_set = false;              // rt.color came from the provider output
+   bool polled = false;    // true once a provider refresh has run
+   bool valid = false;     // false => nothing to draw
+   bool color_set = false; // runtime.color came from the provider output
 };
 
 /**
@@ -73,7 +76,7 @@ struct IndicatorRuntime {
  * configuration has no rules.
  */
 auto IndicatorFindStateRule(const BarIndicatorConfig &cfg,
-                            const IndicatorRuntime &rt)
+                            const IndicatorRuntime &runtime)
     -> const IndicatorStateRule *;
 
 /**
@@ -85,15 +88,17 @@ auto IndicatorFindStateRule(const BarIndicatorConfig &cfg,
  * tested without a live bar.
  */
 auto IndicatorComposeFormat(const BarIndicatorConfig &cfg,
-                            const IndicatorRuntime &rt) -> std::string;
+                            const IndicatorRuntime &runtime) -> std::string;
 
 /// Whether an indicator is due to be (re)polled.
 ///
 /// Exposed for unit testing. `per_frame` providers always return true; polled
 /// providers return false only after a successful poll while still inside the
-/// rate window — keyed on `runtime.polled`/`last_poll_ms`, never on drawability.
+/// rate window — keyed on `runtime.polled`/`last_poll_ms`, never on
+/// drawability.
 auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
-                         const IndicatorRuntime &rt, ULONGLONG now) -> bool;
+                         const IndicatorRuntime &runtime, ULONGLONG now)
+    -> bool;
 
 /// Polled-provider last-good rule: when a non-per-frame refresh produced
 /// nothing drawable, restore the whole `previous` runtime (text, value bag,
@@ -101,7 +106,7 @@ auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
 /// never restore, so a failed per-frame refresh renders nothing instead of
 /// reviving stale state. Exposed for unit testing.
 auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
-                           IndicatorRuntime &rt) -> bool;
+                           IndicatorRuntime &runtime) -> bool;
 
 /// Resolve the matched rule's icon/color effects into `icon_out`/`color_out`.
 ///
@@ -109,16 +114,18 @@ auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
 /// `color_set`) > `bar_default`. `icon_out` is the matched rule's icon, or
 /// empty when no rule supplies one (callers keep any provider default).
 auto IndicatorResolveEffects(const BarIndicatorConfig &cfg,
-                             const IndicatorRuntime &rt,
+                             const IndicatorRuntime &runtime,
                              Clay_Color bar_default, std::string &icon_out,
                              Clay_Color &color_out) -> void;
 
 /**
  * @brief Map a custom indicator's Lua `output` result onto a runtime (success
  * path). Clears and repopulates the value bag/state/icon/color/text and sets
- * `rt.valid` when any renderable field is present. Exposed for unit testing.
+ * `runtime.valid` when any renderable field is present. Exposed for unit
+ * testing.
  */
-void ApplyIndicatorOutput(const LuaIndicatorOutput &out, IndicatorRuntime &rt);
+void ApplyIndicatorOutput(const LuaIndicatorOutput &out,
+                          IndicatorRuntime &runtime);
 
 /// Provider descriptor for an indicator type, or nullptr when out of range.
 auto ProviderFor(BarIndicatorType type) -> const struct IndicatorProvider *;
@@ -270,16 +277,19 @@ class Bar {
    void DispatchIndicatorScroll(const BarHit &hit, int delta);
 
    /// Default click handler: activate the clicked workspace tab.
+   // NOLINTBEGIN(readability-convert-member-functions-to-static)
    void DefaultWorkspacesClick(const BarIndicatorConfig &cfg, int item);
 
    /// Default scroll handler: cycle workspaces.
    void DefaultWorkspacesScroll(const BarIndicatorConfig &cfg, int delta);
+   // NOLINTEND(readability-convert-member-functions-to-static)
 
    /// Whether any indicator uses the given alignment.
    auto HasAlign(BarIndicatorAlign align) -> BOOL;
 
    /// Effective font size for an indicator.
-   auto IndicatorFontSize(const BarIndicatorConfig *indicator_config) -> int;
+   auto IndicatorFontSize(const BarIndicatorConfig *indicator_config) const
+       -> int;
 
    /// Compute a workspace tab's width from its rendered label.
    auto ComputeWorkspaceTabWidth(const BarIndicatorConfig *indicator_config,
@@ -301,15 +311,18 @@ class Bar {
    void ComposeIndicator(int slot);
 
    // -- Provider refresh callbacks --
-
-   void RefreshWorkspaces(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshTitle(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshClock(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshVolume(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshNetwork(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshCpu(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshMemory(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
-   void RefreshCustom(const BarIndicatorConfig &cfg, IndicatorRuntime &rt);
+   // NOLINTBEGIN(readability-convert-member-functions-to-static)
+   void RefreshWorkspaces(const BarIndicatorConfig &cfg,
+                          IndicatorRuntime &runtime);
+   void RefreshTitle(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   void RefreshClock(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   void RefreshVolume(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   void RefreshNetwork(const BarIndicatorConfig &cfg,
+                       IndicatorRuntime &runtime);
+   void RefreshCpu(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   void RefreshMemory(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   void RefreshCustom(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
+   // NOLINTEND(readability-convert-member-functions-to-static)
 
    /// Render one indicator slot (collections render their items).
    void RenderIndicator(int slot);

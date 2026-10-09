@@ -20,6 +20,9 @@
 #include <string>
 #include <vector>
 
+/// Default per-child timeout in milliseconds.
+constexpr uint64_t EXEC_CACHE_DEFAULT_TIMEOUT_MS = 5000;
+
 /// Opaque cache handle.
 struct ExecCache;
 
@@ -45,7 +48,8 @@ auto BuildCommandLine(const std::vector<std::string> &argv) -> std::wstring;
  *                   terminated. Defaults to 5000 ms (tests pass a small value).
  * @return Cache (never nullptr; throws on allocation failure)
  */
-auto ExecCacheCreate(uint64_t timeout_ms = 5000) -> ExecCache *;
+auto ExecCacheCreate(uint64_t timeout_ms = EXEC_CACHE_DEFAULT_TIMEOUT_MS)
+    -> ExecCache *;
 
 /// Terminate and close every in-flight child, then free the cache.
 void ExecCacheDestroy(ExecCache *cache);
@@ -78,8 +82,7 @@ auto ExecCacheGet(ExecCache *cache, const std::vector<std::string> &argv,
  * @param cache The cache
  * @param argv  Program and arguments (UTF-8, non-empty)
  */
-void ExecCacheSpawn(ExecCache *cache,
-                    const std::vector<std::string> &argv);
+void ExecCacheSpawn(ExecCache *cache, const std::vector<std::string> &argv);
 
 // -- Diagnostics (for tests) ----------------------------------------------
 

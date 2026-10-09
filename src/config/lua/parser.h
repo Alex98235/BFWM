@@ -253,7 +253,7 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
  * "left"|"right"|"middle" and `mods` is `{ctrl=, shift=, alt=}`. The function
  * is looked up as a global only (no inline-source fallback). Missing,
  * non-function, or erroring callbacks return false and are logged once (at
- * Debug) per function name.
+ * Warn) per function name.
  *
  * @param config The Lua config state
  * @param ctx    The BFWM context (unused today; reserved)
@@ -266,15 +266,16 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
  * @return true if the function was found and callable and completed
  */
 auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
-                        const char *func, const char *id, const char *button,
-                        bool ctrl, bool shift, bool alt) -> bool;
+                        const char *func, const char *indicator_id,
+                        const char *button, bool ctrl, bool shift, bool alt)
+    -> bool;
 
 /**
  * @brief Invoke a named global Lua indicator scroll callback.
  *
  * Signature: `on_scroll(id, dir)` where `dir` is "up"|"down". Missing,
  * non-function, or erroring callbacks return false and are logged once (at
- * Debug) per function name.
+ * Warn) per function name.
  *
  * @param config The Lua config state
  * @param ctx    The BFWM context (unused today; reserved)
@@ -284,8 +285,8 @@ auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
  * @return true if the function was found and callable and completed
  */
 auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *id, const char *dir)
-    -> bool;
+                         const char *func, const char *indicator_id,
+                         const char *dir) -> bool;
 
 /**
  * @brief Call a custom indicator's `output(id)` global.
@@ -297,7 +298,7 @@ auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
  *                     `color` (`"#rrggbb"`), and `values` (a nested
  *                     `name -> number|string` table).
  * `nil`/`false`/a missing function/any error -> `valid=false`, returns false.
- * Quiet: failures are logged once (at Debug) per function name; the Lua stack
+ * Quiet: failures are logged once (at Warn) per function name; the Lua stack
  * is balanced on every path.
  *
  * @param config The Lua config state
@@ -308,7 +309,7 @@ auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
  * @return true when the function ran and returned a string or table
  */
 auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *id,
+                         const char *func, const char *indicator_id,
                          LuaIndicatorOutput *out) -> bool;
 
 #endif

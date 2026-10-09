@@ -33,7 +33,7 @@ inline auto LastInputTick() -> DWORD {
 
 /// Wrap-safe "did real input happen after baseline?" check.
 inline auto InputSince(DWORD baseline) -> BOOL {
-   return static_cast<BOOL>((INT32)(LastInputTick() - baseline) > 0);
+   return static_cast<BOOL>(static_cast<INT32>(LastInputTick() - baseline) > 0);
 }
 
 } // namespace
@@ -64,7 +64,7 @@ auto FocusIntent::ShouldSuppress(HWND hwnd, BOOL registered) -> BOOL {
       return FALSE; // let a brand-new window register
    if ((kind_ == FocusIntentKind::Known) && (hwnd == target_))
       return FALSE; // our target — let it land
-   return TRUE;      // registered non-target — drop
+   return TRUE;     // registered non-target — drop
 }
 
 void FocusIntent::NoteLanded(HWND hwnd) {

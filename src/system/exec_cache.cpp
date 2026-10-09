@@ -159,6 +159,7 @@ void DrainAvailable(ExecChild &child) {
       if (available == 0)
          return;
 
+      // NOLINTNEXTLINE(modernize-avoid-c-arrays)
       char buffer[READ_CHUNK];
       DWORD const want = (available < READ_CHUNK) ? available : READ_CHUNK;
       DWORD got = 0;
@@ -205,10 +206,10 @@ auto StartChild(ExecCache *cache, const std::string &key,
    }
 
    // stdin and stderr go to NUL: the captured data channel is stdout-only.
-   ScopedHandle nul_in(
-       CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                   &security, OPEN_EXISTING, 0, nullptr));
-   ScopedHandle nul_err(
+   ScopedHandle const nul_in(CreateFileW(L"NUL", GENERIC_READ,
+                                         FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                         &security, OPEN_EXISTING, 0, nullptr));
+   ScopedHandle const nul_err(
        CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                    &security, OPEN_EXISTING, 0, nullptr));
 
@@ -218,20 +219,20 @@ auto StartChild(ExecCache *cache, const std::string &key,
 
    // Restrict inheritance to exactly the three handles the child needs,
    // instead of every inheritable handle in the process.
+   // NOLINTNEXTLINE(modernize-avoid-c-arrays)
    HANDLE inherited[] = {write_end.get(), nul_in.get(), nul_err.get()};
    SIZE_T attribute_size = 0;
    (void)InitializeProcThreadAttributeList(nullptr, 1, 0, &attribute_size);
    std::vector<char> attribute_buffer(attribute_size);
-   auto *attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(
-       attribute_buffer.data());
-   bool attribute_ok =
-       InitializeProcThreadAttributeList(attributes, 1, 0, &attribute_size) != 0;
+   auto *attributes =
+       reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attribute_buffer.data());
+   bool attribute_ok = InitializeProcThreadAttributeList(attributes, 1, 0,
+                                                         &attribute_size) != 0;
    if (attribute_ok) {
-      attribute_ok =
-          UpdateProcThreadAttribute(attributes, 0,
-                                    PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                    static_cast<void *>(inherited),
-                                    sizeof(inherited), nullptr, nullptr) != 0;
+      attribute_ok = UpdateProcThreadAttribute(
+                         attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                         static_cast<void *>(inherited), sizeof(inherited),
+                         nullptr, nullptr) != 0;
    }
 
    STARTUPINFOEXW startup = {};
@@ -248,9 +249,9 @@ auto StartChild(ExecCache *cache, const std::string &key,
        CREATE_NO_WINDOW | (attribute_ok ? EXTENDED_STARTUPINFO_PRESENT : 0);
 
    PROCESS_INFORMATION info = {};
-   BOOL const created = CreateProcessW(
-       nullptr, mutable_command.data(), nullptr, nullptr, TRUE, flags, nullptr,
-       nullptr, &startup.StartupInfo, &info);
+   BOOL const created =
+       CreateProcessW(nullptr, mutable_command.data(), nullptr, nullptr, TRUE,
+                      flags, nullptr, nullptr, &startup.StartupInfo, &info);
 
    if (attribute_ok)
       DeleteProcThreadAttributeList(attributes);
@@ -264,7 +265,7 @@ auto StartChild(ExecCache *cache, const std::string &key,
             static_cast<unsigned long>(GetLastError()));
       return StartResult::Failed;
    }
-   ScopedHandle thread_handle(info.hThread);
+   ScopedHandle const thread_handle(info.hThread);
 
    ExecChild child;
    child.process = ScopedHandle(info.hProcess);
@@ -294,8 +295,7 @@ void HarvestAll(ExecCache *cache, uint64_t now) {
       DWORD const wait = WaitForSingleObject(child.process.get(), 0);
       bool terminal = (wait == WAIT_OBJECT_0);
       if (!terminal && (wait == WAIT_TIMEOUT)) {
-         bool const capture_full =
-             child.collected.size() >= MAX_OUTPUT_BYTES;
+         bool const capture_full = child.collected.size() >= MAX_OUTPUT_BYTES;
          bool const hung = (now - child.started_ms) > cache->timeout_ms;
          if (capture_full || hung) {
             // Terminate, then drain once more below. Race note: the child may
@@ -375,7 +375,7 @@ auto ExecCacheCreate(uint64_t timeout_ms) -> ExecCache * {
 void ExecCacheDestroy(ExecCache *cache) {
    if (cache == nullptr)
       return;
-   for (ExecChild &child : cache->children) {
+   for (ExecChild const &child : cache->children) {
       if (child.process)
          TerminateProcess(child.process.get(), 1);
       // Handles close when the vectors are destroyed by `delete cache`.
@@ -396,8 +396,7 @@ auto ExecCacheGet(ExecCache *cache, const std::vector<std::string> &argv,
    if (entry == nullptr)
       return nullptr; // entry cap reached: behave as "no data", no crash
 
-   bool const fresh =
-       entry->has_value && ((now - entry->updated_ms) < ttl_ms);
+   bool const fresh = entry->has_value && ((now - entry->updated_ms) < ttl_ms);
    bool const backoff =
        entry->attempted && ((now - entry->last_attempt_ms) < ttl_ms);
    if (!fresh && !entry->in_flight && !backoff) {
@@ -422,8 +421,7 @@ auto ExecCacheGet(ExecCache *cache, const std::vector<std::string> &argv,
    return entry->has_value ? &entry->value : nullptr;
 }
 
-void ExecCacheSpawn(ExecCache *cache,
-                    const std::vector<std::string> &argv) {
+void ExecCacheSpawn(ExecCache *cache, const std::vector<std::string> &argv) {
    if ((cache == nullptr) || argv.empty() || argv[0].empty())
       return;
    uint64_t const now = GetTickCount64();

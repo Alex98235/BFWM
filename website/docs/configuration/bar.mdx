@@ -38,14 +38,6 @@ to get access to a variety of glyphs that can be used as icons for the bar indic
 Remember to set `Bar.font.name` if you decide to change font.
 :::
 
-:::warning Flag day — legacy per-type keys removed
-The pre-unification per-type option keys were **removed**: `show_position_bar`,
-`icons`, `icon_muted`, `icon_disconnected`, `icon_ethernet`, `format_wifi`,
-`format_ethernet`, `color_muted`, and `color_disconnected`. Using any of them
-now triggers a parser warning and does nothing. Migrate to `position_bar`,
-`states` (with `icon`/`color`/`format`), and the unified `format` dialect.
-:::
-
 ### Common options
 
 | Key | Type | Default | Description |
@@ -97,15 +89,14 @@ Resolution order:
 
 ### Input callbacks
 
-Every indicator accepts `on_click` and `on_scroll` — the name of a **global**
-Lua function. v1 only delivers **left click** and the **mouse wheel**; right and
-middle click are deferred. The callback is looked up as a global (there is no
+Every indicator accepts `on_click` (**left click**) and `on_scroll` (**mouse wheel**).
+The callback is looked up as a global Lua function (there is no
 inline-source fallback) and is called with:
 
 ```lua
 -- on_click(id, button, mods)
 --   id      : the indicator's `id` (defaults to the type name)
---   button  : "left" (only "left" is delivered in v1)
+--   button  : "left" (only "left" is currently available)
 --   mods    : { ctrl = <bool>, shift = <bool>, alt = <bool> }
 function my_click(id, button, mods)
   if mods.ctrl then BFWM.notify("ctrl-clicked " .. id) end
@@ -127,7 +118,7 @@ Bar.indicators = {
 ```
 
 If the named global is missing, is not a function, or raises an error, the
-event is dropped and the problem is logged once per function name at the Debug
+event is dropped and the problem is logged once per function name at the Warn
 level. When no `on_click`/`on_scroll` is configured, the indicator falls back to
 its built-in default: **workspaces** activate the clicked tab and cycle on
 scroll; all other indicators have no default action.
@@ -136,7 +127,7 @@ The bar consumes `WM_MOUSEWHEEL` while the pointer is hovering it, so wheel
 events over the bar are handled by the indicators (and no longer fall through to
 the window beneath).
 
-:::note v1 limitations
+:::note
 - Only **left click** and the **mouse wheel** are delivered; right/middle click
   are deferred.
 - **Collection overrides cannot identify the pressed item.** For `"workspaces"`,
@@ -251,12 +242,6 @@ Bar.indicators = {
 }
 ```
 
-:::note
-The repository's `config.lua` ships a commented Spotify-style example built on
-`BFWM.exec_cache`/`BFWM.spawn` (using any media CLI: WinKlang, spotifyctl, or a
-playerctl-for-Windows build).
-:::
-
 ## Format Specifiers
 
 The unified dialect is `{name}` or `{name:.Nf}` (e.g. `{value:.2f}`). Two tokens
@@ -274,7 +259,7 @@ are always available; the rest are provided by the indicator type.
 
 Without a `.Nf` suffix, numeric values use the indicator's default precision
 (volume/network/cpu `0`, memory `1`). Unknown specifiers are emitted literally
-and logged once at the Debug level. For `"custom"`, every name returned in
+and logged once at the Warn level. For `"custom"`, every name returned in
 `values` is addressable and `{value}` aliases the returned `value`.
 
 ## Example

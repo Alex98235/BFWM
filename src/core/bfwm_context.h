@@ -90,7 +90,8 @@ using BFWMContext = struct BFWMContext {
    size_t window_rule_count = 0;
    /// Lua state and config file path
    LuaConfig lua;
-   /// Main-thread-only non-blocking child-process stdout cache (BFWM.exec_cache)
+   /// Main-thread-only non-blocking child-process stdout cache
+   /// (BFWM.exec_cache)
    ExecCache *exec_cache = nullptr;
    /// Thread-safe circular keystroke buffer
    KeystrokeQueue keystroke_queue;

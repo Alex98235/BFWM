@@ -141,8 +141,10 @@ inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
          const char *key = lua_tostring(lua_state, -2);
          if ((key != nullptr) && strcmp(key, "move_to_workspace") == 0) {
             rule->action.type = RULE_MOVE_TO_WORKSPACE;
-            if (lua_isinteger(lua_state, -1) != 0)
-               rule->action.workspace_index = (int)lua_tointeger(lua_state, -1);
+            if (lua_isinteger(lua_state, -1) != 0) {
+               rule->action.workspace_index =
+                   static_cast<int>(lua_tointeger(lua_state, -1));
+            }
          } else {
             Snackbar::Warn(ctx, L"Unknown window rule action key '%hs'",
                            (key != nullptr) ? key : "(null)");
@@ -196,13 +198,13 @@ inline auto parse_single_rule(lua_State *lua_state, struct BFWMContext *ctx,
    lua_getfield(lua_state, rule_idx, "match");
    if (lua_istable(lua_state, -1)) {
       int const match_idx = lua_gettop(lua_state);
-      auto match_count = (size_t)lua_rawlen(lua_state, match_idx);
+      auto match_count = static_cast<size_t>(lua_rawlen(lua_state, match_idx));
 
       if (match_count > 0) {
          rule->entries.reserve(match_count);
 
          for (size_t j = 1; j <= match_count; j++) {
-            lua_rawgeti(lua_state, match_idx, (lua_Integer)j);
+            lua_rawgeti(lua_state, match_idx, static_cast<lua_Integer>(j));
             if (!lua_istable(lua_state, -1)) {
                lua_pop(lua_state, 1);
                continue;
@@ -258,7 +260,7 @@ inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
    }
 
    int const rules_idx = lua_gettop(lua_state);
-   auto rule_count = (size_t)lua_rawlen(lua_state, rules_idx);
+   auto rule_count = static_cast<size_t>(lua_rawlen(lua_state, rules_idx));
 
    if (rule_count == 0) {
       lua_pop(lua_state, 2);
@@ -266,7 +268,7 @@ inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
    }
 
    for (size_t i = 1; i <= rule_count; i++) {
-      lua_rawgeti(lua_state, rules_idx, (lua_Integer)i);
+      lua_rawgeti(lua_state, rules_idx, static_cast<lua_Integer>(i));
       WindowRule *rule = parse_single_rule(lua_state, ctx, i);
       if (rule != nullptr) {
          ctx->window_rules.push_back(rule);
@@ -275,7 +277,7 @@ inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
       lua_pop(lua_state, 1);
    }
 
-   ctx->window_rule_count = (size_t)count;
+   ctx->window_rule_count = static_cast<size_t>(count);
    lua_pop(lua_state, 2);
 
    Info("Loaded %d window rules from config.lua", count);
@@ -302,7 +304,8 @@ inline void parse_workspace_options(WorkspaceConfig *workspace_cfg,
 
    lua_getfield(lua_state, opts_idx, "monitor");
    if (lua_isinteger(lua_state, -1) != 0) {
-      workspace_cfg->assigned_monitor = (int)lua_tointeger(lua_state, -1);
+      workspace_cfg->assigned_monitor =
+          static_cast<int>(lua_tointeger(lua_state, -1));
    }
    lua_pop(lua_state, 1);
 
@@ -357,10 +360,10 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
    }
 
    int const ws_table_idx = lua_gettop(lua_state);
-   auto count = (size_t)lua_rawlen(lua_state, ws_table_idx);
+   auto count = static_cast<size_t>(lua_rawlen(lua_state, ws_table_idx));
 
    for (size_t i = 1; i <= count; i++) {
-      lua_rawgeti(lua_state, ws_table_idx, (lua_Integer)i);
+      lua_rawgeti(lua_state, ws_table_idx, static_cast<lua_Integer>(i));
       if (!lua_istable(lua_state, -1)) {
          Snackbar::Warn(ctx, L"Skipping non-table entry in workspaces array");
          lua_pop(lua_state, 1);
@@ -368,7 +371,7 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
       }
 
       int const entry_idx = lua_gettop(lua_state);
-      auto entry_len = (size_t)lua_rawlen(lua_state, entry_idx);
+      auto entry_len = static_cast<size_t>(lua_rawlen(lua_state, entry_idx));
       if (entry_len < 1) {
          lua_pop(lua_state, 1);
          continue;
@@ -382,7 +385,8 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
       }
 
       WorkspaceConfig workspace_cfg = {};
-      workspace_cfg.id = (size_t)atol(id_str);
+      // NOLINTNEXTLINE(bugprone-unchecked-*)
+      workspace_cfg.id = static_cast<size_t>(atol(id_str));
       workspace_cfg.assigned_monitor = 0;
       workspace_cfg.layout = LAYOUT_NONE;
       workspace_cfg.has_layout = FALSE;
@@ -551,28 +555,31 @@ inline auto parse_layout_name(const char *name) -> LayoutType {
    return LAYOUT_NONE;
 }
 
-const std::array<std::string, 18> known_BFWM_keys = {"gap_between",
-                                                    "gap_edge",
-                                                    "border_color",
-                                                    "inactive_border",
-                                                    "border_width",
-                                                    "border_radius",
-                                                    "focus_follows_mouse",
-                                                    "mouse_follows_focus",
-                                                    "unlock_window_resize",
-                                                    "unlock_window_move",
-                                                    "keybinds",
-                                                    "window_rules",
-                                                    "layout",
-                                                    "workspaces",
-                                                    "disabled_monitors",
-                                                    "notify",
-                                                    "exec_cache",
-                                                    "spawn"};
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+const std::array<std::string, 18> known_BFWM_keys = {
+    "gap_between",
+    "gap_edge",
+    "border_color",
+    "inactive_border",
+    "border_width",
+    "border_radius",
+    "focus_follows_mouse",
+    "mouse_follows_focus",
+    "unlock_window_resize",
+    "unlock_window_move",
+    "keybinds",
+    "window_rules",
+    "layout",
+    "workspaces",
+    "disabled_monitors",
+    "notify",
+    "exec_cache",
+    "spawn",
+};
 
 inline auto BFWM_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"BFWM keys must be strings");
       return luaL_error(lua_state, "BFWM keys must be strings");
@@ -593,29 +600,55 @@ inline auto BFWM_newindex(lua_State *lua_state) -> int {
 // Bar table metatable — catches typos in config.lua's Bar.* options
 // ---------------------------------------------------------------------------
 
+// "nolintbegin" does not work here for some reason
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::array<std::string, 9> known_bar_keys = {
-    "height", "font",    "colors", "indicators",   "enabled",
-    "margin", "padding", "border", "corner_radius"};
+    "height", "font",    "colors", "indicators",    "enabled",
+    "margin", "padding", "border", "corner_radius",
+};
+
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::array<std::string, 5> known_colors_keys = {
-    "background", "text", "active_workspace", "inactive_workspace",
-    "tab_border"};
-const std::array<std::string, 3> known_font_keys = {"size", "name", "weight"};
+    "background",         "text",       "active_workspace",
+    "inactive_workspace", "tab_border",
+};
+
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+const std::array<std::string, 3> known_font_keys = {
+    "size",
+    "name",
+    "weight",
+};
+
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::array<std::string, 13> known_indicator_keys = {
-    "type",     "align",     "id",        "format",    "color", "max_width",
-    "size",     "poll_rate", "states",    "position_bar",
-    "on_click", "on_scroll", "output"};
+    "type",      "align",     "id",        "format", "color",
+    "max_width", "size",      "poll_rate", "states", "position_bar",
+    "on_click",  "on_scroll", "output",
+};
 
-const std::array<std::string, 5> known_state_keys = {"state", "at", "icon",
-                                                     "format", "color"};
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+const std::array<std::string, 5> known_state_keys = {
+    "state",  "at",    "icon",
+    "format", "color", // NOLINT(readability-trailing-comma)
+};
 
-
-const std::array<std::string, 4> known_margin_padding_keys = {"top", "right",
-                                                              "bottom", "left"};
-const std::array<std::string, 2> known_border_keys = {"width", "color"};
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+const std::array<std::string, 4> known_margin_padding_keys = {
+    "top",
+    "right",
+    "bottom",
+    "left",
+};
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+const std::array<std::string, 2> known_border_keys = {
+    "width",
+    "color",
+};
 
 inline auto colors_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Bar.colors keys must be strings");
       return luaL_error(lua_state, "Bar.colors keys must be strings");
@@ -633,8 +666,8 @@ inline auto colors_newindex(lua_State *lua_state) -> int {
 }
 
 inline auto font_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Bar.font keys must be strings");
       return luaL_error(lua_state, "Bar.font keys must be strings");
@@ -652,10 +685,10 @@ inline auto font_newindex(lua_State *lua_state) -> int {
 }
 
 inline auto margin_padding_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
-   const char *table_name =
-       (const char *)lua_touserdata(lua_state, lua_upvalueindex(2));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   const char *table_name = static_cast<const char *>(
+       lua_touserdata(lua_state, lua_upvalueindex(2)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Bar.%hs keys must be strings", table_name);
       return luaL_error(lua_state, "Bar.%s keys must be strings", table_name);
@@ -673,10 +706,10 @@ inline auto margin_padding_newindex(lua_State *lua_state) -> int {
 }
 
 inline auto border_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
-   const char *table_name =
-       (const char *)lua_touserdata(lua_state, lua_upvalueindex(2));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   const char *table_name = static_cast<const char *>(
+       lua_touserdata(lua_state, lua_upvalueindex(2)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Bar.%hs keys must be strings", table_name);
       return luaL_error(lua_state, "Bar.%s keys must be strings", table_name);
@@ -757,6 +790,7 @@ inline auto handle_bar_margin_newindex(lua_State *lua_state,
                                        const char *table_name) -> int {
    lua_newtable(lua_state);
    lua_pushlightuserdata(lua_state, ctx);
+   // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, margin_padding_newindex, 2);
    lua_setfield(lua_state, -2, "__newindex");
@@ -770,6 +804,7 @@ inline auto handle_bar_padding_newindex(lua_State *lua_state,
                                         const char *table_name) -> int {
    lua_newtable(lua_state);
    lua_pushlightuserdata(lua_state, ctx);
+   // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, margin_padding_newindex, 2);
    lua_setfield(lua_state, -2, "__newindex");
@@ -783,6 +818,7 @@ inline auto handle_bar_border_newindex(lua_State *lua_state,
                                        const char *table_name) -> int {
    lua_newtable(lua_state);
    lua_pushlightuserdata(lua_state, ctx);
+   // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, border_newindex, 2);
    lua_setfield(lua_state, -2, "__newindex");
@@ -792,8 +828,8 @@ inline auto handle_bar_border_newindex(lua_State *lua_state,
 }
 
 inline auto bar_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Bar keys must be strings");
       return luaL_error(lua_state, "Bar keys must be strings");
@@ -829,6 +865,7 @@ inline auto bar_newindex(lua_State *lua_state) -> int {
 // Snackbar table metatable — catches typos in config.lua's Snackbar.* options
 // ---------------------------------------------------------------------------
 
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::array<std::string, 28> known_snackbar_keys = {
     "enabled",        "log_level",      "position",
     "margin_left",    "margin_right",   "margin_top",
@@ -839,11 +876,12 @@ const std::array<std::string, 28> known_snackbar_keys = {
     "font_name",      "corner_radius",  "opacity",
     "close_on_click", "pause_on_hover", "click_to_expand",
     "max_queue",      "monitor",        "display_duration_ms",
-    "colors"};
+    "colors",
+};
 
 inline auto snackbar_newindex(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
       Snackbar::Warn(ctx, L"Snackbar keys must be strings");
       return luaL_error(lua_state, "Snackbar keys must be strings");
@@ -864,7 +902,7 @@ inline void parse_int_field(lua_State *lua_state, struct BFWMContext *ctx,
                             const char *key, int *out) {
    lua_getfield(lua_state, -1, key);
    if (lua_isinteger(lua_state, -1) != 0) {
-      *out = (int)lua_tointeger(lua_state, -1);
+      *out = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Snackbar::Warn(ctx, L"Expected '%hs' to be an integer", key);
    }
@@ -895,9 +933,9 @@ inline void parse_string_field(lua_State *lua_state, struct BFWMContext *ctx,
    lua_pop(lua_state, 1);
 }
 
-inline void parse_color_field_opt(lua_State *lua_state,
-                                  struct BFWMContext *ctx, const char *key,
-                                  COLORREF *out, bool *has_color) {
+inline void parse_color_field_opt(lua_State *lua_state, struct BFWMContext *ctx,
+                                  const char *key, COLORREF *out,
+                                  bool *has_color) {
    *has_color = false;
    lua_getfield(lua_state, -1, key);
    if (lua_isstring(lua_state, -1) != 0) {
@@ -954,9 +992,10 @@ inline void validate_state_keys(lua_State *lua_state, int entry_idx, int i,
                break;
             }
          }
-         if (!found)
+         if (!found) {
             Warn("Unknown key '%s' in Bar.indicators[%d].states[%d]", field, i,
                  j);
+         }
       }
       lua_pop(lua_state, 1);
    }
@@ -967,40 +1006,40 @@ inline auto parse_indicator_type(lua_State *lua_state,
     -> bool {
    lua_getfield(lua_state, -1, "type");
    const char *type = lua_tostring(lua_state, -1);
-   bool ok = false;
+   bool success = false;
    if (type == nullptr) {
       Warn("Missing 'type' in Bar.indicators[%d]; dropping indicator", i);
    } else if (strcmp(type, "workspaces") == 0) {
       indicator_cfg->type = BAR_INDICATOR_WORKSPACES;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "title") == 0) {
       indicator_cfg->type = BAR_INDICATOR_TITLE;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "clock") == 0) {
       indicator_cfg->type = BAR_INDICATOR_CLOCK;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "volume") == 0) {
       indicator_cfg->type = BAR_INDICATOR_VOLUME;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "network") == 0) {
       indicator_cfg->type = BAR_INDICATOR_NETWORK;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "cpu") == 0) {
       indicator_cfg->type = BAR_INDICATOR_CPU;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "memory") == 0) {
       indicator_cfg->type = BAR_INDICATOR_MEMORY;
-      ok = true;
+      success = true;
    } else if (strcmp(type, "custom") == 0) {
       indicator_cfg->type = BAR_INDICATOR_CUSTOM;
-      ok = true;
+      success = true;
    } else {
       Warn("Unknown indicator type '%s' in Bar.indicators[%d]; dropping "
            "indicator",
            type, i);
    }
    lua_pop(lua_state, 1);
-   return ok;
+   return success;
 }
 
 inline void parse_indicator_align(lua_State *lua_state,
@@ -1032,7 +1071,7 @@ inline void parse_states(lua_State *lua_state, int table_idx,
    }
 
    int const states_idx = lua_gettop(lua_state);
-   int n = (int)lua_rawlen(lua_state, states_idx);
+   int n = static_cast<int>(lua_rawlen(lua_state, states_idx));
    if (n > BAR_MAX_STATES) {
       Warn("Bar.indicators[%d].states has more than %d entries; dropping the "
            "rest",
@@ -1092,8 +1131,7 @@ inline void parse_states(lua_State *lua_state, int table_idx,
       if (lua_isstring(lua_state, -1) != 0) {
          const char *s = lua_tostring(lua_state, -1);
          if ((s != nullptr) && s[0] == '#') {
-            unsigned long const hex =
-                strtoul(s + 1, nullptr, STRTOUL_BASE_HEX);
+            unsigned long const hex = strtoul(s + 1, nullptr, STRTOUL_BASE_HEX);
             rule.color = RGB((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
             rule.has_color = true;
          } else {
@@ -1146,10 +1184,11 @@ inline auto parse_single_indicator(lua_State *lua_state,
               i);
          return FALSE;
       }
-      if (!had_id)
+      if (!had_id) {
          Warn("Bar.indicators[%d] (custom) has no 'id'; click/scroll/output "
               "callbacks are keyed by it",
               i);
+      }
    }
 
    lua_getfield(lua_state, -1, "position_bar");
@@ -1167,7 +1206,7 @@ inline auto parse_single_indicator(lua_State *lua_state,
 inline void parse_bar_font_config(lua_State *lua_state, BarConfig *cfg) {
    lua_getfield(lua_state, -1, "size");
    if (lua_isinteger(lua_state, -1) != 0) {
-      cfg->font.size = (int)lua_tointeger(lua_state, -1);
+      cfg->font.size = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Warn("Bar.font.size should be an integer, using default (%d)",
            cfg->font.size);
@@ -1185,7 +1224,7 @@ inline void parse_bar_font_config(lua_State *lua_state, BarConfig *cfg) {
    lua_pop(lua_state, 1);
    lua_getfield(lua_state, -1, "weight");
    if (lua_isinteger(lua_state, -1) != 0) {
-      cfg->font.weight = (int)lua_tointeger(lua_state, -1);
+      cfg->font.weight = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Warn("Bar.font.weight should be an integer, using default (%d)",
            cfg->font.weight);
@@ -1204,6 +1243,7 @@ inline void parse_bar_colors_config(lua_State *lua_state,
    parse_color_field(lua_state, ctx, "tab_border", &cfg->colors.tab_border);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
    BarConfig *cfg = &ctx->config.bar_cfg;
 
@@ -1226,7 +1266,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
 
    lua_getfield(lua_state, -1, "height");
    if (lua_isinteger(lua_state, -1) != 0) {
-      cfg->height = (int)lua_tointeger(lua_state, -1);
+      cfg->height = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Snackbar::Warn(ctx,
                      L"Bar.height should be an integer, using default (%d)",
@@ -1246,7 +1286,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
 
    lua_getfield(lua_state, -1, "corner_radius");
    if (lua_isinteger(lua_state, -1) != 0) {
-      cfg->corner_radius = (int)lua_tointeger(lua_state, -1);
+      cfg->corner_radius = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Snackbar::Warn(
           ctx, L"Bar.corner_radius should be an integer, using default (%d)",
@@ -1282,7 +1322,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
    cfg->indicator_count = 0;
    lua_getfield(lua_state, -1, "indicators");
    if (lua_istable(lua_state, -1)) {
-      int const n = (int)lua_rawlen(lua_state, -1);
+      int const n = static_cast<int>(lua_rawlen(lua_state, -1));
       for (int i = 1; i <= n; i++) {
          if (cfg->indicator_count >= BAR_MAX_INDICATORS) {
             Warn("Bar.indicators has more than %d entries; dropping "
@@ -1426,12 +1466,12 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    ctx->config.disabled_monitor_count = 0;
    lua_getfield(lua_state, -1, "disabled_monitors");
    if (lua_istable(lua_state, -1)) {
-      auto n = (size_t)lua_rawlen(lua_state, -1);
+      auto n = static_cast<size_t>(lua_rawlen(lua_state, -1));
       n = std::min<size_t>(n, MAX_DISABLED_MONITORS);
       for (size_t di = 0; di < n; di++) {
-         lua_rawgeti(lua_state, -1, (lua_Integer)(di + 1));
+         lua_rawgeti(lua_state, -1, static_cast<lua_Integer>(di + 1));
          if (lua_isinteger(lua_state, -1) != 0) {
-            int const val = (int)lua_tointeger(lua_state, -1);
+            int const val = static_cast<int>(lua_tointeger(lua_state, -1));
             ctx->config
                 .disabled_monitors[ctx->config.disabled_monitor_count++] = val;
          } else {
@@ -1458,7 +1498,8 @@ inline auto lua_BFWM_notify(lua_State *lua_state) -> int {
    /* Retrieve the context from the Lua registry or upvalue.
       Since we register this function after the BFWM table exists,
       we need the context pointer.  Use a lightuserdata upvalue. */
-   ctx = (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    if (ctx == nullptr)
       return 0;
 
@@ -1469,7 +1510,7 @@ inline auto lua_BFWM_notify(lua_State *lua_state) -> int {
    // Proper two-call conversion: query the required length first, then
    // resize the string to the true converted size.
    int const wlen = MultiByteToWideChar(CP_UTF8, 0, text, -1, nullptr, 0);
-   std::wstring wtext(wlen > 0 ? (size_t)wlen : 0, L'\0');
+   std::wstring wtext(wlen > 0 ? static_cast<size_t>(wlen) : 0, L'\0');
    if (wlen > 0)
       MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext.data(), wlen);
    Snackbar::Show(ctx, LogLevel::Info, &wtext, TRUE);
@@ -1486,8 +1527,8 @@ inline void WarnExecArgvOnce() {
    if (warned)
       return;
    warned = true;
-   Debug("BFWM.exec_cache/spawn: invalid argv (expected a non-empty string or "
-         "an array of strings)");
+   Warn("BFWM.exec_cache/spawn: invalid argv (expected a non-empty string or "
+        "an array of strings)");
 }
 
 /// Collect argv from the Lua value at `idx`: a string is a single argv[0], a
@@ -1516,17 +1557,18 @@ inline auto CollectArgv(lua_State *lua_state, int idx,
 }
 
 inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    std::vector<std::string> argv;
-   const char *key =
-       (lua_type(lua_state, 2) == LUA_TSTRING) ? lua_tostring(lua_state, 2)
-                                               : nullptr;
+   const char *key = (lua_type(lua_state, 2) == LUA_TSTRING)
+                         ? lua_tostring(lua_state, 2)
+                         : nullptr;
    if ((ctx == nullptr) || (ctx->exec_cache == nullptr)) {
       lua_pushnil(lua_state);
       return 1;
    }
-   if (!CollectArgv(lua_state, 1, &argv) || (key == nullptr) || (key[0] == '\0')) {
+   if (!CollectArgv(lua_state, 1, &argv) || (key == nullptr) ||
+       (key[0] == '\0')) {
       WarnExecArgvOnce();
       lua_pushnil(lua_state);
       return 1;
@@ -1535,16 +1577,17 @@ inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
    uint64_t const ttl_ms = (ttl > 0) ? static_cast<uint64_t>(ttl) : 0;
    const std::string *value =
        ExecCacheGet(ctx->exec_cache, argv, std::string(key), ttl_ms);
-   if (value != nullptr)
+   if (value != nullptr) {
       lua_pushlstring(lua_state, value->data(), value->size());
-   else
+   } else {
       lua_pushnil(lua_state);
+   }
    return 1;
 }
 
 inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
-   auto *ctx =
-       (struct BFWMContext *)lua_touserdata(lua_state, lua_upvalueindex(1));
+   auto *ctx = static_cast<struct BFWMContext *>(
+       lua_touserdata(lua_state, lua_upvalueindex(1)));
    std::vector<std::string> argv;
    if ((ctx == nullptr) || (ctx->exec_cache == nullptr))
       return 0;
@@ -1688,13 +1731,13 @@ inline void activate_another_workspace(struct BFWMContext *ctx, Monitor *mon,
 inline auto find_workspace_index(Monitor *mon, Workspace *workspace) -> int {
    for (size_t j = 0; j < mon->Workspaces().size(); j++) {
       if (mon->Workspaces()[j] == workspace)
-         return (int)j;
+         return static_cast<int>(j);
    }
    return -1;
 }
 
 inline void remove_workspace_from_source(Monitor *mon, int ws_idx) {
-   mon->RemoveWorkspaceAt((size_t)ws_idx);
+   mon->RemoveWorkspaceAt(static_cast<size_t>(ws_idx));
 }
 
 inline void add_workspace_to_destination(Monitor *dst_mon, Workspace *workspace,
@@ -1728,7 +1771,8 @@ inline void
 move_workspace_to_monitor(struct BFWMContext *ctx, Monitor *mon,
                           Workspace *workspace,
                           const struct WorkspaceConfig *workspace_cfg) {
-   UINT const target_display = (UINT)workspace_cfg->assigned_monitor;
+   UINT const target_display =
+       static_cast<UINT>(workspace_cfg->assigned_monitor);
    if (mon->GetDisplayNumber() == target_display)
       return;
 
@@ -1983,11 +2027,12 @@ inline void LogIndicatorCallbackOnce(const char *func, bool missing,
       return;
    if (!warned.insert(func).second)
       return;
-   if (missing)
-      Debug("Indicator callback '%s' is missing or not a function", func);
-   else
-      Debug("Indicator callback '%s' failed: %s", func,
-            (detail != nullptr) ? detail : "(unknown error)");
+   if (missing) {
+      Warn("Indicator callback '%s' is missing or not a function", func);
+   } else {
+      Warn("Indicator callback '%s' failed: %s", func,
+           (detail != nullptr) ? detail : "(unknown error)");
+   }
 }
 
 /// Push a `{ctrl=, shift=, alt=}` table.
@@ -2034,11 +2079,12 @@ auto CallGlobalLua(LuaConfig *config, const char *func, PushArgs push_args)
 } // namespace
 
 auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
-                        const char *func, const char *id, const char *button,
-                        bool ctrl, bool shift, bool alt) -> bool {
+                        const char *func, const char *indicator_id,
+                        const char *button, bool ctrl, bool shift, bool alt)
+    -> bool {
    (void)ctx; // reserved for future use (notifications)
    return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
-      lua_pushstring(lua_state, (id != nullptr) ? id : "");
+      lua_pushstring(lua_state, (indicator_id != nullptr) ? indicator_id : "");
       lua_pushstring(lua_state, (button != nullptr) ? button : "left");
       PushModsTable(lua_state, ctrl, shift, alt);
       return 3;
@@ -2046,11 +2092,11 @@ auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
 }
 
 auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *id, const char *dir)
-    -> bool {
+                         const char *func, const char *indicator_id,
+                         const char *dir) -> bool {
    (void)ctx; // reserved for future use (notifications)
    return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
-      lua_pushstring(lua_state, (id != nullptr) ? id : "");
+      lua_pushstring(lua_state, (indicator_id != nullptr) ? indicator_id : "");
       lua_pushstring(lua_state, (dir != nullptr) ? dir : "down");
       return 2;
    });
@@ -2068,7 +2114,7 @@ inline void LogIndicatorLimitOnce(const char *what) {
    if (what == nullptr)
       return;
    if (warned.insert(what).second)
-      Debug("Custom indicator output: %s exceeded the limit; truncated", what);
+      Warn("Custom indicator output: %s exceeded the limit; truncated", what);
 }
 
 /// Assign `len` bytes of `s` to `out`, truncating to the text cap.
@@ -2104,33 +2150,36 @@ inline void ReadLuaStringField(lua_State *lua_state, int table_idx,
 /// Parse a `"#rrggbb"` string into a COLORREF. Requires exactly six hex
 /// digits; anything else is rejected (and logged once) with no colour set.
 inline auto ParseHexColorString(const char *s, COLORREF *out) -> bool {
-   bool ok = (s != nullptr) && (s[0] == '#');
+   constexpr int HEX_DIGITS = 6;
+   constexpr int HEX_LETTER_OFFSET = 10;
+   bool success = (s != nullptr) && (s[0] == '#');
    unsigned long hex = 0;
    int digits = 0;
-   if (ok) {
-      for (; digits < 6; digits++) {
+   if (success) {
+      for (; digits < HEX_DIGITS; digits++) {
          char const c = s[1 + digits];
          if (c == '\0')
             break;
          int value = -1;
-         if (c >= '0' && c <= '9')
+         if (c >= '0' && c <= '9') {
             value = c - '0';
-         else if (c >= 'a' && c <= 'f')
-            value = c - 'a' + 10;
-         else if (c >= 'A' && c <= 'F')
-            value = c - 'A' + 10;
+         } else if (c >= 'a' && c <= 'f') {
+            value = c - 'a' + HEX_LETTER_OFFSET;
+         } else if (c >= 'A' && c <= 'F') {
+            value = c - 'A' + HEX_LETTER_OFFSET;
+         }
          if (value < 0)
             break;
-         hex = (hex << 4) | (unsigned long)value;
+         hex = (hex << 4) | static_cast<unsigned long>(value);
       }
-      ok = (digits == 6) && (s[7] == '\0');
+      success = (digits == HEX_DIGITS) && (s[HEX_DIGITS + 1] == '\0');
    }
-   if (!ok) {
+   if (!success) {
       static bool warned = false;
       if (!warned) {
-         Debug("Custom indicator output: malformed color '%s' (expected "
-               "#rrggbb)",
-               (s != nullptr) ? s : "(null)");
+         Warn("Custom indicator output: malformed color '%s' (expected "
+              "#rrggbb)",
+              (s != nullptr) ? s : "(null)");
          warned = true;
       }
       return false;
@@ -2211,8 +2260,8 @@ inline auto ParseIndicatorOutput(lua_State *lua_state, int idx,
 
    RawGetField(lua_state, abs_idx, "color");
    if (lua_type(lua_state, -1) == LUA_TSTRING) {
-      out->has_color = ParseHexColorString(lua_tostring(lua_state, -1),
-                                           &out->color);
+      out->has_color =
+          ParseHexColorString(lua_tostring(lua_state, -1), &out->color);
    }
    lua_pop(lua_state, 1);
 
@@ -2224,7 +2273,7 @@ inline auto ParseIndicatorOutput(lua_State *lua_state, int idx,
 } // namespace
 
 auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *id,
+                         const char *func, const char *indicator_id,
                          LuaIndicatorOutput *out) -> bool {
    (void)ctx; // reserved for future use (notifications)
    if (out == nullptr)
@@ -2243,14 +2292,14 @@ auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
       return false;
    }
 
-   lua_pushstring(lua_state, (id != nullptr) ? id : "");
+   lua_pushstring(lua_state, (indicator_id != nullptr) ? indicator_id : "");
    if (lua_pcall(lua_state, 1, 1, 0) != LUA_OK) {
       LogIndicatorCallbackOnce(func, false, lua_tostring(lua_state, -1));
       lua_settop(lua_state, top);
       return false;
    }
 
-   bool const ok = ParseIndicatorOutput(lua_state, -1, out);
+   bool const success = ParseIndicatorOutput(lua_state, -1, out);
    lua_settop(lua_state, top);
-   return ok;
+   return success;
 }

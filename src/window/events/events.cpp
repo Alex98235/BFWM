@@ -1164,10 +1164,12 @@ void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
    // later stray in a spawn storm cannot slip through.
    if (event == EVENT_SYSTEM_FOREGROUND &&
        ctx->focus_intent.ShouldSuppress(
-           hwnd, ctx->windows->FindByHwnd(hwnd) != nullptr) == TRUE) {
-      if (ctx->focus_intent.Kind() == FocusIntentKind::Known)
+           hwnd, static_cast<BOOL>(ctx->windows->FindByHwnd(hwnd) !=
+                                   nullptr)) == TRUE) {
+      if (ctx->focus_intent.Kind() == FocusIntentKind::Known) {
          PostThreadMessage(ctx->main_thread_id, WM_FORCE_FOCUS,
                            (WPARAM)ctx->focus_intent.Target(), 0);
+      }
       return; // drop the noise, STAY armed
    }
 
