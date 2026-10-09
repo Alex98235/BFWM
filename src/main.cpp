@@ -270,8 +270,8 @@ inline void InitLogger() {
    /* Log to %APPDATA%\BFWM\bfwm.log (per-user install). */
    std::string log_path;
    log_path.resize(MAIN_BUF_SIZE, '\0');
-   DWORD const ret = ExpandEnvironmentStringsA(
-       "%APPDATA%\\BFWM\\bfwm.log", log_path.data(), log_path.size());
+   DWORD const ret = ExpandEnvironmentStringsA(BFWM_LOG_PATH, log_path.data(),
+                                               log_path.size());
    if (ret == 0 || ret > log_path.size()) {
       Error("ExpandEnvironmentStringsA failed for log path: %lu",
             GetLastError());
