@@ -32,6 +32,7 @@ set(TEST_SOURCES
     tests/test_float_clamp.cpp
     tests/test_dpi_scale.cpp
     tests/test_layout_insets.cpp
+    tests/test_logger.cpp
 )
 
 add_executable(test_runner ${ABSOLUTE_LIB_SOURCES} ${TEST_SOURCES})

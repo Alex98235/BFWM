@@ -18,12 +18,14 @@ namespace {
 
 /// Plain level names, indexed by LogLevel (Debug..Fatal).
 constexpr std::array<std::string_view, 5> kLevelNames = {
-    "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
+    "DEBUG", "INFO", "WARN", "ERROR", "FATAL",
+};
 
 /// ANSI-colorized level names, indexed by LogLevel (Debug..Fatal).
 constexpr std::array<std::string_view, 5> kLevelColors = {
-    "\x1b[34mDEBUG\x1b[0m", "\x1b[32mINFO\x1b[0m", "\x1b[33mWARN\x1b[0m",
-    "\x1b[31mERROR\x1b[0m", "\x1b[41mFATAL\x1b[0m"};
+    "\x1b[34mDEBUG\x1b[0m", "\x1b[32mINFO\x1b[0m",  "\x1b[33mWARN\x1b[0m",
+    "\x1b[31mERROR\x1b[0m", "\x1b[41mFATAL\x1b[0m",
+};
 
 /// Display name for a log level, clamped to a valid index.
 auto LevelName(LogLevel level, bool use_color) -> std::string_view {
@@ -110,21 +112,27 @@ auto StripAnsi(const std::string &str) -> std::string {
    return clean;
 }
 
+/// Global logger pointer (set by SetGlobalLogger at startup).
+ILogger *g_logger = nullptr;
+
 } // namespace
+
+// ---------------------------------------------------------------------------
+// Global logger access
+// ---------------------------------------------------------------------------
+
+void SetGlobalLogger(ILogger *logger) { g_logger = logger; }
+
+auto GetGlobalLogger() -> ILogger * { return g_logger; }
 
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-auto Logger::Instance() noexcept -> Logger & {
-   static Logger instance;
-   return instance;
-}
-
 Logger::Logger() = default;
 
 Logger::~Logger() {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    if (log_file_ != nullptr) {
       std::fflush(log_file_);
       if (own_log_file_) {
@@ -140,33 +148,33 @@ Logger::~Logger() {
 // ---------------------------------------------------------------------------
 
 void Logger::SetLevel(LogLevel level) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    level_ = level;
 }
 
 void Logger::UseTimestamps(bool enable, const char *format) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    use_timestamps_ = enable;
    timestamp_format_ = (format != nullptr) ? format : TIMESTAMP_FORMAT;
 }
 
 void Logger::UseColor(bool enable) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    color_ = enable;
 }
 
 void Logger::SetLogToStdout(bool enable) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    log_to_stdout_ = enable;
 }
 
 void Logger::SetLogToFile(bool enable) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    log_to_file_ = enable;
 }
 
 void Logger::SetLogFile(std::FILE *file) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    if (own_log_file_ && log_file_ != nullptr) {
       std::fclose(log_file_);
    }
@@ -179,7 +187,7 @@ auto Logger::OpenLogFile(const char *path, const char *mode) -> bool {
    if (file == nullptr) {
       return false;
    }
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    if (own_log_file_ && log_file_ != nullptr) {
       std::fclose(log_file_);
    }
@@ -189,12 +197,12 @@ auto Logger::OpenLogFile(const char *path, const char *mode) -> bool {
 }
 
 void Logger::SetLogFormatter(LogFormatter formatter) {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    formatter_ = std::move(formatter);
 }
 
 void Logger::Reset() {
-   std::lock_guard<std::mutex> const lock(mutex_);
+   std::scoped_lock const lock(mutex_);
    if (own_log_file_ && log_file_ != nullptr) {
       std::fclose(log_file_);
    }
@@ -242,7 +250,7 @@ void Logger::WriteLine(const std::string &line) {
    bool to_stdout = true;
    std::FILE *file = nullptr;
    {
-      std::lock_guard<std::mutex> const lock(mutex_);
+      std::scoped_lock const lock(mutex_);
       to_file = log_to_file_ && log_file_ != nullptr;
       to_stdout = log_to_stdout_;
       file = log_file_;
@@ -278,7 +286,7 @@ void Logger::VLog(LogLevel level, const char *format, va_list args) {
    std::string timestamp_format;
    LogFormatter formatter;
    {
-      std::lock_guard<std::mutex> const lock(mutex_);
+      std::scoped_lock const lock(mutex_);
       configured_level = level_;
       use_ts = use_timestamps_;
       use_color = color_;
@@ -306,7 +314,7 @@ void Logger::VLogW(LogLevel level, const wchar_t *format, va_list args) {
    std::string timestamp_format;
    LogFormatter formatter;
    {
-      std::lock_guard<std::mutex> const lock(mutex_);
+      std::scoped_lock const lock(mutex_);
       configured_level = level_;
       use_ts = use_timestamps_;
       use_color = color_;

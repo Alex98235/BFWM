@@ -38,10 +38,12 @@ auto main(int argc, char **argv) -> int {
       return 0;
    }
 
-   // Suppress log output for tests.
-   // The test code implicitely inits the logger with default values
-   // (LOG_WARN) otherwise.
-   Logger::Instance().SetLevel(LogLevel::None);
+// Suppress log output for tests.
+    // The test code implicitly inits the logger with default values
+    // (LOG_WARN) otherwise.
+    static Logger logger;
+    SetGlobalLogger(&logger);
+    logger.SetLevel(LogLevel::None);
    cbelt_run_all_tests();
    return 0;
 }

@@ -258,7 +258,8 @@ inline auto HandleInstanceGuard(HANDLE mutex, BOOL notify_mode,
 
 inline void InitLogger() {
    setlocale(LC_ALL, "");
-   Logger &logger = Logger::Instance();
+   static Logger logger;
+   SetGlobalLogger(&logger);
 #ifdef DEBUG
    logger.SetLevel(LogLevel::Debug);
 #else
