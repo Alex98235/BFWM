@@ -102,6 +102,7 @@ set(BAR_SOURCES
 # System
 set(SYSTEM_SOURCES
     src/system/system_status.cpp
+    src/system/exec_cache.cpp
 )
 
 # Window
