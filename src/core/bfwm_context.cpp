@@ -391,6 +391,7 @@ auto BFWMContextInit() -> BFWMContext * {
    InitWindowReg(context);
    InitLuaConfig(context);
    InitWindowRules(context);
+   context->exec_cache = ExecCacheCreate();
 
    // Populate config with defaults (must happen after sub-registries are
    // allocated)
@@ -419,6 +420,11 @@ void BFWMContextFree(BFWMContext *context) {
       CloseHandle(context->instance_mutex);
       context->instance_mutex = nullptr;
    }
+
+   // Terminate/close any in-flight exec_cache children before tearing down Lua
+   // (the BFWM closures capture ctx and the cache).
+   ExecCacheDestroy(context->exec_cache);
+   context->exec_cache = nullptr;
 
    // Free in reverse dependency order
    FreeWindowRules(context);
