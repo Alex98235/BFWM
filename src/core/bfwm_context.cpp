@@ -47,8 +47,10 @@ inline auto CALLBACK MonitorHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                           LPARAM lParam) -> LRESULT {
    if (msg == WM_DISPLAYCHANGE) {
       auto *ctx = (BFWMContext *)BFWMGetWindowData(hwnd);
-      if (ctx != nullptr)
-         PostThreadMessageW(ctx->main_thread_id, WM_APP_DISPLAYCHANGE, 0, 0);
+      if (ctx != nullptr) {
+         PostThreadMessageW(ctx->shared.main_thread_id, WM_APP_DISPLAYCHANGE, 0,
+                            0);
+      }
       return 0;
    }
    if (msg == WM_POWERBROADCAST) {
@@ -56,7 +58,7 @@ inline auto CALLBACK MonitorHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       if (ctx == nullptr)
          return TRUE;
       if (wParam == PBT_APMSUSPEND) {
-         PostThreadMessageW(ctx->main_thread_id, WM_APP_SUSPEND, 0, 0);
+         PostThreadMessageW(ctx->shared.main_thread_id, WM_APP_SUSPEND, 0, 0);
       } else if ((wParam == PBT_APMRESUMEAUTOMATIC) ||
                  (wParam == PBT_APMRESUMESUSPEND) ||
                  (wParam == PBT_APMRESUMECRITICAL) ||
@@ -65,7 +67,7 @@ inline auto CALLBACK MonitorHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam,
          // for PBT_APMRESUMEAUTOMATIC would leave ctx->suspended stuck TRUE
          // after a resume delivered as another type, permanently gating
          // OverlayReconcileAll (and the stale-window sweep) in the main loop.
-         PostThreadMessageW(ctx->main_thread_id, WM_APP_RESUME, 0, 0);
+         PostThreadMessageW(ctx->shared.main_thread_id, WM_APP_RESUME, 0, 0);
       }
       return TRUE;
    }
@@ -209,9 +211,9 @@ inline auto FilterDisabledMonitors(BFWMContext *ctx, MonitorRegistry *reg)
    for (size_t index = 0; index < mon_count; index++) {
       Monitor *monitor = monitors[index];
       BOOL disabled = FALSE;
-      for (int d = 0; d < ctx->config.disabled_monitor_count; d++) {
+      for (int d = 0; d < ctx->shared.config.disabled_monitor_count; d++) {
          if (std::cmp_equal(monitor->GetDisplayNumber(),
-                            ctx->config.disabled_monitors[d])) {
+                            ctx->shared.config.disabled_monitors[d])) {
             disabled = TRUE;
             break;
          }
@@ -233,14 +235,14 @@ inline auto FilterDisabledMonitors(BFWMContext *ctx, MonitorRegistry *reg)
 
 inline auto SetupBarHeights(BFWMContext *ctx,
                             const std::vector<Monitor *> &monitors) -> void {
-   if (ctx->config.bar_cfg.enabled) {
+   if (ctx->shared.config.bar_cfg.enabled) {
       Bar::Setup();
-      ctx->config.bar_height = ctx->config.bar_cfg.height;
+      ctx->shared.config.bar_height = ctx->shared.config.bar_cfg.height;
       for (const auto &monitor : monitors) {
          /* bar_height config is logical; store it scaled to each monitor's
           * physical pixels (the value reserved from the work area). */
          monitor->SetBarHeight(ctx->dpi->ScaleForMonitor(
-             monitor->GetHandle(), ctx->config.bar_height));
+             monitor->GetHandle(), ctx->shared.config.bar_height));
       }
    }
 }
@@ -277,9 +279,10 @@ inline auto AssignWindowsToWorkspaces(BFWMContext *ctx, HWND pre_focus)
 
 inline auto CreateBarWindows(BFWMContext *ctx,
                              const std::vector<Monitor *> &monitors) -> void {
-   if (ctx->config.bar_cfg.enabled) {
+   if (ctx->shared.config.bar_cfg.enabled) {
       for (auto *mon : monitors) {
-         mon->SetBar(std::make_unique<Bar>(mon, &ctx->config.bar_cfg, ctx));
+         mon->SetBar(
+             std::make_unique<Bar>(mon, &ctx->shared.config.bar_cfg, ctx));
          if (!mon->GetBar()->Init()) {
             /* keep object alive for retry */
          }

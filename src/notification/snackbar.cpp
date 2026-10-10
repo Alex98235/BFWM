@@ -147,7 +147,7 @@ auto Snackbar::Init() -> bool {
    if (notify_hwnd != nullptr)
       BFWMSetWindowData(notify_hwnd, ctx);
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    uint64_t const arena_size = Clay_MinMemorySize();
    clay_arena = calloc(1, (size_t)arena_size);
    if (clay_arena == nullptr) {
@@ -246,7 +246,7 @@ void Snackbar::Show(struct BFWMContext *ctx, SnackbarLogLevel level,
 void Snackbar::ShowMessage(SnackbarLogLevel level, std::wstring *message,
                            BOOL force) {
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    if (cfg->enabled == 0)
       return;
    if ((force == 0) && level > cfg->log_level)
@@ -279,7 +279,7 @@ void Snackbar::TickNotifications() {
    if (hwnd == nullptr)
       return;
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    if (cfg->enabled == 0) {
       if (window_visible != 0) {
          ShowWindow(hwnd, SW_HIDE);
@@ -448,7 +448,7 @@ auto Snackbar::OnPaint() -> LRESULT {
 
    RECT client_rect;
    GetClientRect(hwnd, &client_rect);
-   COLORREF const background = ctx->config.snackbar.background;
+   COLORREF const background = ctx->shared.config.snackbar.background;
    HBRUSH bg_brush = CreateSolidBrush(background);
    FillRect(hdc, &client_rect, bg_brush);
    DeleteObject(bg_brush);
@@ -462,7 +462,7 @@ auto Snackbar::OnPaint() -> LRESULT {
    Clay_SetLayoutDimensions(dimensions);
    Clay_SetPointerState(position, FALSE);
    Clay_BeginLayout();
-   BuildLayout(&ctx->config.snackbar, true);
+   BuildLayout(&ctx->shared.config.snackbar, true);
    Clay_RenderCommandArray cmds = Clay_EndLayout(0);
    if (cmds.length > 0)
       ClayGdiRender(hdc, &cmds, &clay_cfg);
@@ -473,7 +473,7 @@ auto Snackbar::OnPaint() -> LRESULT {
 }
 
 auto Snackbar::OnLButtonDown(LPARAM l_param) -> LRESULT {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    int const mouse_y = GET_Y_LPARAM(l_param);
    int top = 0;
    for (int i = 0; i < active_count; i++) {
@@ -494,7 +494,7 @@ auto Snackbar::OnLButtonDown(LPARAM l_param) -> LRESULT {
 }
 
 auto Snackbar::OnMouseMove() -> LRESULT {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    if (cfg->pause_on_hover == 0)
       return 0;
    if (hovered == 0) {
@@ -528,7 +528,7 @@ auto Snackbar::OnDpiChanged(WPARAM w_param, LPARAM l_param) -> LRESULT {
                        : MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
    ctx->dpi->RegisterMonitor(hmon, new_dpi);
    if (active_count > 0)
-      RebuildLayout(&ctx->config.snackbar);
+      RebuildLayout(&ctx->shared.config.snackbar);
    return 0;
 }
 
@@ -557,7 +557,7 @@ auto CALLBACK Snackbar::NotifyWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 // ============================================================
 
 auto Snackbar::FindMonitor() -> const Monitor * {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    if (cfg->monitor == 0) {
       POINT const zero = {.x = 0, .y = 0};
       HMONITOR primary = MonitorFromPoint(zero, MONITOR_DEFAULTTOPRIMARY);
@@ -798,7 +798,7 @@ void Snackbar::BuildLayout(const SnackbarConfig *cfg, bool fill_width) {
 // ============================================================
 
 void Snackbar::UpdateWindow() {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &ctx->shared.config.snackbar;
    if (active_count == 0) {
       if (window_visible != 0) {
          ShowWindow(hwnd, SW_HIDE);

@@ -145,19 +145,20 @@ inline void ConvergeAsyncMoves(BFWMContext *ctx) {
  *        bar.h besides bar.c and BFWM_context.c).
  *
  * Runs when a BAR_UPDATE_RECREATE request is consumed; destroyed bars are
- * rebuilt from ctx->config.bar_cfg, disabled bars are torn down. Called before
- * the first full render, so a RECREATE raised during init is consumed on the
- * first MainLoop iteration.
+ * rebuilt from ctx->shared.config.bar_cfg, disabled bars are torn down. Called
+ * before the first full render, so a RECREATE raised during init is consumed on
+ * the first MainLoop iteration.
  *
  * @param ctx The BFWM context
  */
 inline void PresentBars(struct BFWMContext *ctx) {
    for (size_t index = 0; index < ctx->monitors->Size(); index++) {
       Monitor *mon = ctx->monitors->At(index);
-      if (ctx->config.bar_cfg.enabled) {
+      if (ctx->shared.config.bar_cfg.enabled) {
          if (mon->GetBar() != nullptr)
             mon->ResetBar();
-         mon->SetBar(std::make_unique<Bar>(mon, &ctx->config.bar_cfg, ctx));
+         mon->SetBar(
+             std::make_unique<Bar>(mon, &ctx->shared.config.bar_cfg, ctx));
          if (!mon->GetBar()->Init()) {
             /* keep object alive for retry */
          }
@@ -177,18 +178,18 @@ inline void DispatchKeybind(BFWMContext *ctx, Keystroke *queued) {
       return; // skip bare modifiers
    }
 
-   auto *actions = KBDFind(ctx->keybinds, *queued);
+   auto *actions = KBDFind(ctx->shared.keybinds, *queued);
    if (actions == nullptr)
       return;
 
    // The generation check after each dispatch catches actions becoming
    // stale when the dictionary is rebuilt mid-loop (e.g. HandleReloadConfig).
-   size_t const gen = ctx->keybinds.generation;
+   size_t const gen = ctx->shared.keybinds.generation;
    for (const auto &action : *actions) {
       if ((queued->repeat == TRUE) && (action->repeatable == FALSE))
          continue;
       ActionDispatcherDispatch(ctx, action.get());
-      if (ctx->keybinds.generation != gen)
+      if (ctx->shared.keybinds.generation != gen)
          break;
    }
 }
@@ -340,7 +341,7 @@ inline auto PopulateBFWMContext(struct BFWMContext *ctx,
    LuaConfigLoad(&ctx->lua, ctx, config_path.data());
 
    if (args->no_bar == TRUE)
-      ctx->config.bar_cfg.enabled = FALSE;
+      ctx->shared.config.bar_cfg.enabled = FALSE;
 
    ctx->running = TRUE;
 
@@ -517,7 +518,7 @@ inline void MainLoop(struct BFWMContext *ctx) {
          for (size_t i = 0; i < ctx->monitors->Size(); i++) {
             Monitor *mon = ctx->monitors->At(i);
             mon->SetBarHeight(ctx->dpi->ScaleForMonitor(
-                mon->GetHandle(), ctx->config.bar_height));
+                mon->GetHandle(), ctx->shared.config.bar_height));
          }
          RecalculateAllWorkspaceRects(ctx);
          /* Rects changed; relayout the active workspace on every monitor so
@@ -623,7 +624,7 @@ auto main(int argc, char *argv[]) -> int {
    RegisterActionHandlers();
 
    BFWMContext *ctx = BFWMContextInit();
-   ctx->main_thread_id = GetCurrentThreadId();
+   ctx->shared.main_thread_id = GetCurrentThreadId();
    ctx->instance_mutex = instance_mutex;
 
    if (PopulateBFWMContext(ctx, &args) == FALSE) {

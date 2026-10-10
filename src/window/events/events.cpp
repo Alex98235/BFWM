@@ -171,8 +171,8 @@ inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
       // suppressed until it exits fullscreen. Construction never fails — on
       // failure the overlay is inert and every method no-ops.
       window->SetOverlay(std::make_unique<Overlay>(
-          ctx, hwnd, ctx->config.border_color, ctx->config.border_width,
-          ctx->config.border_radius));
+          ctx, hwnd, ctx->shared.config.border_color,
+          ctx->shared.config.border_width, ctx->shared.config.border_radius));
       if (window->IsUnmanagedFullscreen() == TRUE)
          window->SyncOverlay(TRUE);
 
@@ -346,9 +346,10 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
  */
 inline void CheckResizeRevert(BFWMContext *ctx, HWND hwnd,
                               Workspace *workspace) {
-   if (ctx->config.unlock_modifier == 0)
+   if (ctx->shared.config.unlock_modifier == 0)
       return;
-   auto mod_state = (SHORT)GetAsyncKeyState((int)ctx->config.unlock_modifier);
+   auto mod_state =
+       (SHORT)GetAsyncKeyState((int)ctx->shared.config.unlock_modifier);
    if ((mod_state & MOD_KEY_DOWN_MASK) != 0)
       return; // modifier is held — accept the new position
 
@@ -1167,7 +1168,7 @@ void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
            hwnd, static_cast<BOOL>(ctx->windows->FindByHwnd(hwnd) !=
                                    nullptr)) == TRUE) {
       if (ctx->focus_intent.Kind() == FocusIntentKind::Known) {
-         PostThreadMessage(ctx->main_thread_id, WM_FORCE_FOCUS,
+         PostThreadMessage(ctx->shared.main_thread_id, WM_FORCE_FOCUS,
                            (WPARAM)ctx->focus_intent.Target(), 0);
       }
       return; // drop the noise, STAY armed

@@ -24,6 +24,7 @@
 #define BFWM_CONTEXT_H
 
 #include "focus_intent.h"
+#include "shared_state.h"
 
 #include "../config/keybinds.h"
 #include "../config/lua/parser.h"
@@ -80,8 +81,6 @@ using BFWMContext = struct BFWMContext {
    std::unique_ptr<DpiSystem> dpi;
    /// Managed top-level windows
    std::unique_ptr<WindowRegistry> windows;
-   /// Keystroke-to-action bindings
-   KeybindDictionary keybinds;
    /// Array of window rules (NON-OWNING vector — the WindowRule objects are
    /// freed via WindowRuleDestroy by the existing loops; the vector only owns
    /// the pointer array)
@@ -101,50 +100,15 @@ using BFWMContext = struct BFWMContext {
 
    HWND focused_hwnd = nullptr;
 
-   /** @name Runtime configuration */
+   /** @name Shared state (worker-visible config; see shared_state.h) */
    /** @{ */
-   struct {
-      /// Pixel gap between tiled windows
-      int gap_between = 0;
-      /// Pixel gap at screen edges
-      int gap_edge = 0;
-      /// Runtime toggle for all gaps
-      BOOL gaps_enabled = FALSE;
-      /// Active window border color
-      COLORREF border_color = 0;
-      /// Inactive window border color
-      COLORREF inactive_border = 0;
-      /// Active border thickness in logical pixels
-      int border_width = 0;
-      /// Active border corner radius in logical pixels (0 = square)
-      int border_radius = 0;
-      /// Auto-focus on mouse hover
-      BOOL focus_follows_mouse = FALSE;
-      /// Move cursor to newly focused window
-      BOOL mouse_follows_focus = FALSE;
-      /// Reserved bar height in pixels
-      int bar_height = 0;
-      /// Bar appearance and indicator config
-      BarConfig bar_cfg;
-      /// VK code to unlock resize (0 = always unlocked)
-      DWORD unlock_modifier = 0;
-      /// VK code to unlock drag-move (0 = always unlocked)
-      DWORD unlock_move_modifier = 0;
-      LayoutType
-          /// Default layout algorithm for new workspaces
-          default_layout = DWINDLE;
-      std::array<struct WorkspaceConfig, 32> workspace_configs = {};
-      int workspace_config_count = 0;
-      std::array<int, 16> disabled_monitors = {};
-      int disabled_monitor_count = 0;
-      SnackbarConfig snackbar;
-   } config;
+   SharedState shared;
+   /** @} */
 
    /** @name Runtime disabled monitor UIDs (derived from config at startup) */
    /** @{ */
    std::array<std::wstring, 16> disabled_uids = {};
    int disabled_uid_count = 0;
-   /** @} */
    /** @} */
 
    /** @name Synchronisation */
@@ -175,8 +139,6 @@ using BFWMContext = struct BFWMContext {
    /** @{ */
    /// Handle from _beginthreadex for the worker
    uintptr_t worker_thread = 0;
-   /// Main thread ID (for PostThreadMessage)
-   DWORD main_thread_id = 0;
 
    /** @} */
 

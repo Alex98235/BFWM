@@ -208,7 +208,7 @@ struct BFWMContext;
  *        and keybinds.
  *
  * Opens a Lua VM, loads config.lua from the given path, reads runtime
- * settings into ctx->config, and populates the keybind dictionary.
+ * settings into ctx->shared.config, and populates the keybind dictionary.
  *
  * @param config      The Lua config state
  * @param ctx         The BFWM context (settings + keybinds are written here)

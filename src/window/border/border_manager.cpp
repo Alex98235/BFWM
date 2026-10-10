@@ -17,11 +17,11 @@ void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color) {
 }
 
 void BorderManagerSetActive(struct BFWMContext *ctx, HWND hwnd) {
-   BorderManagerSetColor(ctx, hwnd, ctx->config.border_color);
+   BorderManagerSetColor(ctx, hwnd, ctx->shared.config.border_color);
 }
 
 void BorderManagerSetInactive(struct BFWMContext *ctx, HWND hwnd) {
-   BorderManagerSetColor(ctx, hwnd, ctx->config.inactive_border);
+   BorderManagerSetColor(ctx, hwnd, ctx->shared.config.inactive_border);
 }
 
 void BorderManagerRedraw(struct BFWMContext *ctx, HWND hwnd) {

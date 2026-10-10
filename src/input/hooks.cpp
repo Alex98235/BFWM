@@ -152,7 +152,7 @@ auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
          queued.repeat = key_down[pKey->vkCode & KEY_INDEX_MASK];
          key_down[pKey->vkCode & KEY_INDEX_MASK] = TRUE;
 
-         auto *actions = KBDFind(ctx->keybinds, queued);
+         auto *actions = KBDFind(ctx->shared.keybinds, queued);
          if ((actions != nullptr) && (IsAltGrChord(queued.modifiers) == 0)) {
             ctx->keystroke_queue.Enqueue(queued);
             return 1;
@@ -170,12 +170,12 @@ auto CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
          GetCursorPos(&point);
          // Desktop-click handling lives on the main thread (workspace.c) —
          // mirror the WM_FORCE_FOCUS post precedent.
-         PostThreadMessage(ctx->main_thread_id, WM_APP_DESKTOP_CLICK, 0,
+         PostThreadMessage(ctx->shared.main_thread_id, WM_APP_DESKTOP_CLICK, 0,
                            PackPoint(point));
          return CallNextHookEx(nullptr, nCode, wParam, lParam);
       }
       if (wParam == WM_MOUSEMOVE && (ctx != nullptr) &&
-          (ctx->config.focus_follows_mouse != 0)) {
+          (ctx->shared.config.focus_follows_mouse != 0)) {
          if (((GetAsyncKeyState(VK_LBUTTON) & HIGH_BIT_MASK) != 0) ||
              ((GetAsyncKeyState(VK_RBUTTON) & HIGH_BIT_MASK) != 0))
             return CallNextHookEx(nullptr, nCode, wParam, lParam);
@@ -189,7 +189,7 @@ auto CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
          // the workspace-active check via WorkspaceHandleMouseHover.
          if ((hover != nullptr) && hover != ctx->focused_hwnd &&
              (ctx->windows->FindByHwnd(hover) != nullptr)) {
-            PostThreadMessage(ctx->main_thread_id, WM_APP_MOUSE_HOVER, 0,
+            PostThreadMessage(ctx->shared.main_thread_id, WM_APP_MOUSE_HOVER, 0,
                               PackPoint(point));
          }
       }

@@ -555,7 +555,8 @@ inline void SetupNewMonitors(struct BFWMContext *ctx,
       }
 
       if (mon->GetBar() == nullptr || !mon->GetBar()->IsInitialized()) {
-         mon->SetBar(std::make_unique<Bar>(mon, &ctx->config.bar_cfg, ctx));
+         mon->SetBar(
+             std::make_unique<Bar>(mon, &ctx->shared.config.bar_cfg, ctx));
          if (!mon->GetBar()->Init()) {
             /* keep object alive for retry */
          }
@@ -719,8 +720,8 @@ void Monitor::Init(BFWMContext *ctx) {
     * pixels (the value reserved from the work area). */
    bar_height_ =
        (ctx->dpi != nullptr)
-           ? ctx->dpi->ScaleForMonitor(handle_, ctx->config.bar_height)
-           : ctx->config.bar_height;
+           ? ctx->dpi->ScaleForMonitor(handle_, ctx->shared.config.bar_height)
+           : ctx->shared.config.bar_height;
    fullscreen_count_ = 0;
    bar_.reset();
 }

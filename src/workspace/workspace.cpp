@@ -46,9 +46,9 @@ auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id) -> const
     struct WorkspaceConfig * {
    if (ctx == nullptr)
       return nullptr;
-   for (int i = 0; i < ctx->config.workspace_config_count; i++) {
-      if (ctx->config.workspace_configs[i].id == workspace_id)
-         return &ctx->config.workspace_configs[i];
+   for (int i = 0; i < ctx->shared.config.workspace_config_count; i++) {
+      if (ctx->shared.config.workspace_configs[i].id == workspace_id)
+         return &ctx->shared.config.workspace_configs[i];
    }
    return nullptr;
 }
@@ -134,7 +134,7 @@ inline void RaiseNewFullscreen(HWND hwnd, struct BFWMContext *ctx) {
 }
 
 inline void HandleMouseFollowsFocus(HWND hwnd, struct BFWMContext *ctx) {
-   if (ctx->config.mouse_follows_focus == 0)
+   if (ctx->shared.config.mouse_follows_focus == 0)
       return;
 
    RECT r;
@@ -184,7 +184,7 @@ inline void SetInactiveWindowBorders(Workspace *workspace,
       HWND h = window->GetHwnd();
       if ((IsWindowVisible(h) == FALSE) || h == ctx->focused_hwnd)
          continue;
-      ctx->transaction.QueueBorderColor(h, ctx->config.inactive_border);
+      ctx->transaction.QueueBorderColor(h, ctx->shared.config.inactive_border);
    }
    ctx->applying_layout = FALSE;
 }
@@ -219,16 +219,17 @@ auto CreateWorkspaceForMonitor(BFWMContext *ctx, size_t target_id,
    /* bar_cfg margins are logical; scale them to the monitor's physical
     * pixels. GetBarHeight() is already physical. ScaleForMonitor guards a
     * DPI of zero (registry miss) by falling back to identity scaling. */
-   ws_rect.top += ctx->dpi->ScaleForMonitor(mon->GetHandle(),
-                                            ctx->config.bar_cfg.margin.top) +
-                  mon->GetBarHeight() +
-                  ctx->dpi->ScaleForMonitor(mon->GetHandle(),
-                                            ctx->config.bar_cfg.margin.bottom);
+   ws_rect.top +=
+       ctx->dpi->ScaleForMonitor(mon->GetHandle(),
+                                 ctx->shared.config.bar_cfg.margin.top) +
+       mon->GetBarHeight() +
+       ctx->dpi->ScaleForMonitor(mon->GetHandle(),
+                                 ctx->shared.config.bar_cfg.margin.bottom);
    ScaledLayoutConfig const scaled =
        ScaleLayoutConfigForMonitor(ctx, mon->GetHandle());
-   return new Workspace(target_id, name->c_str(), ctx->config.default_layout,
-                        ws_rect, scaled.gap_between, scaled.gap_edge,
-                        scaled.border_width);
+   return new Workspace(
+       target_id, name->c_str(), ctx->shared.config.default_layout, ws_rect,
+       scaled.gap_between, scaled.gap_edge, scaled.border_width);
 }
 
 auto ScaleLayoutConfigForMonitor(struct BFWMContext *ctx, HMONITOR hmon)
@@ -236,9 +237,9 @@ auto ScaleLayoutConfigForMonitor(struct BFWMContext *ctx, HMONITOR hmon)
    if (ctx == nullptr)
       return {};
    ScaledLayoutConfig out = {
-       .gap_between = ctx->config.gap_between,
-       .gap_edge = ctx->config.gap_edge,
-       .border_width = ctx->config.border_width,
+       .gap_between = ctx->shared.config.gap_between,
+       .gap_edge = ctx->shared.config.gap_edge,
+       .border_width = ctx->shared.config.border_width,
    };
    if (ctx->dpi != nullptr) {
       out.gap_between = ctx->dpi->ScaleForMonitor(hmon, out.gap_between);
@@ -520,7 +521,8 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
 
    if ((old_focus != nullptr) && old_focus != hwnd &&
        (IsWindowVisible(old_focus) == TRUE)) {
-      ctx->transaction.QueueBorderColor(old_focus, ctx->config.inactive_border);
+      ctx->transaction.QueueBorderColor(old_focus,
+                                        ctx->shared.config.inactive_border);
    }
 
    // The new focus always gets the active border. Queued here (not only via
@@ -529,7 +531,7 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
    // FocusWindowImmediate's already-foregrounded early-return, which would
    // otherwise skip the active color entirely.
    if (IsWindowVisible(hwnd) == TRUE) {
-      ctx->transaction.QueueBorderColor(hwnd, ctx->config.border_color);
+      ctx->transaction.QueueBorderColor(hwnd, ctx->shared.config.border_color);
    }
 
    // Queue relayout
@@ -908,7 +910,7 @@ auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
       ScaledLayoutConfig const scaled =
           ScaleLayoutConfigForMonitor(ctx, mon->GetHandle());
       target = new Workspace(
-          target_id, name.c_str(), ctx->config.default_layout, ws_rect,
+          target_id, name.c_str(), ctx->shared.config.default_layout, ws_rect,
           scaled.gap_between, scaled.gap_edge, scaled.border_width);
       if (target == nullptr)
          return false;
@@ -1037,9 +1039,9 @@ void PushGapConfigToAllWorkspaces(struct BFWMContext *ctx) {
       ScaledLayoutConfig const scaled =
           ScaleLayoutConfigForMonitor(ctx, mon->GetHandle());
       int const eff_between =
-          (ctx->config.gaps_enabled != 0) ? scaled.gap_between : 0;
+          (ctx->shared.config.gaps_enabled != 0) ? scaled.gap_between : 0;
       int const eff_edge =
-          (ctx->config.gaps_enabled != 0) ? scaled.gap_edge : 0;
+          (ctx->shared.config.gaps_enabled != 0) ? scaled.gap_edge : 0;
       for (size_t j = 0; j < mon->Workspaces().size(); j++) {
          Workspace *workspace = mon->Workspaces()[j];
          if (workspace->GetEngine() != nullptr) {
@@ -1065,9 +1067,10 @@ void Workspace::RecalculateRect(Monitor *mon, struct BFWMContext *ctx) {
     * physical pixels. mon->GetBarHeight() is already physical. */
    UINT const dpi = (ctx->dpi != nullptr) ? ctx->dpi->GetDpi(mon->GetHandle())
                                           : DpiSystem::BaseDpi();
-   new_rect.top += DpiSystem::Scale(ctx->config.bar_cfg.margin.top, dpi) +
-                   mon->GetBarHeight() +
-                   DpiSystem::Scale(ctx->config.bar_cfg.margin.bottom, dpi);
+   new_rect.top +=
+       DpiSystem::Scale(ctx->shared.config.bar_cfg.margin.top, dpi) +
+       mon->GetBarHeight() +
+       DpiSystem::Scale(ctx->shared.config.bar_cfg.margin.bottom, dpi);
    workspace_rect_ = new_rect;
    ScaledLayoutConfig const scaled =
        ScaleLayoutConfigForMonitor(ctx, mon->GetHandle());
@@ -1078,8 +1081,9 @@ void Workspace::RecalculateRect(Monitor *mon, struct BFWMContext *ctx) {
    gap_edge_ = scaled.gap_edge;
    border_width_ = scaled.border_width;
    int const eff_between =
-       (ctx->config.gaps_enabled != 0) ? scaled.gap_between : 0;
-   int const eff_edge = (ctx->config.gaps_enabled != 0) ? scaled.gap_edge : 0;
+       (ctx->shared.config.gaps_enabled != 0) ? scaled.gap_between : 0;
+   int const eff_edge =
+       (ctx->shared.config.gaps_enabled != 0) ? scaled.gap_edge : 0;
    /* Usable tiling area = workspace rect inset by the effective edge gap plus
     * the border strip on every side. Matches the tiled area each engine derives
     * (dwindle: workspace rect minus border; master/monocle: tiled_rect), so a
@@ -1152,9 +1156,9 @@ void Workspace::MoveToMonitor(Monitor *target_mon, struct BFWMContext *ctx) {
 
 auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon)
     -> size_t {
-   for (int i = 0; i < ctx->config.workspace_config_count; i++) {
+   for (int i = 0; i < ctx->shared.config.workspace_config_count; i++) {
       const struct WorkspaceConfig *workspace_config =
-          &ctx->config.workspace_configs[i];
+          &ctx->shared.config.workspace_configs[i];
       if (std::cmp_equal(workspace_config->assigned_monitor,
                          mon->GetDisplayNumber()) &&
           (FindWorkspaceById(ctx, workspace_config->id) == nullptr)) {

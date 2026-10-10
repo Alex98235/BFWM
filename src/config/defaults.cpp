@@ -63,7 +63,7 @@ inline void insert_bind(BFWMContext *ctx, DWORD vkCode, BOOL alt, BOOL shift,
    keystroke.repeat = repeat;
    if (action != nullptr) {
       action->repeatable = repeat;
-      KBDictInsert(ctx->keybinds, keystroke,
+      KBDictInsert(ctx->shared.keybinds, keystroke,
                    std::unique_ptr<BFWMAction>(action));
    }
 }
@@ -129,66 +129,78 @@ void ConfigLoadDefaultKeybinds(BFWMContext *ctx) {
 }
 
 void ConfigLoadDefaults(BFWMContext *ctx) {
-   ctx->config.gap_between = BFWM_DEFAULT_GAP_BETWEEN;
-   ctx->config.gap_edge = BFWM_DEFAULT_GAP_EDGE;
-   ctx->config.gaps_enabled = BFWM_DEFAULT_GAPS_ENABLED;
-   ctx->config.bar_height = BFWM_DEFAULT_BAR_HEIGHT;
-   ctx->config.border_color = BFWM_DEFAULT_BORDER_COLOR;
-   ctx->config.inactive_border = BFWM_DEFAULT_INACTIVE_BORDER;
-   ctx->config.border_width = BFWM_DEFAULT_BORDER_WIDTH;
-   ctx->config.border_radius = BFWM_DEFAULT_BORDER_RADIUS;
-   ctx->config.focus_follows_mouse = BFWM_DEFAULT_FOCUS_FOLLOWS_MOUSE;
-   ctx->config.mouse_follows_focus = BFWM_DEFAULT_MOUSE_FOLLOWS_FOCUS;
-   ctx->config.unlock_modifier = BFWM_DEFAULT_UNLOCK_MODIFIER;
-   ctx->config.unlock_move_modifier = BFWM_DEFAULT_UNLOCK_MOVE_MODIFIER;
-   ctx->config.default_layout = BFWM_DEFAULT_LAYOUT;
-   ctx->config.disabled_monitor_count = BFWM_DEFAULT_DISABLED_MONITOR_COUNT;
+   ctx->shared.config.gap_between = BFWM_DEFAULT_GAP_BETWEEN;
+   ctx->shared.config.gap_edge = BFWM_DEFAULT_GAP_EDGE;
+   ctx->shared.config.gaps_enabled = BFWM_DEFAULT_GAPS_ENABLED;
+   ctx->shared.config.bar_height = BFWM_DEFAULT_BAR_HEIGHT;
+   ctx->shared.config.border_color = BFWM_DEFAULT_BORDER_COLOR;
+   ctx->shared.config.inactive_border = BFWM_DEFAULT_INACTIVE_BORDER;
+   ctx->shared.config.border_width = BFWM_DEFAULT_BORDER_WIDTH;
+   ctx->shared.config.border_radius = BFWM_DEFAULT_BORDER_RADIUS;
+   ctx->shared.config.focus_follows_mouse = BFWM_DEFAULT_FOCUS_FOLLOWS_MOUSE;
+   ctx->shared.config.mouse_follows_focus = BFWM_DEFAULT_MOUSE_FOLLOWS_FOCUS;
+   ctx->shared.config.unlock_modifier = BFWM_DEFAULT_UNLOCK_MODIFIER;
+   ctx->shared.config.unlock_move_modifier = BFWM_DEFAULT_UNLOCK_MOVE_MODIFIER;
+   ctx->shared.config.default_layout = BFWM_DEFAULT_LAYOUT;
+   ctx->shared.config.disabled_monitor_count =
+       BFWM_DEFAULT_DISABLED_MONITOR_COUNT;
 
-   BarConfigDefaults(&ctx->config.bar_cfg);
+   BarConfigDefaults(&ctx->shared.config.bar_cfg);
 
    /* Snackbar */
-   ctx->config.snackbar.enabled = BFWM_DEFAULT_SNACKBAR_ENABLED;
-   ctx->config.snackbar.log_level = BFWM_DEFAULT_SNACKBAR_LOG_LEVEL;
-   ctx->config.snackbar.display_duration_ms =
+   ctx->shared.config.snackbar.enabled = BFWM_DEFAULT_SNACKBAR_ENABLED;
+   ctx->shared.config.snackbar.log_level = BFWM_DEFAULT_SNACKBAR_LOG_LEVEL;
+   ctx->shared.config.snackbar.display_duration_ms =
        BFWM_DEFAULT_SNACKBAR_DISPLAY_DURATION;
-   ctx->config.snackbar.position = BFWM_DEFAULT_SNACKBAR_POSITION;
+   ctx->shared.config.snackbar.position = BFWM_DEFAULT_SNACKBAR_POSITION;
 
-   ctx->config.snackbar.margin_left = BFWM_DEFAULT_SNACKBAR_MARGIN_LEFT;
-   ctx->config.snackbar.margin_right = BFWM_DEFAULT_SNACKBAR_MARGIN_RIGHT;
-   ctx->config.snackbar.margin_top = BFWM_DEFAULT_SNACKBAR_MARGIN_TOP;
-   ctx->config.snackbar.margin_bottom = BFWM_DEFAULT_SNACKBAR_MARGIN_BOTTOM;
+   ctx->shared.config.snackbar.margin_left = BFWM_DEFAULT_SNACKBAR_MARGIN_LEFT;
+   ctx->shared.config.snackbar.margin_right =
+       BFWM_DEFAULT_SNACKBAR_MARGIN_RIGHT;
+   ctx->shared.config.snackbar.margin_top = BFWM_DEFAULT_SNACKBAR_MARGIN_TOP;
+   ctx->shared.config.snackbar.margin_bottom =
+       BFWM_DEFAULT_SNACKBAR_MARGIN_BOTTOM;
 
-   ctx->config.snackbar.min_width = BFWM_DEFAULT_SNACKBAR_MIN_WIDTH;
-   ctx->config.snackbar.max_width = BFWM_DEFAULT_SNACKBAR_MAX_WIDTH;
+   ctx->shared.config.snackbar.min_width = BFWM_DEFAULT_SNACKBAR_MIN_WIDTH;
+   ctx->shared.config.snackbar.max_width = BFWM_DEFAULT_SNACKBAR_MAX_WIDTH;
 
-   ctx->config.snackbar.padding_left = BFWM_DEFAULT_SNACKBAR_PADDING_LEFT;
-   ctx->config.snackbar.padding_right = BFWM_DEFAULT_SNACKBAR_PADDING_RIGHT;
-   ctx->config.snackbar.padding_top = BFWM_DEFAULT_SNACKBAR_PADDING_TOP;
-   ctx->config.snackbar.padding_bottom = BFWM_DEFAULT_SNACKBAR_PADDING_BOTTOM;
+   ctx->shared.config.snackbar.padding_left =
+       BFWM_DEFAULT_SNACKBAR_PADDING_LEFT;
+   ctx->shared.config.snackbar.padding_right =
+       BFWM_DEFAULT_SNACKBAR_PADDING_RIGHT;
+   ctx->shared.config.snackbar.padding_top = BFWM_DEFAULT_SNACKBAR_PADDING_TOP;
+   ctx->shared.config.snackbar.padding_bottom =
+       BFWM_DEFAULT_SNACKBAR_PADDING_BOTTOM;
 
-   ctx->config.snackbar.background = BFWM_DEFAULT_SNACKBAR_BACKGROUND;
-   ctx->config.snackbar.text = BFWM_DEFAULT_SNACKBAR_TEXT;
-   ctx->config.snackbar.divider = BFWM_DEFAULT_SNACKBAR_DIVIDER;
-   ctx->config.snackbar.divider_height = BFWM_DEFAULT_SNACKBAR_DIVIDER_HEIGHT;
+   ctx->shared.config.snackbar.background = BFWM_DEFAULT_SNACKBAR_BACKGROUND;
+   ctx->shared.config.snackbar.text = BFWM_DEFAULT_SNACKBAR_TEXT;
+   ctx->shared.config.snackbar.divider = BFWM_DEFAULT_SNACKBAR_DIVIDER;
+   ctx->shared.config.snackbar.divider_height =
+       BFWM_DEFAULT_SNACKBAR_DIVIDER_HEIGHT;
 
-   ctx->config.snackbar.font_size = BFWM_DEFAULT_SNACKBAR_FONT_SIZE;
-   ctx->config.snackbar.font_name = BFWM_DEFAULT_SNACKBAR_FONT_NAME;
+   ctx->shared.config.snackbar.font_size = BFWM_DEFAULT_SNACKBAR_FONT_SIZE;
+   ctx->shared.config.snackbar.font_name = BFWM_DEFAULT_SNACKBAR_FONT_NAME;
 
-   ctx->config.snackbar.corner_radius = BFWM_DEFAULT_SNACKBAR_CORNER_RADIUS;
-   ctx->config.snackbar.opacity = BFWM_DEFAULT_SNACKBAR_OPACITY;
-   ctx->config.snackbar.close_on_click = BFWM_DEFAULT_SNACKBAR_CLOSE_ON_CLICK;
-   ctx->config.snackbar.pause_on_hover = BFWM_DEFAULT_SNACKBAR_PAUSE_ON_HOVER;
-   ctx->config.snackbar.click_to_expand = BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND;
-   ctx->config.snackbar.max_queue = BFWM_DEFAULT_SNACKBAR_MAX_QUEUE;
-   ctx->config.snackbar.monitor = BFWM_DEFAULT_SNACKBAR_MONITOR;
+   ctx->shared.config.snackbar.corner_radius =
+       BFWM_DEFAULT_SNACKBAR_CORNER_RADIUS;
+   ctx->shared.config.snackbar.opacity = BFWM_DEFAULT_SNACKBAR_OPACITY;
+   ctx->shared.config.snackbar.close_on_click =
+       BFWM_DEFAULT_SNACKBAR_CLOSE_ON_CLICK;
+   ctx->shared.config.snackbar.pause_on_hover =
+       BFWM_DEFAULT_SNACKBAR_PAUSE_ON_HOVER;
+   ctx->shared.config.snackbar.click_to_expand =
+       BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND;
+   ctx->shared.config.snackbar.max_queue = BFWM_DEFAULT_SNACKBAR_MAX_QUEUE;
+   ctx->shared.config.snackbar.monitor = BFWM_DEFAULT_SNACKBAR_MONITOR;
 
-   ctx->config.snackbar.colors.error = BFWM_DEFAULT_SNACKBAR_COLOR_ERROR;
-   ctx->config.snackbar.colors.warn = BFWM_DEFAULT_SNACKBAR_COLOR_WARN;
-   ctx->config.snackbar.colors.info = BFWM_DEFAULT_SNACKBAR_COLOR_INFO;
-   ctx->config.snackbar.colors.debug = BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG;
-   ctx->config.snackbar.colors.normal = BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL;
+   ctx->shared.config.snackbar.colors.error = BFWM_DEFAULT_SNACKBAR_COLOR_ERROR;
+   ctx->shared.config.snackbar.colors.warn = BFWM_DEFAULT_SNACKBAR_COLOR_WARN;
+   ctx->shared.config.snackbar.colors.info = BFWM_DEFAULT_SNACKBAR_COLOR_INFO;
+   ctx->shared.config.snackbar.colors.debug = BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG;
+   ctx->shared.config.snackbar.colors.normal =
+       BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL;
 
    /* Reset keybinds to defaults */
-   KBDictClear(ctx->keybinds);
+   KBDictClear(ctx->shared.keybinds);
    ConfigLoadDefaultKeybinds(ctx);
 }

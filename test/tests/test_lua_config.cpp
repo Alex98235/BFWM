@@ -79,7 +79,7 @@ CBELT_TEST(load_bare_minimum) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.gap_between == 8);
+   cbelt_assert(ctx->shared.config.gap_between == 8);
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -114,29 +114,33 @@ CBELT_TEST(load_all_settings) {
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   cbelt_assert(ctx->config.gap_between == 8);
-   cbelt_assert(ctx->config.gap_edge == 4);
-   cbelt_assert(ctx->config.border_color == RGB(0x00, 0xff, 0x00));
-   cbelt_assert(ctx->config.inactive_border == RGB(0x33, 0x33, 0x33));
-   cbelt_assert(ctx->config.border_width == 4);
-   cbelt_assert(ctx->config.border_radius == 12);
-   cbelt_assert(ctx->config.focus_follows_mouse == TRUE);
-   cbelt_assert(ctx->config.mouse_follows_focus == TRUE);
-   cbelt_assert(ctx->config.unlock_modifier == VK_LMENU);
-   cbelt_assert(ctx->config.unlock_move_modifier == VK_LCONTROL);
-   cbelt_assert(ctx->config.default_layout == MONOCLE);
-   cbelt_assert(ctx->config.bar_cfg.height == 28);
-   cbelt_assert(ctx->config.bar_cfg.enabled == FALSE);
-   cbelt_assert(ctx->config.bar_cfg.font.size == 12);
-   cbelt_assert(strcmp(ctx->config.bar_cfg.font.name.data(), "Arial") == 0);
-   cbelt_assert(ctx->config.bar_cfg.font.weight == 700);
-   cbelt_assert(ctx->config.bar_cfg.colors.background == RGB(0x11, 0x11, 0x11));
-   cbelt_assert(ctx->config.bar_cfg.colors.text == RGB(0xff, 0xff, 0xff));
-   cbelt_assert(ctx->config.bar_cfg.colors.active_workspace ==
+   cbelt_assert(ctx->shared.config.gap_between == 8);
+   cbelt_assert(ctx->shared.config.gap_edge == 4);
+   cbelt_assert(ctx->shared.config.border_color == RGB(0x00, 0xff, 0x00));
+   cbelt_assert(ctx->shared.config.inactive_border == RGB(0x33, 0x33, 0x33));
+   cbelt_assert(ctx->shared.config.border_width == 4);
+   cbelt_assert(ctx->shared.config.border_radius == 12);
+   cbelt_assert(ctx->shared.config.focus_follows_mouse == TRUE);
+   cbelt_assert(ctx->shared.config.mouse_follows_focus == TRUE);
+   cbelt_assert(ctx->shared.config.unlock_modifier == VK_LMENU);
+   cbelt_assert(ctx->shared.config.unlock_move_modifier == VK_LCONTROL);
+   cbelt_assert(ctx->shared.config.default_layout == MONOCLE);
+   cbelt_assert(ctx->shared.config.bar_cfg.height == 28);
+   cbelt_assert(ctx->shared.config.bar_cfg.enabled == FALSE);
+   cbelt_assert(ctx->shared.config.bar_cfg.font.size == 12);
+   cbelt_assert(strcmp(ctx->shared.config.bar_cfg.font.name.data(), "Arial") ==
+                0);
+   cbelt_assert(ctx->shared.config.bar_cfg.font.weight == 700);
+   cbelt_assert(ctx->shared.config.bar_cfg.colors.background ==
+                RGB(0x11, 0x11, 0x11));
+   cbelt_assert(ctx->shared.config.bar_cfg.colors.text ==
+                RGB(0xff, 0xff, 0xff));
+   cbelt_assert(ctx->shared.config.bar_cfg.colors.active_workspace ==
                 RGB(0xff, 0xaa, 0x00));
-   cbelt_assert(ctx->config.bar_cfg.colors.inactive_workspace ==
+   cbelt_assert(ctx->shared.config.bar_cfg.colors.inactive_workspace ==
                 RGB(0x55, 0x55, 0x55));
-   cbelt_assert(ctx->config.bar_cfg.colors.tab_border == RGB(0x00, 0x00, 0x00));
+   cbelt_assert(ctx->shared.config.bar_cfg.colors.tab_border ==
+                RGB(0x00, 0x00, 0x00));
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
@@ -156,7 +160,7 @@ CBELT_TEST(load_with_keybinds) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(!ctx->keybinds.entries.empty());
+   cbelt_assert(!ctx->shared.keybinds.entries.empty());
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -175,12 +179,15 @@ CBELT_TEST(load_with_indicators) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.bar_cfg.indicator_count == 2);
-   cbelt_assert(ctx->config.bar_cfg.indicators[0].type ==
+   cbelt_assert(ctx->shared.config.bar_cfg.indicator_count == 2);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicators[0].type ==
                 BAR_INDICATOR_WORKSPACES);
-   cbelt_assert(ctx->config.bar_cfg.indicators[0].align == BAR_ALIGN_LEFT);
-   cbelt_assert(ctx->config.bar_cfg.indicators[1].type == BAR_INDICATOR_CLOCK);
-   cbelt_assert(ctx->config.bar_cfg.indicators[1].align == BAR_ALIGN_RIGHT);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicators[0].align ==
+                BAR_ALIGN_LEFT);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicators[1].type ==
+                BAR_INDICATOR_CLOCK);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicators[1].align ==
+                BAR_ALIGN_RIGHT);
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -206,9 +213,9 @@ CBELT_TEST(load_with_indicator_states) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.bar_cfg.indicator_count == 1);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicator_count == 1);
 
-   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
+   const BarIndicatorConfig *ind = ctx->shared.config.bar_cfg.indicators.data();
    cbelt_assert(ind->type == BAR_INDICATOR_VOLUME);
    cbelt_assert(ind->align == BAR_ALIGN_RIGHT);
    cbelt_assert(strcmp(ind->id.c_str(), "vol") == 0);
@@ -253,7 +260,7 @@ CBELT_TEST(load_black_color_is_expressible) {
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
+   const BarIndicatorConfig *ind = ctx->shared.config.bar_cfg.indicators.data();
    cbelt_assert(ind->color_set == true);
    cbelt_assert(ind->color == RGB(0x00, 0x00, 0x00));
    cbelt_assert(ind->state_count == 1);
@@ -282,7 +289,7 @@ CBELT_TEST(load_defaults_id_and_tolerates_bad_rules) {
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
+   const BarIndicatorConfig *ind = ctx->shared.config.bar_cfg.indicators.data();
    cbelt_assert(strcmp(ind->id.c_str(), "memory") == 0);
    cbelt_assert(ind->color_set == false);
    /* Rules are retained even when unusable; resolution just ignores them. */
@@ -308,7 +315,7 @@ CBELT_TEST(load_with_position_bar) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.bar_cfg.indicators[0].position_bar == true);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicators[0].position_bar == true);
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -330,7 +337,7 @@ CBELT_TEST(load_dedupes_indicator_ids) {
    LuaConfig config = {};
    cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
 
-   const BarConfig *bar = &ctx->config.bar_cfg;
+   const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 5);
    cbelt_assert(strcmp(bar->indicators[0].id.c_str(), "volume") == 0);
    cbelt_assert(strcmp(bar->indicators[1].id.c_str(), "volume_2") == 0);
@@ -357,7 +364,7 @@ CBELT_TEST(load_drops_unknown_indicator_type) {
    LuaConfig config = {};
    cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
 
-   const BarConfig *bar = &ctx->config.bar_cfg;
+   const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 2);
    cbelt_assert(bar->indicators[0].type == BAR_INDICATOR_CLOCK);
    cbelt_assert(bar->indicators[1].type == BAR_INDICATOR_CPU);
@@ -386,7 +393,8 @@ CBELT_TEST(load_truncates_extra_indicators) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.bar_cfg.indicator_count == BAR_MAX_INDICATORS);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicator_count ==
+                BAR_MAX_INDICATORS);
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -478,11 +486,12 @@ CBELT_TEST(load_missing_BFWM_table) {
    cbelt_assert(ok == TRUE);
 
    /* Defaults should be applied after reset */
-   cbelt_assert(ctx->config.gap_between == 6);
-   cbelt_assert(ctx->config.border_width == 4);
-   cbelt_assert(ctx->config.border_radius == 8);
-   cbelt_assert(ctx->config.default_layout == DWINDLE);
-   cbelt_assert(!ctx->keybinds.entries.empty()); /* default keybinds loaded */
+   cbelt_assert(ctx->shared.config.gap_between == 6);
+   cbelt_assert(ctx->shared.config.border_width == 4);
+   cbelt_assert(ctx->shared.config.border_radius == 8);
+   cbelt_assert(ctx->shared.config.default_layout == DWINDLE);
+   cbelt_assert(
+       !ctx->shared.keybinds.entries.empty()); /* default keybinds loaded */
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
@@ -499,12 +508,14 @@ CBELT_TEST(load_empty_path_uses_defaults) {
    bool ok = LuaConfigLoad(&config, ctx, "");
    cbelt_assert(ok == TRUE);
 
-   cbelt_assert(ctx->config.gap_between == 6);
-   cbelt_assert(ctx->config.border_width == 4);
-   cbelt_assert(ctx->config.border_radius == 8);
-   cbelt_assert(ctx->config.default_layout == DWINDLE);
-   cbelt_assert(ctx->config.bar_cfg.indicator_count == 3); /* defaults kept */
-   cbelt_assert(!ctx->keybinds.entries.empty()); /* default keybinds loaded */
+   cbelt_assert(ctx->shared.config.gap_between == 6);
+   cbelt_assert(ctx->shared.config.border_width == 4);
+   cbelt_assert(ctx->shared.config.border_radius == 8);
+   cbelt_assert(ctx->shared.config.default_layout == DWINDLE);
+   cbelt_assert(ctx->shared.config.bar_cfg.indicator_count ==
+                3); /* defaults kept */
+   cbelt_assert(
+       !ctx->shared.keybinds.entries.empty()); /* default keybinds loaded */
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
@@ -757,7 +768,7 @@ CBELT_TEST(load_custom_indicator) {
    LuaConfig config = {};
    cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
 
-   const BarConfig *bar = &ctx->config.bar_cfg;
+   const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 1);
    cbelt_assert(bar->indicators[0].type == BAR_INDICATOR_CUSTOM);
    cbelt_assert(strcmp(bar->indicators[0].id.c_str(), "my") == 0);
@@ -782,7 +793,7 @@ CBELT_TEST(load_drops_custom_without_output) {
    LuaConfig config = {};
    cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
 
-   const BarConfig *bar = &ctx->config.bar_cfg;
+   const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 1);
    cbelt_assert(bar->indicators[0].type == BAR_INDICATOR_CPU);
 
@@ -1073,7 +1084,7 @@ CBELT_TEST(reload_updates_config) {
    /* First load */
    bool ok = LuaConfigLoad(&config, ctx, path1.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.gap_between == 4);
+   cbelt_assert(ctx->shared.config.gap_between == 4);
 
    /* Rewrite the config file */
    FILE *f = fopen(path1.c_str(), "w");
@@ -1084,7 +1095,7 @@ CBELT_TEST(reload_updates_config) {
    /* Reload */
    ok = LuaConfigReload(&config, ctx);
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->config.gap_between == 12);
+   cbelt_assert(ctx->shared.config.gap_between == 12);
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);

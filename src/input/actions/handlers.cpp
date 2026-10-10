@@ -812,12 +812,12 @@ auto HandleFocus(BFWMContext *ctx, BFWMAction *action) -> int {
          if ((old_focused != nullptr) && old_focused != neighbor &&
              (IsWindow(old_focused) != 0) &&
              (IsWindowVisible(old_focused) != 0)) {
-            ctx->transaction.QueueBorderColor(old_focused,
-                                              ctx->config.inactive_border);
+            ctx->transaction.QueueBorderColor(
+                old_focused, ctx->shared.config.inactive_border);
          }
          if ((IsWindow(neighbor) != 0) && (IsWindowVisible(neighbor) != 0)) {
             ctx->transaction.QueueBorderColor(neighbor,
-                                              ctx->config.border_color);
+                                              ctx->shared.config.border_color);
          }
       } else if (switch_to_ws != 0) {
          if ((old_focused != nullptr) && (IsWindowVisible(old_focused) != 0)) {
@@ -1073,14 +1073,15 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
    int const result = LuaConfigLoad(&ctx->lua, ctx, reload_path) ? 0 : -1;
 
    Debug("ReloadConfig: updating bar_height and recalculating workspace rects");
-   ctx->config.bar_height =
-       ctx->config.bar_cfg.enabled ? ctx->config.bar_cfg.height : 0;
+   ctx->shared.config.bar_height = ctx->shared.config.bar_cfg.enabled
+                                       ? ctx->shared.config.bar_cfg.height
+                                       : 0;
    for (size_t index = 0; index < ctx->monitors->Size(); index++) {
       Monitor *mon = ctx->monitors->At(index);
       /* bar_height is logical config; store it scaled to each monitor's
        * physical pixels (the value reserved from the work area). */
-      mon->SetBarHeight(
-          ctx->dpi->ScaleForMonitor(mon->GetHandle(), ctx->config.bar_height));
+      mon->SetBarHeight(ctx->dpi->ScaleForMonitor(
+          mon->GetHandle(), ctx->shared.config.bar_height));
    }
    RecalculateAllWorkspaceRects(ctx);
 
@@ -1101,8 +1102,8 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
             HWND hwnd = window->GetHwnd();
             if (IsWindowVisible(hwnd) != 0)
                BorderManagerSetInactive(ctx, hwnd);
-            window->SetOverlayBorder(ctx->config.border_width,
-                                     ctx->config.border_radius);
+            window->SetOverlayBorder(ctx->shared.config.border_width,
+                                     ctx->shared.config.border_radius);
          }
       }
    }
@@ -1119,9 +1120,9 @@ auto HandleToggleGaps(BFWMContext *ctx, BFWMAction *action) -> int {
    BOOL enabled = FALSE;
    {
       ScopedLock const lock(ctx->lock);
-      ctx->config.gaps_enabled =
-          static_cast<BOOL>(ctx->config.gaps_enabled == 0);
-      enabled = ctx->config.gaps_enabled;
+      ctx->shared.config.gaps_enabled =
+          static_cast<BOOL>(ctx->shared.config.gaps_enabled == 0);
+      enabled = ctx->shared.config.gaps_enabled;
    }
    Info("Gaps %s", (enabled != 0) ? "enabled" : "disabled");
    PushGapConfigToAllWorkspaces(ctx);

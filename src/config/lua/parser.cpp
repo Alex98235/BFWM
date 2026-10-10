@@ -345,7 +345,7 @@ inline void validate_workspace_monitor(struct BFWMContext *ctx,
 inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
     -> int {
    lua_State *lua_state = config->L;
-   ctx->config.workspace_config_count = 0;
+   ctx->shared.config.workspace_config_count = 0;
 
    lua_getglobal(lua_state, "BFWM");
    if (!lua_istable(lua_state, -1)) {
@@ -405,8 +405,8 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
       validate_workspace_monitor(ctx, &workspace_cfg);
 
       bool duplicate = false;
-      for (int j = 0; j < ctx->config.workspace_config_count; j++) {
-         if (ctx->config.workspace_configs[j].id == workspace_cfg.id) {
+      for (int j = 0; j < ctx->shared.config.workspace_config_count; j++) {
+         if (ctx->shared.config.workspace_configs[j].id == workspace_cfg.id) {
             Snackbar::Warn(ctx,
                            L"Duplicate workspace config for ID %zu, "
                            L"keeping first definition",
@@ -418,14 +418,16 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
       if (duplicate)
          continue;
 
-      ctx->config.workspace_configs[ctx->config.workspace_config_count++] =
+      ctx->shared.config
+          .workspace_configs[ctx->shared.config.workspace_config_count++] =
           workspace_cfg;
    }
 
    lua_pop(lua_state, 2);
 
-   Info("Loaded %d workspace configs", ctx->config.workspace_config_count);
-   return ctx->config.workspace_config_count;
+   Info("Loaded %d workspace configs",
+        ctx->shared.config.workspace_config_count);
+   return ctx->shared.config.workspace_config_count;
 }
 
 /* Parse the BFWM.keybinds table and insert into the dictionary */
@@ -1245,7 +1247,7 @@ inline void parse_bar_colors_config(lua_State *lua_state,
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
-   BarConfig *cfg = &ctx->config.bar_cfg;
+   BarConfig *cfg = &ctx->shared.config.bar_cfg;
 
    lua_getglobal(lua_state, "Bar");
    if (!lua_istable(lua_state, -1)) {
@@ -1413,23 +1415,27 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
       return;
    }
 
-   parse_int_field(lua_state, ctx, "gap_between", &ctx->config.gap_between);
-   parse_int_field(lua_state, ctx, "gap_edge", &ctx->config.gap_edge);
-   parse_color_field(lua_state, ctx, "border_color", &ctx->config.border_color);
+   parse_int_field(lua_state, ctx, "gap_between",
+                   &ctx->shared.config.gap_between);
+   parse_int_field(lua_state, ctx, "gap_edge", &ctx->shared.config.gap_edge);
+   parse_color_field(lua_state, ctx, "border_color",
+                     &ctx->shared.config.border_color);
    parse_color_field(lua_state, ctx, "inactive_border",
-                     &ctx->config.inactive_border);
-   parse_int_field(lua_state, ctx, "border_width", &ctx->config.border_width);
-   parse_int_field(lua_state, ctx, "border_radius", &ctx->config.border_radius);
+                     &ctx->shared.config.inactive_border);
+   parse_int_field(lua_state, ctx, "border_width",
+                   &ctx->shared.config.border_width);
+   parse_int_field(lua_state, ctx, "border_radius",
+                   &ctx->shared.config.border_radius);
    parse_bool_field(lua_state, ctx, "focus_follows_mouse",
-                    &ctx->config.focus_follows_mouse);
+                    &ctx->shared.config.focus_follows_mouse);
    parse_bool_field(lua_state, ctx, "mouse_follows_focus",
-                    &ctx->config.mouse_follows_focus);
+                    &ctx->shared.config.mouse_follows_focus);
 
    lua_getfield(lua_state, -1, "unlock_window_resize");
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if (s[0] != '\0')
-         ctx->config.unlock_modifier = parse_modifier_string(s);
+         ctx->shared.config.unlock_modifier = parse_modifier_string(s);
    } else if (!lua_isnil(lua_state, -1)) {
       Warn("'BFWM.unlock_window_resize' must be a string, got %s",
            lua_typename(lua_state, lua_type(lua_state, -1)));
@@ -1440,7 +1446,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if (s[0] != '\0')
-         ctx->config.unlock_move_modifier = parse_modifier_string(s);
+         ctx->shared.config.unlock_move_modifier = parse_modifier_string(s);
    } else if (!lua_isnil(lua_state, -1)) {
       Warn("'BFWM.unlock_window_move' must be a string, got %s",
            lua_typename(lua_state, lua_type(lua_state, -1)));
@@ -1452,7 +1458,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
       const char *s = lua_tostring(lua_state, -1);
       LayoutType const layout_type = parse_layout_name(s);
       if (layout_type != LAYOUT_NONE) {
-         ctx->config.default_layout = layout_type;
+         ctx->shared.config.default_layout = layout_type;
       } else {
          Warn("'BFWM.layout' references an unknown layout type: \"%s\"", s);
       }
@@ -1463,7 +1469,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    lua_pop(lua_state, 1);
 
    /* Parse disabled_monitors array */
-   ctx->config.disabled_monitor_count = 0;
+   ctx->shared.config.disabled_monitor_count = 0;
    lua_getfield(lua_state, -1, "disabled_monitors");
    if (lua_istable(lua_state, -1)) {
       auto n = static_cast<size_t>(lua_rawlen(lua_state, -1));
@@ -1472,8 +1478,8 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
          lua_rawgeti(lua_state, -1, static_cast<lua_Integer>(di + 1));
          if (lua_isinteger(lua_state, -1) != 0) {
             int const val = static_cast<int>(lua_tointeger(lua_state, -1));
-            ctx->config
-                .disabled_monitors[ctx->config.disabled_monitor_count++] = val;
+            ctx->shared.config.disabled_monitors
+                [ctx->shared.config.disabled_monitor_count++] = val;
          } else {
             Snackbar::Warn(ctx,
                            L"disabled_monitors entry should be an integer");
@@ -1486,7 +1492,8 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    lua_pop(lua_state, 1); /* pop BFWM table */
 
    Debug("parse_settings: unlock_modifier=0x%lx unlock_move=0x%lx",
-         ctx->config.unlock_modifier, ctx->config.unlock_move_modifier);
+         ctx->shared.config.unlock_modifier,
+         ctx->shared.config.unlock_move_modifier);
 }
 
 // ---------------------------------------------------------------------------
@@ -1605,7 +1612,7 @@ inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
 
 inline void parse_snackbar_config(lua_State *lua_state,
                                   struct BFWMContext *ctx) {
-   SnackbarConfig *cfg = &ctx->config.snackbar;
+   SnackbarConfig *cfg = &ctx->shared.config.snackbar;
 
    lua_getglobal(lua_state, "Snackbar");
    if (!lua_istable(lua_state, -1)) {
@@ -1941,7 +1948,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
    /* Parse keybinds from the loaded config and insert into the dictionary.
       If the keybinds table is missing, ConfigLoadDefaults at line 1156
       already populated the dictionary with C defaults, so they survive. */
-   parse_keybinds(config, ctx, &ctx->keybinds);
+   parse_keybinds(config, ctx, &ctx->shared.keybinds);
 
    /* Free existing window rules before (re-)parsing */
    for (WindowRule *rule : ctx->window_rules)
