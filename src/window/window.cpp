@@ -43,7 +43,7 @@ void Window::SetOverlay(std::unique_ptr<Overlay> overlay) {
  * Thin null-guarded forwards to the Overlay's public API. The overlay is
  * null until SetOverlay; on a null/inert overlay every method is a no-op
  * (FlushOverlay returns FALSE), mirroring the overlay's own fail-inert
- * contract so callers need no GetOverlay() != nullptr ceremony. No behavior
+ * contract so callers need no null checks. No behavior
  * is added here: no auto-dirty, no inset plumbing. */
 
 void Window::MarkOverlayDirty() {
@@ -72,7 +72,14 @@ void Window::ReconcileOverlay(BOOL suppress, BOOL force) {
 }
 
 auto Window::FlushOverlay() -> BOOL {
-   return (overlay_ != nullptr) ? overlay_->OverlayFlush() : FALSE;
+   if (overlay_ == nullptr)
+      return FALSE;
+   /* suppress mirrors the owning window's fullscreen state — the same value
+    * OverlayFlush derived internally before the overlay lost its Window
+    * back-pointer. */
+   BOOL const suppress = static_cast<BOOL>((IsFullscreen() != FALSE) ||
+                                           (IsUnmanagedFullscreen() != FALSE));
+   return overlay_->OverlayFlush(suppress);
 }
 
 void Window::AssertOverlayZOrder() {

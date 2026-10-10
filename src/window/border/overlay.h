@@ -105,13 +105,12 @@ class Overlay {
     * null checks; the border simply dies and the WM survives.
     *
     * @param ctx    The BFWM context (owner)
-    * @param owner  The owning window; the overlay keeps a non-owning
-    *               back-pointer and derives its target HWND from it
+    * @param target The HWND this ring decorates
     * @param color  Border COLORREF (0x00BBGGRR)
     * @param width  Border thickness in logical pixels
     * @param radius Corner radius in logical pixels (0 = square)
     */
-   Overlay(struct BFWMContext *ctx, Window *owner, COLORREF color, int width,
+   Overlay(struct BFWMContext *ctx, HWND target, COLORREF color, int width,
            int radius);
 
    /**
@@ -225,20 +224,18 @@ class Overlay {
     * once.
     *
     * Called at commit end for every dirty overlay — the single sync+paint
-    * point. No-op when the ring is clean. When the target has an async layout
-    * move in flight (IssueMove set the in-flight flag and the window has not
-    * yet landed at the issued rect), the flush defers: the ring stays dirty
-    * and the next commit (convergence pass, ~33ms cadence) retries, so the
-    * ring is only ever positioned from a landed, exact rect. The flag is
-    * cleared when the move lands or when the window settles anywhere
-    * (ProcessMoveSizeEnd), so all other geometry changes — floating drags,
-    * mouse resizes, app-driven moves — sync immediately to the live rect.
+    * point. No-op when the ring is clean. Dirtying is deliberately batched:
+    * geometry/color changes mark the ring dirty and converge here once per
+    * commit rather than painting immediately.
     *
+    * @param suppress Suppress the ring even when the target is visible
+    *                 (fullscreen windows, etc.). The caller derives this from
+    *                 the owning window's fullscreen flags; the overlay keeps no
+    *                 Window back-pointer of its own.
     * @return TRUE when the sync + paint path ran; FALSE when the ring was
-    * clean or the flush was deferred (move still in flight — stays dirty and
-    * the next commit retries).
+    *         clean.
     */
-   auto OverlayFlush() -> BOOL;
+   auto OverlayFlush(BOOL suppress) -> BOOL;
 
    /**
     * @brief Re-assert the overlay's z-order slot directly above its target.
@@ -395,9 +392,6 @@ class Overlay {
        OVERLAY_STRIP_TOP};
 
    struct BFWMContext *ctx; /* owner context */
-   Window *owner_; /* non-owning back-pointer to the owning window; the Window
-                     owns this Overlay via unique_ptr, so the pointer is valid
-                     for the overlay's whole lifetime */
    HWND target;
    COLORREF color;
    int width;          /* border thickness, logical px */

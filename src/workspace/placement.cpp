@@ -8,8 +8,9 @@
  * has landed at last_issued (or the stall timeout expired), so a slow app can
  * never accumulate a backlog of identical moves. IssueMove is the single place
  * that issues a layout move; the border ring is marked dirty there and the
- * commit-end flush syncs it only once the move has landed (ring-on-landed-rect
- * invariant — the ring never previews an un-landed position).
+ * commit-end flush syncs the ring to the live geometry every commit; the
+ * placement landed path then re-marks the ring if an async move was in
+ * flight, so the ring snaps to the landed rect on the next flush.
  */
 
 #include "placement.h"
@@ -160,7 +161,7 @@ namespace {
  * pass while a window is mid-move; the gated path (MaybeIssueMove) sets the
  * flag explicitly after issuing. The border ring is marked dirty, not aimed:
  * the commit-end flush syncs it only once the move has landed, so the ring is
- * always positioned from an exact, landed rect.
+ * snapped to the landed rect when the placement pass observes the landing.
  *
  * A DPI-unaware target on a scaled monitor is issued the rect in its own
  * (logical) coordinate space while the thread is switched into the target's
@@ -344,20 +345,18 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
    if ((got_current == TRUE) &&
        (RectEqualsWithinTolerance(current_rect, *desired, tolerance) != 0)) {
       BOOL const was_in_flight = win->MoveInFlight();
-      BOOL const position_changed =
-          static_cast<BOOL>(!win->HasLastLanded() ||
-                            (RectEqualsWithinTolerance(
-                                 current_rect, win->LastLanded(), 0) == FALSE));
       win->SetLastLanded(current_rect);
       /* A layout move has now landed: clear the in-flight flag and re-sync the
        * border ring. The commit-end flush no longer waits for the async move,
-       * so it may have synced the ring to the stale pre-move EFB; re-marking it
-       * dirty lets the next flush snap the ring to the landed rect. Only
-       * repaint when the position actually changed. */
+       * so it may have synced the ring to the stale pre-move EFB. Re-mark dirty
+       * unconditionally — the landed rect can equal LastLanded (a float
+       * round-trip returns the window to the slot it left, and LastLanded was
+       * never advanced while floating was out of the layout), so a
+       * position_changed test would suppress the re-sync and leave the ring
+       * stuck until the next unrelated event. */
       if (was_in_flight != FALSE) {
          win->SetMoveInFlight(FALSE);
-         if (position_changed != FALSE)
-            win->MarkOverlayDirty();
+         win->MarkOverlayDirty();
       }
       return;
    }
@@ -393,10 +392,9 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
 
 } // namespace
 
-/* Shared with overlay.cpp (OverlayFlush's landed gate) so both detect "landed"
- * identically — a DPI-unaware window on a scaled monitor lands a few px off the
- * issued rect and must not be treated as still in flight. External linkage
- * (declared in placement.h) so the border overlay can call them. */
+/* DPI-unaware window on a scaled monitor lands a few px off the issued rect
+ * and must not be treated as still in flight. Formerly shared with
+ * overlay.cpp's now-removed OverlayFlush landed gate (PR #5). */
 auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int {
    if ((ctx == nullptr) || (ctx->dpi == nullptr))
       return 0;

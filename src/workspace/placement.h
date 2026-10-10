@@ -109,7 +109,7 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
  * without touching moves_in_flight (single-shot paths such as
  * OP_MOVE_WINDOW / floating-center moves must not trigger the convergence
  * pass while a window is mid-move). The border ring is marked dirty here,
- * preserving the ring-on-landed-rect invariant.
+ * marking the ring dirty; the commit-end flush syncs to the latest geometry.
  *
  * @param win  The window to move
  * @param rect The desired frame rect
@@ -141,8 +141,9 @@ void AdoptStuckLayouts(struct BFWMContext *ctx);
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
 /// a scaled monitor (the physical<->logical round-trip can leave the landed
-/// rect a few px off the issued rect). Shared by the placement move pass and
-/// OverlayFlush so both detect "landed" identically.
+/// rect a few px off the issued rect). Formerly shared with overlay.cpp's
+/// now-removed OverlayFlush landed gate (PR #5); now only used within the
+/// placement pass.
 auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int;
 
 /// Compare two RECTs for equality within a per-field pixel tolerance (0 =

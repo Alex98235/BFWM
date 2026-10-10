@@ -171,7 +171,7 @@ inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
       // suppressed until it exits fullscreen. Construction never fails — on
       // failure the overlay is inert and every method no-ops.
       window->SetOverlay(std::make_unique<Overlay>(
-          ctx, window, ctx->config.border_color, ctx->config.border_width,
+          ctx, hwnd, ctx->config.border_color, ctx->config.border_width,
           ctx->config.border_radius));
       if (window->IsUnmanagedFullscreen() == TRUE)
          window->SyncOverlay(TRUE);
