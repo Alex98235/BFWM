@@ -199,7 +199,7 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
                                      DPI_AWARENESS_CONTEXT_UNAWARE) != 0) ||
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) != 0));
-   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->dpi != nullptr)) {
+   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->main.dpi != nullptr)) {
       /* The desired rect is already destination physical px. Passing it from
        * a PMv2-aware thread makes the system reinterpret it against the
        * monitor the window is still on (the source), so a cross-monitor move
@@ -207,7 +207,7 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
        * rect (physical / dest_scale) inside the target's own awareness
        * context instead: the DWM then composes it back to the exact physical
        * rect on the destination monitor. */
-      UINT const dest_dpi = ctx->dpi->GetDpi(dst_hmon);
+      UINT const dest_dpi = ctx->main.dpi->GetDpi(dst_hmon);
       float const scale = (float)dest_dpi / (float)DpiSystem::BaseDpi();
       if (scale > 1.0F) {
          prev_ctx = SetThreadDpiAwarenessContext(target_ctx);
@@ -324,7 +324,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
             /* (c) In transit: the window has not processed the posted move
              * yet. Hold briefly (no re-issue; avoids queued churn). Capped at
              * MOVE_STALL_TIMEOUT_MS so a hung window escalates fast. */
-            ctx->moves_in_flight = TRUE;
+            ctx->main.moves_in_flight = TRUE;
             return;
          } else {
             /* (c') Never reached the destination within the stall window:
@@ -381,11 +381,11 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
        * TRUE) is a normal layout step and clears the count. */
       win->SetStuckFailures((landed != FALSE) ? 0 : win->StuckFailures() + 1);
       IssueMove(win, desired, ctx);
-      ctx->moves_in_flight = TRUE;
+      ctx->main.moves_in_flight = TRUE;
       break;
 
    case PLACEMENT_MOVE_DEFER:
-      ctx->moves_in_flight = TRUE;
+      ctx->main.moves_in_flight = TRUE;
       break;
    }
 }
@@ -396,7 +396,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
  * and must not be treated as still in flight. Formerly shared with
  * overlay.cpp's now-removed OverlayFlush landed gate (PR #5). */
 auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int {
-   if ((ctx == nullptr) || (ctx->dpi == nullptr))
+   if ((ctx == nullptr) || (ctx->main.dpi == nullptr))
       return 0;
    /* Aware (PMv1/PMv2/system) targets land at the exact physical rect. */
    DPI_AWARENESS_CONTEXT awareness = GetWindowDpiAwarenessContext(hwnd);
@@ -410,8 +410,8 @@ auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int {
    /* Strict at 100%: the logical round-trip is exact, so a tolerance here
     * could mask a genuinely stuck window (keeps behaviour identical to the
     * old exact-equality gate at 96 DPI). */
-   float const scale =
-       ctx->dpi->GetScale(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
+   float const scale = ctx->main.dpi->GetScale(
+       MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
    if (scale <= 1.0F)
       return 0;
    /* Covers the physical<->logical<->physical rounding round-trip (up to one
@@ -439,7 +439,7 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx) {
    /* Recomputed each pass: TRUE if any window below still needs a move
     * (issued or waiting for an in-flight move to land). Drives the
     * main-loop convergence pass. */
-   ctx->moves_in_flight = FALSE;
+   ctx->main.moves_in_flight = FALSE;
 
    for (size_t i = 0; i < workspace->Windows().size(); i++) {
       HWND hwnd = workspace->Windows()[i]->GetHwnd();
@@ -464,7 +464,7 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx) {
           * now; the engine's insert only mutates its own tree/list, never
           * workspace->Windows(), so it is safe to call while iterating that
           * vector. If the re-query still fails, skip as before (defensive). */
-         workspace->GetEngine()->insert(hwnd, ctx->focused_hwnd);
+         workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
          if (!workspace->GetEngine()->get_rect(hwnd, &desired_rect)) {
             Error("No valid rect for window: %p", hwnd);
             continue;
@@ -481,10 +481,10 @@ void PlacementIssueMove(Window *win, const RECT *rect,
 }
 
 void AdoptStuckLayouts(struct BFWMContext *ctx) {
-   if ((ctx == nullptr) || (ctx->focused_workspace == nullptr))
+   if ((ctx == nullptr) || (ctx->main.focused_workspace == nullptr))
       return;
 
-   Workspace *workspace = ctx->focused_workspace;
+   Workspace *workspace = ctx->main.focused_workspace;
    LayoutEngine *engine = workspace->GetEngine();
    if (engine == nullptr)
       return;

@@ -149,7 +149,7 @@ auto CreateWorkspaceForMonitor(BFWMContext *ctx, size_t target_id,
 /**
  * @brief Scale the logical gap/border config for a monitor's effective DPI.
  *
- * @param ctx  The BFWM context (ctx->dpi must be initialized)
+ * @param ctx  The BFWM context (ctx->main.dpi must be initialized)
  * @param hmon The monitor handle to scale for
  * @return Physical-pixel gap_between / gap_edge / border_width for @p hmon
  */

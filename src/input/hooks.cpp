@@ -140,8 +140,9 @@ auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
       }
 
       if ((isPressed != 0) && (IsModifierKey(pKey->vkCode) == 0)) {
-         if (ctx->focused_hwnd != nullptr) {
-            Window *focused = ctx->windows->FindByHwnd(ctx->focused_hwnd);
+         if (ctx->main.focused_hwnd != nullptr) {
+            Window *focused =
+                ctx->main.windows->FindByHwnd(ctx->main.focused_hwnd);
             if ((focused != nullptr) && (focused->IsUnmanagedFullscreen() != 0))
                return CallNextHookEx(nullptr, nCode, wParam, lParam);
          }
@@ -187,8 +188,8 @@ auto CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 
          // Cheap pre-filter (no workspace.h needed); the main thread resolves
          // the workspace-active check via WorkspaceHandleMouseHover.
-         if ((hover != nullptr) && hover != ctx->focused_hwnd &&
-             (ctx->windows->FindByHwnd(hover) != nullptr)) {
+         if ((hover != nullptr) && hover != ctx->main.focused_hwnd &&
+             (ctx->main.windows->FindByHwnd(hover) != nullptr)) {
             PostThreadMessage(ctx->shared.main_thread_id, WM_APP_MOUSE_HOVER, 0,
                               PackPoint(point));
          }

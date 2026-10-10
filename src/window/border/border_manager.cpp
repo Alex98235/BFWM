@@ -13,7 +13,7 @@
 #include "../../transaction/transaction.h"
 
 void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color) {
-   ctx->transaction.QueueBorderColor(hwnd, color);
+   ctx->main.transaction.QueueBorderColor(hwnd, color);
 }
 
 void BorderManagerSetActive(struct BFWMContext *ctx, HWND hwnd) {
@@ -25,5 +25,5 @@ void BorderManagerSetInactive(struct BFWMContext *ctx, HWND hwnd) {
 }
 
 void BorderManagerRedraw(struct BFWMContext *ctx, HWND hwnd) {
-   ctx->transaction.QueueRedrawBorder(hwnd);
+   ctx->main.transaction.QueueRedrawBorder(hwnd);
 }

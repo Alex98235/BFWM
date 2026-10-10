@@ -170,16 +170,18 @@ auto Overlay::Init() -> bool {
          DWORD own_windows = 0;
          EnumWindows(CountOwnWindowProc,
                      reinterpret_cast<LPARAM>(&own_windows));
-         const size_t registry_size = (this->ctx->windows != nullptr)
-                                          ? this->ctx->windows->Windows().size()
-                                          : 0;
+         const size_t registry_size =
+             (this->ctx->main.windows != nullptr)
+                 ? this->ctx->main.windows->Windows().size()
+                 : 0;
 
          ErrorW(L"Overlay: construction failed — USER objects %lu / GDI "
                 L"objects %lu / own windows %lu / registry %zu / suspended "
                 L"%d / resize_hwnd %p",
                 (unsigned long)user_objects, (unsigned long)gdi_objects,
                 (unsigned long)own_windows, registry_size,
-                (int)this->ctx->suspended, (void *)this->ctx->resize_hwnd);
+                (int)this->ctx->main.suspended,
+                (void *)this->ctx->main.resize_hwnd);
       }
 
       /* Partial construction: tear down the strips created so far and leave
@@ -469,7 +471,7 @@ void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
 
    BOOL any_dirty = FALSE;
 
-   for (const auto &window : ctx->windows->Windows()) {
+   for (const auto &window : ctx->main.windows->Windows()) {
       Window *win = window.get();
       if ((win == nullptr) || (win->overlay_ == nullptr))
          continue;
@@ -520,7 +522,7 @@ void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
 
    /* Flush + commit only when something changed (no idle churn). */
    if (any_dirty == TRUE) {
-      for (const auto &window : ctx->windows->Windows()) {
+      for (const auto &window : ctx->main.windows->Windows()) {
          Window *win = window.get();
          if ((win != nullptr) && (win->overlay_ != nullptr)) {
             win->overlay_->OverlayFlush(
@@ -679,11 +681,11 @@ void Overlay::overlay_measure_insets(HWND target, const RECT *efb,
 auto Overlay::overlay_dpi() const -> UINT {
    HMONITOR hmon = MonitorFromWindow(this->target, MONITOR_DEFAULTTONEAREST);
    UINT dpi = DpiSystem::BaseDpi();
-   if ((this->ctx != nullptr) && (this->ctx->dpi != nullptr)) {
+   if ((this->ctx != nullptr) && (this->ctx->main.dpi != nullptr)) {
       /* GetDpi returns 0 on a registry miss under the upcoming sentinel
        * semantics; under the current semantics it returns 96. Either way a 0
        * result must fall back to the base DPI. */
-      UINT const queried = this->ctx->dpi->GetDpi(hmon);
+      UINT const queried = this->ctx->main.dpi->GetDpi(hmon);
       if (queried != 0) {
          dpi = queried;
       }
@@ -1287,8 +1289,9 @@ void Overlay::overlay_sync_position(BOOL suppress) {
  * so workspace removal, fullscreen accounting, focus fallback and layout stay
  * consistent. Backward iteration: removal shifts the registry array. */
 void Overlay::ReclaimStaleWindows(struct BFWMContext *ctx) {
-   for (size_t index = ctx->windows->Windows().size(); index > 0; index--) {
-      Window *win = ctx->windows->Windows()[index - 1].get();
+   for (size_t index = ctx->main.windows->Windows().size(); index > 0;
+        index--) {
+      Window *win = ctx->main.windows->Windows()[index - 1].get();
       if (win == nullptr)
          continue;
       HWND h = win->GetHwnd();

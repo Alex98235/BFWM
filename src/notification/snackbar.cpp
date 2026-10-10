@@ -214,10 +214,10 @@ auto Snackbar::IsInitialized() const -> bool { return hwnd != nullptr; }
 // ============================================================
 
 void Snackbar::Tick(struct BFWMContext *ctx) {
-   if ((ctx == nullptr) || ctx->snackbar == nullptr ||
-       !ctx->snackbar->IsInitialized())
+   if ((ctx == nullptr) || ctx->main.snackbar == nullptr ||
+       !ctx->main.snackbar->IsInitialized())
       return;
-   ctx->snackbar->TickNotifications();
+   ctx->main.snackbar->TickNotifications();
 }
 
 void Snackbar::Show(struct BFWMContext *ctx, LogLevel level,
@@ -229,7 +229,7 @@ void Snackbar::Show(struct BFWMContext *ctx, SnackbarLogLevel level,
                     std::wstring *message, BOOL force) {
    if (ctx == nullptr)
       return;
-   if (ctx->snackbar == nullptr) {
+   if (ctx->main.snackbar == nullptr) {
       if (preinit_count < SNACKBAR_PREINIT_MAX) {
          preinit_buf[preinit_count].level = level;
          preinit_buf[preinit_count].message = *message;
@@ -238,9 +238,9 @@ void Snackbar::Show(struct BFWMContext *ctx, SnackbarLogLevel level,
       }
       return;
    }
-   if (!ctx->snackbar->IsInitialized())
+   if (!ctx->main.snackbar->IsInitialized())
       return;
-   ctx->snackbar->ShowMessage(level, message, force);
+   ctx->main.snackbar->ShowMessage(level, message, force);
 }
 
 void Snackbar::ShowMessage(SnackbarLogLevel level, std::wstring *message,
@@ -526,7 +526,7 @@ auto Snackbar::OnDpiChanged(WPARAM w_param, LPARAM l_param) -> LRESULT {
    HMONITOR hmon = (target_monitor_ != nullptr)
                        ? target_monitor_->GetHandle()
                        : MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-   ctx->dpi->RegisterMonitor(hmon, new_dpi);
+   ctx->main.dpi->RegisterMonitor(hmon, new_dpi);
    if (active_count > 0)
       RebuildLayout(&ctx->shared.config.snackbar);
    return 0;
@@ -561,16 +561,16 @@ auto Snackbar::FindMonitor() -> const Monitor * {
    if (cfg->monitor == 0) {
       POINT const zero = {.x = 0, .y = 0};
       HMONITOR primary = MonitorFromPoint(zero, MONITOR_DEFAULTTOPRIMARY);
-      for (const auto &monitor : ctx->monitors->Monitors()) {
+      for (const auto &monitor : ctx->main.monitors->Monitors()) {
          if (monitor->GetHandle() == primary)
             return monitor;
       }
-   } else if (cfg->monitor == -1 && (ctx->focused_workspace != nullptr)) {
-      return FindMonitorByWorkspace(ctx, ctx->focused_workspace);
+   } else if (cfg->monitor == -1 && (ctx->main.focused_workspace != nullptr)) {
+      return FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
    } else if (cfg->monitor > 0) {
       return FindMonitorByDisplayNumber(ctx, (UINT)cfg->monitor);
    }
-   return ctx->monitors->Empty() ? nullptr : ctx->monitors->At(0);
+   return ctx->main.monitors->Empty() ? nullptr : ctx->main.monitors->At(0);
 }
 
 auto Snackbar::CurrentDpi() const -> UINT {
@@ -927,7 +927,7 @@ auto Snackbar::DrainQueue(const SnackbarConfig *cfg) -> BOOL {
 void Snackbar::RebuildLayout(const SnackbarConfig *cfg) {
    target_monitor_ = FindMonitor();
    target_dpi_ = (target_monitor_ != nullptr)
-                     ? ctx->dpi->GetDpi(target_monitor_->GetHandle())
+                     ? ctx->main.dpi->GetDpi(target_monitor_->GetHandle())
                      : GetDpiForSystem();
    UINT const dpi = target_dpi_;
    effective_max_width = EffectiveWidth(cfg, target_monitor_, dpi);

@@ -189,7 +189,7 @@ class CustomProvider final : public IndicatorProvider {
       }
       LuaIndicatorOutput out;
       bool const success = LuaConfigCallOutput(
-          &ctx->lua, ctx, cfg.output.c_str(), cfg.id.c_str(), &out);
+          &ctx->main.lua, ctx, cfg.output.c_str(), cfg.id.c_str(), &out);
       if (!success || !out.valid) {
          runtime.valid = false;
          return;

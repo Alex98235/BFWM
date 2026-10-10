@@ -61,7 +61,7 @@ namespace {
 
 inline void LowerFullscreenWindows(HWND hwnd, Workspace *hwnd_workspace,
                                    struct BFWMContext *ctx) {
-   Window *target = ctx->windows->FindByHwnd(hwnd);
+   Window *target = ctx->main.windows->FindByHwnd(hwnd);
    if ((target == nullptr) || (target->IsFullscreen() == TRUE) ||
        (target->IsUnmanagedFullscreen() == TRUE))
       return;
@@ -94,7 +94,7 @@ inline void LowerPreviousFullscreen(HWND old_hwnd, BOOL old_valid,
    if (old_valid == FALSE)
       return;
 
-   Window *old_win = ctx->windows->FindByHwnd(old_hwnd);
+   Window *old_win = ctx->main.windows->FindByHwnd(old_hwnd);
    if ((old_win == nullptr) || (old_win->IsFullscreen() == FALSE))
       return;
 
@@ -115,7 +115,7 @@ inline void LowerPreviousFullscreen(HWND old_hwnd, BOOL old_valid,
 }
 
 inline void RaiseNewFullscreen(HWND hwnd, struct BFWMContext *ctx) {
-   Window *new_win = ctx->windows->FindByHwnd(hwnd);
+   Window *new_win = ctx->main.windows->FindByHwnd(hwnd);
    if ((new_win == nullptr) || (new_win->IsFullscreen() == 0))
       return;
 
@@ -155,8 +155,8 @@ inline void CloakInactiveWorkspaces(Workspace *workspace,
          if (win->IsCloaked() == TRUE)
             continue;
          HWND h = win->GetHwnd();
-         if (ctx->transaction.IsInTransaction() == TRUE) {
-            ctx->transaction.QueueCloak(h, TRUE);
+         if (ctx->main.transaction.IsInTransaction() == TRUE) {
+            ctx->main.transaction.QueueCloak(h, TRUE);
          } else {
             HRESULT const result = SetWindowCloakState(h, TRUE);
             if (FAILED(result)) {
@@ -174,19 +174,20 @@ inline void CloakInactiveWorkspaces(Workspace *workspace,
 /**
  * @brief Update inactive-window border colors (single commit-end flush).
  *
- * Keeps the historical ctx->applying_layout guard around the border-color
+ * Keeps the historical ctx->main.applying_layout guard around the border-color
  * queueing. Focused window is skipped.
  */
 inline void SetInactiveWindowBorders(Workspace *workspace,
                                      struct BFWMContext *ctx) {
-   ctx->applying_layout = TRUE;
+   ctx->main.applying_layout = TRUE;
    for (const auto &window : workspace->Windows()) {
       HWND h = window->GetHwnd();
-      if ((IsWindowVisible(h) == FALSE) || h == ctx->focused_hwnd)
+      if ((IsWindowVisible(h) == FALSE) || h == ctx->main.focused_hwnd)
          continue;
-      ctx->transaction.QueueBorderColor(h, ctx->shared.config.inactive_border);
+      ctx->main.transaction.QueueBorderColor(
+          h, ctx->shared.config.inactive_border);
    }
-   ctx->applying_layout = FALSE;
+   ctx->main.applying_layout = FALSE;
 }
 
 } // namespace
@@ -220,11 +221,11 @@ auto CreateWorkspaceForMonitor(BFWMContext *ctx, size_t target_id,
     * pixels. GetBarHeight() is already physical. ScaleForMonitor guards a
     * DPI of zero (registry miss) by falling back to identity scaling. */
    ws_rect.top +=
-       ctx->dpi->ScaleForMonitor(mon->GetHandle(),
-                                 ctx->shared.config.bar_cfg.margin.top) +
+       ctx->main.dpi->ScaleForMonitor(mon->GetHandle(),
+                                      ctx->shared.config.bar_cfg.margin.top) +
        mon->GetBarHeight() +
-       ctx->dpi->ScaleForMonitor(mon->GetHandle(),
-                                 ctx->shared.config.bar_cfg.margin.bottom);
+       ctx->main.dpi->ScaleForMonitor(mon->GetHandle(),
+                                      ctx->shared.config.bar_cfg.margin.bottom);
    ScaledLayoutConfig const scaled =
        ScaleLayoutConfigForMonitor(ctx, mon->GetHandle());
    return new Workspace(
@@ -241,10 +242,10 @@ auto ScaleLayoutConfigForMonitor(struct BFWMContext *ctx, HMONITOR hmon)
        .gap_edge = ctx->shared.config.gap_edge,
        .border_width = ctx->shared.config.border_width,
    };
-   if (ctx->dpi != nullptr) {
-      out.gap_between = ctx->dpi->ScaleForMonitor(hmon, out.gap_between);
-      out.gap_edge = ctx->dpi->ScaleForMonitor(hmon, out.gap_edge);
-      out.border_width = ctx->dpi->ScaleForMonitor(hmon, out.border_width);
+   if (ctx->main.dpi != nullptr) {
+      out.gap_between = ctx->main.dpi->ScaleForMonitor(hmon, out.gap_between);
+      out.gap_edge = ctx->main.dpi->ScaleForMonitor(hmon, out.gap_edge);
+      out.border_width = ctx->main.dpi->ScaleForMonitor(hmon, out.border_width);
    }
    return out;
 }
@@ -319,7 +320,7 @@ void Workspace::DestroyWindows(struct BFWMContext *ctx) {
 
    for (auto *win : windows_) {
       if (win != nullptr) {
-         ctx->windows->Remove(win);
+         ctx->main.windows->Remove(win);
       }
    }
    windows_.clear();
@@ -337,15 +338,15 @@ void Workspace::AddWindow(struct BFWMContext *ctx, Window *window) {
    // the workspace but excluded from tree-based positioning.
    if (IsWindowManagedByLayout(window) == TRUE) {
       if ((engine_ != nullptr) &&
-          engine_->insert(window->GetHwnd(), ctx->focused_hwnd))
+          engine_->insert(window->GetHwnd(), ctx->main.focused_hwnd))
          windows_.push_back(window);
    } else {
       windows_.push_back(window);
       if (window->IsFloating() == TRUE) {
          Monitor *mon = FindMonitorByWorkspace(ctx, this);
          if (mon != nullptr) {
-            UINT const dpi = (ctx != nullptr && ctx->dpi != nullptr)
-                                 ? ctx->dpi->GetDpi(mon->GetHandle())
+            UINT const dpi = (ctx != nullptr && ctx->main.dpi != nullptr)
+                                 ? ctx->main.dpi->GetDpi(mon->GetHandle())
                                  : DpiSystem::BaseDpi();
             RECT const clamped = window->ClampTo(mon->GetWorkArea(), dpi);
             if (EqualRect(&clamped, window->SavedRectPtr()) == FALSE) {
@@ -377,11 +378,11 @@ void UpdateFocusTracking(HWND hwnd, struct BFWMContext *ctx) {
       return;
 
    // Update focus tracking
-   ctx->focused_hwnd = hwnd;
+   ctx->main.focused_hwnd = hwnd;
 
    // Update focused_workspace: find which workspace owns this hwnd
    Workspace *hwnd_workspace = nullptr;
-   auto const &monitors = ctx->monitors->Monitors();
+   auto const &monitors = ctx->main.monitors->Monitors();
    size_t const mon_count = monitors.size();
    for (size_t m = 0; m < mon_count && (hwnd_workspace == nullptr); m++) {
       Monitor *mon = monitors[m];
@@ -399,7 +400,7 @@ void UpdateFocusTracking(HWND hwnd, struct BFWMContext *ctx) {
       return;
    }
 
-   ctx->focused_workspace = hwnd_workspace;
+   ctx->main.focused_workspace = hwnd_workspace;
 
    // Keep the layout's notion of the active window in sync so layouts like
    // monocle can report the currently-shown window from get_closest_window.
@@ -432,10 +433,10 @@ void WorkspaceHandleDesktopClick(struct BFWMContext *ctx, POINT point) {
 
    Monitor *mon = FindMonitorByPoint(ctx, point);
    if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr) ||
-       mon->GetActiveWorkspace() == ctx->focused_workspace)
+       mon->GetActiveWorkspace() == ctx->main.focused_workspace)
       return;
 
-   ctx->focused_workspace = mon->GetActiveWorkspace();
+   ctx->main.focused_workspace = mon->GetActiveWorkspace();
 
    Workspace *workspace = mon->GetActiveWorkspace();
    HWND first = nullptr;
@@ -446,7 +447,7 @@ void WorkspaceHandleDesktopClick(struct BFWMContext *ctx, POINT point) {
    if (first != nullptr) {
       FocusWindow(first, ctx);
    } else {
-      ctx->focused_hwnd = nullptr;
+      ctx->main.focused_hwnd = nullptr;
    }
 
    BarUpdateRequest(ctx, BAR_UPDATE_DIRTY);
@@ -457,8 +458,8 @@ void WorkspaceHandleMouseHover(struct BFWMContext *ctx, POINT point) {
    if (hover != nullptr)
       hover = GetAncestor(hover, GA_ROOT);
 
-   if ((hover != nullptr) && hover != ctx->focused_hwnd &&
-       (ctx->windows->FindByHwnd(hover) != nullptr)) {
+   if ((hover != nullptr) && hover != ctx->main.focused_hwnd &&
+       (ctx->main.windows->FindByHwnd(hover) != nullptr)) {
       Workspace *workspace = FindWorkspaceByHwnd(ctx, hover);
       if (workspace != nullptr) {
          Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
@@ -504,8 +505,8 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
 
    // Self-wrap: only wrap when not already inside a transaction.
    BOOL wrapped = FALSE;
-   if (ctx->transaction.IsInTransaction() == FALSE) {
-      ctx->transaction.Begin();
+   if (ctx->main.transaction.IsInTransaction() == FALSE) {
+      ctx->main.transaction.Begin();
       wrapped = TRUE;
    }
 
@@ -515,14 +516,14 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
    // cloak/relayout ops join the same commit as the focus op below.
    WorkspaceActivateForWindow(hwnd, ctx);
 
-   HWND old_focus = ctx->focused_hwnd;
+   HWND old_focus = ctx->main.focused_hwnd;
 
-   ctx->transaction.QueueFocus(hwnd);
+   ctx->main.transaction.QueueFocus(hwnd);
 
    if ((old_focus != nullptr) && old_focus != hwnd &&
        (IsWindowVisible(old_focus) == TRUE)) {
-      ctx->transaction.QueueBorderColor(old_focus,
-                                        ctx->shared.config.inactive_border);
+      ctx->main.transaction.QueueBorderColor(
+          old_focus, ctx->shared.config.inactive_border);
    }
 
    // The new focus always gets the active border. Queued here (not only via
@@ -531,19 +532,20 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
    // FocusWindowImmediate's already-foregrounded early-return, which would
    // otherwise skip the active color entirely.
    if (IsWindowVisible(hwnd) == TRUE) {
-      ctx->transaction.QueueBorderColor(hwnd, ctx->shared.config.border_color);
+      ctx->main.transaction.QueueBorderColor(hwnd,
+                                             ctx->shared.config.border_color);
    }
 
    // Queue relayout
    Workspace *hwnd_workspace = FindWorkspaceByHwnd(ctx, hwnd);
    if (hwnd_workspace != nullptr) {
-      ctx->transaction.QueueRelayout(hwnd_workspace);
+      ctx->main.transaction.QueueRelayout(hwnd_workspace);
    }
 
    // Update the context
-   ctx->focused_hwnd = hwnd;
+   ctx->main.focused_hwnd = hwnd;
    if (hwnd_workspace != nullptr) {
-      ctx->focused_workspace = hwnd_workspace;
+      ctx->main.focused_workspace = hwnd_workspace;
 
       /* Restack workspace layers: after an event-driven focus change (click,
        * hover, workspace switch), promote every peer in the focused layer
@@ -569,12 +571,12 @@ auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL {
       return FALSE;
 
    // Don't do anything if already focused
-   if (GetForegroundWindow() == hwnd && ctx->focused_hwnd == hwnd)
+   if (GetForegroundWindow() == hwnd && ctx->main.focused_hwnd == hwnd)
       return TRUE;
 
    // Capture old focus at entry — caller (OP_FOCUS_WINDOW apply in
-   // transaction.c) sets ctx->focused_hwnd AFTER we return.
-   HWND old_hwnd = ctx->focused_hwnd;
+   // transaction.c) sets ctx->main.focused_hwnd AFTER we return.
+   HWND old_hwnd = ctx->main.focused_hwnd;
    BOOL const old_valid =
        static_cast<BOOL>((old_hwnd != nullptr) && old_hwnd != hwnd &&
                          (IsWindowVisible(old_hwnd) == TRUE));
@@ -592,7 +594,7 @@ auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL {
 
    // Single arm point for every "focus a specific window" path: the intent
    // suppresses stray Windows-supplied foregrounds until this target lands.
-   ctx->focus_intent.ArmKnown(hwnd);
+   ctx->main.focus_intent.ArmKnown(hwnd);
 
    FocusWindowReliable(hwnd);
    UpdateFocusTracking(hwnd, ctx);
@@ -619,14 +621,14 @@ auto FindWorkspaceByHwnd(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
    // Fast path: check the focused workspace first.
    // Verify focused_workspace still exists (it may have been freed by
    // ReconcileMonitors between Pass 2 and the focused_workspace update).
-   if ((ctx->focused_workspace != nullptr) &&
-       (FindMonitorByWorkspace(ctx, ctx->focused_workspace) != nullptr) &&
-       ctx->focused_workspace->ContainsWindow(hwnd)) {
-      return ctx->focused_workspace;
+   if ((ctx->main.focused_workspace != nullptr) &&
+       (FindMonitorByWorkspace(ctx, ctx->main.focused_workspace) != nullptr) &&
+       ctx->main.focused_workspace->ContainsWindow(hwnd)) {
+      return ctx->main.focused_workspace;
    }
 
    // Fallback: scan all monitors and their workspaces
-   auto const &monitors = ctx->monitors->Monitors();
+   auto const &monitors = ctx->main.monitors->Monitors();
    size_t const mon_count = monitors.size();
    for (size_t m = 0; m < mon_count; m++) {
       Monitor *mon = monitors[m];
@@ -649,8 +651,8 @@ auto Workspace::ContainsWindow(HWND hwnd) const -> bool {
 void Workspace::ApplyLayout(struct BFWMContext *ctx) {
    // Self-wrap: only wrap when not already inside a transaction.
    BOOL wrapped = FALSE;
-   if (ctx->transaction.IsInTransaction() == FALSE) {
-      ctx->transaction.Begin();
+   if (ctx->main.transaction.IsInTransaction() == FALSE) {
+      ctx->main.transaction.Begin();
       wrapped = TRUE;
    }
 
@@ -664,7 +666,7 @@ void Workspace::ApplyLayout(struct BFWMContext *ctx) {
    }
 
    // Moves pass then inactive-border pass, in exactly this order.
-   ctx->applying_layout = TRUE;
+   ctx->main.applying_layout = TRUE;
    PlacementApply(this, ctx);
    SetInactiveWindowBorders(this, ctx);
 
@@ -674,10 +676,10 @@ void Workspace::ApplyLayout(struct BFWMContext *ctx) {
 
 auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
    if ((ctx == nullptr) || (hwnd == nullptr) || (IsWindow(hwnd) == FALSE))
-      return (ctx != nullptr) ? ctx->focused_workspace : nullptr;
+      return (ctx != nullptr) ? ctx->main.focused_workspace : nullptr;
 
    // Default to focused workspace as fallback
-   Workspace *target_workspace = ctx->focused_workspace;
+   Workspace *target_workspace = ctx->main.focused_workspace;
    RECT win_rect;
 
    if (GetWindowRect(hwnd, &win_rect) == FALSE)
@@ -701,7 +703,7 @@ auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
    POINT const centre = {.x = center_x, .y = center_y};
 
    BOOL found = FALSE;
-   for (auto *mon : ctx->monitors->Monitors()) {
+   for (auto *mon : ctx->main.monitors->Monitors()) {
       if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr))
          continue;
 
@@ -726,7 +728,7 @@ auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
       };
 
       for (int i = 0; i < 4; i++) {
-         for (auto *mon : ctx->monitors->Monitors()) {
+         for (auto *mon : ctx->main.monitors->Monitors()) {
             if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr))
                continue;
 
@@ -746,7 +748,7 @@ auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
 }
 
 auto FindMonitorByPoint(struct BFWMContext *ctx, POINT point) -> Monitor * {
-   auto const &monitors = ctx->monitors->Monitors();
+   auto const &monitors = ctx->main.monitors->Monitors();
    size_t const monitor_count = monitors.size();
 
    for (size_t i = 0; i < monitor_count; i++) {
@@ -761,7 +763,7 @@ auto FindMonitorByWorkspace(struct BFWMContext *ctx, Workspace *workspace)
     -> Monitor * {
    if ((ctx == nullptr) || (workspace == nullptr))
       return nullptr;
-   for (auto *mon : ctx->monitors->Monitors()) {
+   for (auto *mon : ctx->main.monitors->Monitors()) {
       for (size_t j = 0; j < mon->Workspaces().size(); j++) {
          if (mon->Workspaces()[j] == workspace)
             return mon;
@@ -785,7 +787,7 @@ auto FindWorkspaceById(struct BFWMContext *ctx, size_t identifier)
     -> Workspace * {
    if (ctx == nullptr)
       return nullptr;
-   for (auto *mon : ctx->monitors->Monitors()) {
+   for (auto *mon : ctx->main.monitors->Monitors()) {
       for (const auto &workspace : mon->Workspaces()) {
          if (workspace->GetIdentifier() == identifier)
             return workspace;
@@ -823,18 +825,18 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
        (new_workspace == nullptr))
       return;
 
-   BOOL const in_tx = ctx->transaction.IsInTransaction();
+   BOOL const in_tx = ctx->main.transaction.IsInTransaction();
 
    // Serialize the cloak bookkeeping against the event thread's window
    // add/remove mutations. The lock is recursive, so nesting with the
-   // transaction commit (which also takes ctx->lock) is safe. ApplyLayout
+   // transaction commit (which also takes ctx->main.lock) is safe. ApplyLayout
    // must run OUTSIDE the lock (see events.cpp HandleWindowReRegistered).
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
       for (auto *win : old_workspace->Windows()) {
          HWND h = win->GetHwnd();
          if (in_tx == TRUE) {
-            ctx->transaction.QueueCloak(h, TRUE);
+            ctx->main.transaction.QueueCloak(h, TRUE);
          } else {
             HRESULT const result = SetWindowCloakState(h, TRUE);
             if (FAILED(result)) {
@@ -849,7 +851,7 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
       for (auto *win : new_workspace->Windows()) {
          HWND h = win->GetHwnd();
          if (in_tx == TRUE) {
-            ctx->transaction.QueueCloak(h, FALSE);
+            ctx->main.transaction.QueueCloak(h, FALSE);
          } else {
             HRESULT const result = SetWindowCloakState(h, FALSE);
             if (FAILED(result)) {
@@ -864,7 +866,7 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
    }
 
    mon->SetActiveWorkspace(new_workspace);
-   ctx->focused_workspace = new_workspace;
+   ctx->main.focused_workspace = new_workspace;
 
    new_workspace->ApplyLayout(ctx);
    if (destroy_empty_old_ws)
@@ -924,14 +926,14 @@ auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
    // Self-wrap: only wrap when not already inside a transaction —
    // a nested Commit would flush the outer batch early.
    BOOL wrapped = FALSE;
-   if (ctx->transaction.IsInTransaction() == FALSE) {
-      ctx->transaction.Begin();
+   if (ctx->main.transaction.IsInTransaction() == FALSE) {
+      ctx->main.transaction.Begin();
       wrapped = TRUE;
    }
 
    if (target == mon->GetActiveWorkspace()) {
       // Already active — only a no-op if focus is already here.
-      HWND focus_hwnd = ctx->focused_hwnd;
+      HWND focus_hwnd = ctx->main.focused_hwnd;
       if ((focus_hwnd != nullptr) && target->ContainsWindow(focus_hwnd) &&
           (IsWindowVisible(focus_hwnd) == TRUE)) {
          if (wrapped == TRUE)
@@ -947,13 +949,13 @@ auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
       if (focus_hwnd != nullptr) {
          FocusWindow(focus_hwnd, ctx);
       } else {
-         ctx->focused_workspace = target;
-         if ((ctx->focused_hwnd != nullptr) &&
-             IsWindowVisible(ctx->focused_hwnd) == TRUE) {
-            BorderManagerSetInactive(ctx, ctx->focused_hwnd);
-            BorderManagerRedraw(ctx, ctx->focused_hwnd);
+         ctx->main.focused_workspace = target;
+         if ((ctx->main.focused_hwnd != nullptr) &&
+             IsWindowVisible(ctx->main.focused_hwnd) == TRUE) {
+            BorderManagerSetInactive(ctx, ctx->main.focused_hwnd);
+            BorderManagerRedraw(ctx, ctx->main.focused_hwnd);
          }
-         ctx->focused_hwnd = nullptr;
+         ctx->main.focused_hwnd = nullptr;
          BarUpdateRequest(ctx, BAR_UPDATE_DIRTY);
       }
       if (wrapped == TRUE)
@@ -965,7 +967,7 @@ auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
 
    WorkspaceActivateSimple(ctx, mon, old, target, true);
 
-   HWND focus_hwnd = ctx->focused_hwnd;
+   HWND focus_hwnd = ctx->main.focused_hwnd;
    if (!target->ContainsWindow(focus_hwnd) ||
        (IsWindowVisible(focus_hwnd) == FALSE)) {
       if (target->GetEngine() != nullptr) {
@@ -977,11 +979,11 @@ auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
    if (focus_hwnd != nullptr) {
       FocusWindow(focus_hwnd, ctx);
    } else {
-      if ((ctx->focused_hwnd != nullptr) &&
-          IsWindowVisible(ctx->focused_hwnd) == TRUE) {
-         BorderManagerSetInactive(ctx, ctx->focused_hwnd);
+      if ((ctx->main.focused_hwnd != nullptr) &&
+          IsWindowVisible(ctx->main.focused_hwnd) == TRUE) {
+         BorderManagerSetInactive(ctx, ctx->main.focused_hwnd);
       }
-      ctx->focused_hwnd = nullptr;
+      ctx->main.focused_hwnd = nullptr;
    }
 
    if (wrapped == TRUE)
@@ -997,14 +999,14 @@ void RestoreDesktopState(struct BFWMContext *ctx) {
    // Self-wrap: batch the border resets in a transaction, then flush
    // DWM once afterwards.
    BOOL wrapped = FALSE;
-   if (ctx->transaction.IsInTransaction() == 0) {
-      ctx->transaction.Begin();
+   if (ctx->main.transaction.IsInTransaction() == 0) {
+      ctx->main.transaction.Begin();
       wrapped = TRUE;
    }
 
    // Reset borders to inactive and uncloak every managed window.
-   for (size_t m = 0; m < ctx->monitors->Size(); m++) {
-      Monitor *mon = ctx->monitors->At(m);
+   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
+      Monitor *mon = ctx->main.monitors->At(m);
       for (auto *workspace : mon->Workspaces()) {
          for (auto *win : workspace->Windows()) {
             HWND h = win->GetHwnd();
@@ -1032,8 +1034,8 @@ void RestoreDesktopState(struct BFWMContext *ctx) {
 void PushGapConfigToAllWorkspaces(struct BFWMContext *ctx) {
    if (ctx == nullptr)
       return;
-   for (size_t m = 0; m < ctx->monitors->Size(); m++) {
-      Monitor *mon = ctx->monitors->At(m);
+   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
+      Monitor *mon = ctx->main.monitors->At(m);
       /* Scale the logical gap/border config to this monitor's physical
        * pixels; the gaps_enabled toggle zeroes the gaps before scaling. */
       ScaledLayoutConfig const scaled =
@@ -1065,8 +1067,9 @@ void Workspace::RecalculateRect(Monitor *mon, struct BFWMContext *ctx) {
    RECT new_rect = mon->GetWorkArea();
    /* bar_cfg margins are logical config values; scale them to the monitor's
     * physical pixels. mon->GetBarHeight() is already physical. */
-   UINT const dpi = (ctx->dpi != nullptr) ? ctx->dpi->GetDpi(mon->GetHandle())
-                                          : DpiSystem::BaseDpi();
+   UINT const dpi = (ctx->main.dpi != nullptr)
+                        ? ctx->main.dpi->GetDpi(mon->GetHandle())
+                        : DpiSystem::BaseDpi();
    new_rect.top +=
        DpiSystem::Scale(ctx->shared.config.bar_cfg.margin.top, dpi) +
        mon->GetBarHeight() +
@@ -1108,8 +1111,8 @@ void Workspace::RecalculateRect(Monitor *mon, struct BFWMContext *ctx) {
 void RecalculateAllWorkspaceRects(struct BFWMContext *ctx) {
    if (ctx == nullptr)
       return;
-   for (size_t m = 0; m < ctx->monitors->Size(); m++) {
-      Monitor *mon = ctx->monitors->At(m);
+   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
+      Monitor *mon = ctx->main.monitors->At(m);
       for (size_t j = 0; j < mon->Workspaces().size(); j++) {
          mon->Workspaces()[j]->RecalculateRect(mon, ctx);
       }
@@ -1188,10 +1191,10 @@ auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon)
 /* ── Z-layer restacking ──────────────────────────────────────────────── */
 
 void RestackWorkspaceLayers(BFWMContext *ctx) {
-   if (ctx->focused_hwnd == nullptr)
+   if (ctx->main.focused_hwnd == nullptr)
       return;
 
-   Window *focused = ctx->windows->FindByHwnd(ctx->focused_hwnd);
+   Window *focused = ctx->main.windows->FindByHwnd(ctx->main.focused_hwnd);
    if (focused == nullptr || focused->IsFullscreen() != FALSE ||
        focused->IsUnmanagedFullscreen() != FALSE)
       return;
@@ -1201,12 +1204,12 @@ void RestackWorkspaceLayers(BFWMContext *ctx) {
    static HWND s_last_hwnd = nullptr;
    static bool s_last_floating = false;
    bool const now_floating = (focused->IsFloating() != FALSE);
-   if (ctx->focused_hwnd == s_last_hwnd && now_floating == s_last_floating)
+   if (ctx->main.focused_hwnd == s_last_hwnd && now_floating == s_last_floating)
       return;
-   s_last_hwnd = ctx->focused_hwnd;
+   s_last_hwnd = ctx->main.focused_hwnd;
    s_last_floating = now_floating;
 
-   Workspace *workspace = FindWorkspaceByHwnd(ctx, ctx->focused_hwnd);
+   Workspace *workspace = FindWorkspaceByHwnd(ctx, ctx->main.focused_hwnd);
    if (workspace == nullptr)
       return;
 

@@ -16,7 +16,7 @@
  * @brief Start the combined worker thread (keyboard + window-event hooks).
  *
  * Installs low-level keyboard/mouse hooks and a WinEvent hook in a single
- * thread, then runs a message-pump loop until ctx->running is FALSE.
+ * thread, then runs a message-pump loop until ctx->main.running is FALSE.
  *
  * @param ctx The BFWM context to pass to the worker thread
  * @return true on success, false on failure
@@ -27,7 +27,7 @@ auto WMWorkerRun(BFWMContext *ctx) -> bool;
  * @brief Signal the worker thread to stop gracefully.
  *
  * Waits for the worker thread to finish its current processing
- * cycle and exit. The thread handle is read from @c ctx->worker_thread
+ * cycle and exit. The thread handle is read from @c ctx->main.worker_thread
  * and cleared after the handle is closed.
  *
  * @param ctx The BFWM context whose worker_thread to tear down

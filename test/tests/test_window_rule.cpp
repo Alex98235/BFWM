@@ -32,8 +32,8 @@ CBELT_TEST(force_floating_sets_flags) {
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 
@@ -59,8 +59,8 @@ CBELT_TEST(force_floating_clears_conflicting) {
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 
@@ -85,8 +85,8 @@ CBELT_TEST(force_tiled_sets_flags) {
    rule.action.type = RULE_FORCE_TILED;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 
@@ -113,8 +113,8 @@ CBELT_TEST(force_tiled_clears_conflicting) {
    rule.action.type = RULE_FORCE_TILED;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 
@@ -142,8 +142,8 @@ CBELT_TEST(set_floating_does_not_force) {
    rule.action.type = RULE_SET_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 
@@ -171,8 +171,8 @@ CBELT_TEST(no_match_skips_rule) {
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
    BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   ctx.main.window_rules.assign(rules.begin(), rules.end());
+   ctx.main.window_rule_count = 1;
 
    WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
 

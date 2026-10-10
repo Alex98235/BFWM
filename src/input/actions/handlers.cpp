@@ -108,21 +108,21 @@ inline auto resize_in_direction(BFWMContext *ctx, BFWMDirection direction,
    // Keyboard-driven resize: stamp the time so MainLoop suppresses the
    // 500ms overlay-reconcile tick for a short window (avoids injecting an
    // extra commit mid-resize). resize_hwnd is only set for mouse drags.
-   ctx->last_keyboard_resize = GetTickCount64();
+   ctx->main.last_keyboard_resize = GetTickCount64();
 
    HWND focused = nullptr;
    Workspace *workspace = nullptr;
    {
-      ScopedLock const lock(ctx->lock);
-      focused = ctx->focused_hwnd;
-      workspace = ctx->focused_workspace;
+      ScopedLock const lock(ctx->main.lock);
+      focused = ctx->main.focused_hwnd;
+      workspace = ctx->main.focused_workspace;
    }
 
-   Window *win = ctx->windows->FindByHwnd(focused);
+   Window *win = ctx->main.windows->FindByHwnd(focused);
    if ((win != nullptr) && (win->IsFloating() != 0)) {
       POINT win_center = {};
       {
-         ScopedLock const lock(ctx->lock);
+         ScopedLock const lock(ctx->main.lock);
          switch (direction) {
          case DirLeft:
             win->SavedRectPtr()->right -= FLOAT_RESIZE_PX;
@@ -150,9 +150,9 @@ inline auto resize_in_direction(BFWMContext *ctx, BFWMDirection direction,
       Monitor *mon = FindMonitorByPoint(ctx, win_center);
       if (mon != nullptr) {
          {
-            ScopedLock const lock(ctx->lock);
-            UINT const dpi = (ctx->dpi != nullptr)
-                                 ? ctx->dpi->GetDpi(mon->GetHandle())
+            ScopedLock const lock(ctx->main.lock);
+            UINT const dpi = (ctx->main.dpi != nullptr)
+                                 ? ctx->main.dpi->GetDpi(mon->GetHandle())
                                  : DpiSystem::BaseDpi();
             RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
             win->SetSavedRect(clamped);
@@ -169,7 +169,7 @@ inline auto resize_in_direction(BFWMContext *ctx, BFWMDirection direction,
 
    bool resized = false;
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
       resized =
           workspace->GetEngine()->resize_window(focused, direction, pixels);
    }
@@ -238,7 +238,7 @@ inline void EnterFullscreenForHwnd(HWND hwnd, struct BFWMContext *ctx,
 
 inline void ExitFullscreenForHwnd(HWND hwnd, BFWMContext *ctx, Window *win,
                                   Workspace *workspace, Monitor *mon) {
-   ctx->toggling_fullscreen_hwnd = hwnd;
+   ctx->main.toggling_fullscreen_hwnd = hwnd;
    win->SetFullscreen(FALSE);
 
    // Restore window style
@@ -257,12 +257,12 @@ inline void ExitFullscreenForHwnd(HWND hwnd, BFWMContext *ctx, Window *win,
    // floating window is not a layout member; the float toggle / re-tile path
    // owns its re-insertion.
    if (IsWindowManagedByLayout(win) != 0) {
-      workspace->GetEngine()->insert(hwnd, ctx->focused_hwnd);
+      workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
    }
 
    workspace->ApplyLayout(ctx);
 
-   ctx->toggling_fullscreen_hwnd = nullptr;
+   ctx->main.toggling_fullscreen_hwnd = nullptr;
 
    // Update bar visibility
    if ((mon != nullptr) && mon->GetFullscreenCount() > 0) {
@@ -299,8 +299,8 @@ inline void GetPreferredFloatRect(HWND hwnd, Workspace *workspace,
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
 
-   UINT dpi = ((ctx->dpi != nullptr) && (mon != nullptr))
-                  ? ctx->dpi->GetDpi(mon->GetHandle())
+   UINT dpi = ((ctx->main.dpi != nullptr) && (mon != nullptr))
+                  ? ctx->main.dpi->GetDpi(mon->GetHandle())
                   : DpiSystem::BaseDpi();
    if (dpi == 0)
       dpi = DpiSystem::BaseDpi();
@@ -400,9 +400,9 @@ inline auto ActivateExistingWorkspace(struct BFWMContext *ctx,
 
    WorkspaceActivate(ctx, mon, target_id);
 
-   if (ctx->focused_workspace != existing) {
-      ctx->focused_workspace = existing;
-      HWND focused_window = ctx->focused_hwnd;
+   if (ctx->main.focused_workspace != existing) {
+      ctx->main.focused_workspace = existing;
+      HWND focused_window = ctx->main.focused_hwnd;
       if (!existing->ContainsWindow(focused_window) ||
           (IsWindowVisible(focused_window) == 0)) {
          if (existing->GetEngine() != nullptr) {
@@ -414,12 +414,12 @@ inline auto ActivateExistingWorkspace(struct BFWMContext *ctx,
       if (focused_window != nullptr) {
          FocusWindow(focused_window, ctx);
       } else {
-         if ((ctx->focused_hwnd != nullptr) &&
-             (IsWindowVisible(ctx->focused_hwnd) != 0)) {
-            BorderManagerSetInactive(ctx, ctx->focused_hwnd);
-            BorderManagerRedraw(ctx, ctx->focused_hwnd);
+         if ((ctx->main.focused_hwnd != nullptr) &&
+             (IsWindowVisible(ctx->main.focused_hwnd) != 0)) {
+            BorderManagerSetInactive(ctx, ctx->main.focused_hwnd);
+            BorderManagerRedraw(ctx, ctx->main.focused_hwnd);
          }
-         ctx->focused_hwnd = nullptr;
+         ctx->main.focused_hwnd = nullptr;
       }
       BarUpdateRequest(ctx, BAR_UPDATE_DIRTY);
    }
@@ -463,7 +463,7 @@ inline auto SwitchWorkspaceLayout(BFWMContext *ctx, Workspace *workspace,
       return 0;
 
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
 
       /* The engine's gap/border values must be physical. Resolve the
        * workspace's current monitor and scale the logical config for it;
@@ -523,7 +523,7 @@ auto HandleSpawn(BFWMContext *ctx, BFWMAction *action) -> int {
    auto &args = std::get<ActionArgsSpawn>(action->args);
    // The spawned window has not registered/focused yet: arm a learn intent so
    // a stray foreground in the spawn storm cannot activate another window.
-   ctx->focus_intent.ArmLearn();
+   ctx->main.focus_intent.ArmLearn();
    return spawn_process(ctx, args.command.c_str(),
                         DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
 }
@@ -538,13 +538,13 @@ auto HandleKillActive(BFWMContext *ctx, BFWMAction *action) -> int {
 
    HWND hWnd = nullptr;
    {
-      ScopedLock const lock(ctx->lock);
-      if (ctx->focused_hwnd == nullptr) {
+      ScopedLock const lock(ctx->main.lock);
+      if (ctx->main.focused_hwnd == nullptr) {
          Debug("No focused window, ignoring kill command");
          return 0;
       }
 
-      hWnd = ctx->focused_hwnd;
+      hWnd = ctx->main.focused_hwnd;
    }
 
    PostMessage(hWnd, WM_CLOSE, 0, 0);
@@ -556,8 +556,8 @@ auto HandleMinimize(BFWMContext *ctx, BFWMAction *action) -> int {
    (void)action;
    HWND focused = nullptr;
    {
-      ScopedLock const lock(ctx->lock);
-      focused = ctx->focused_hwnd;
+      ScopedLock const lock(ctx->main.lock);
+      focused = ctx->main.focused_hwnd;
    }
    if ((focused != nullptr) && (IsWindow(focused) != 0) &&
        (IsIconic(focused) == 0))
@@ -574,7 +574,7 @@ void ToggleFullscreenForHwnd(HWND hwnd, BFWMContext *ctx) {
    if (IsWindow(hwnd) == 0)
       return;
 
-   Window *win = ctx->windows->FindByHwnd(hwnd);
+   Window *win = ctx->main.windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
 
@@ -605,9 +605,9 @@ void ToggleFullscreenForHwnd(HWND hwnd, BFWMContext *ctx) {
 
 auto HandleFullscreen(BFWMContext *ctx, BFWMAction *action) -> int {
    (void)action;
-   if ((ctx == nullptr) || (ctx->focused_hwnd == nullptr))
+   if ((ctx == nullptr) || (ctx->main.focused_hwnd == nullptr))
       return -1;
-   ToggleFullscreenForHwnd(ctx->focused_hwnd, ctx);
+   ToggleFullscreenForHwnd(ctx->main.focused_hwnd, ctx);
    return 0;
 }
 
@@ -620,15 +620,15 @@ auto HandleToggleFloat(BFWMContext *ctx, BFWMAction *action) -> int {
    BOOL do_unfloat = FALSE;
    RECT saved_rect = {};
    {
-      ScopedLock const lock(ctx->lock);
-      focused = ctx->focused_hwnd;
-      workspace = ctx->focused_workspace;
+      ScopedLock const lock(ctx->main.lock);
+      focused = ctx->main.focused_hwnd;
+      workspace = ctx->main.focused_workspace;
       if ((focused == nullptr) || (workspace == nullptr) ||
           (workspace->GetEngine() == nullptr)) {
          return -1;
       }
 
-      win = ctx->windows->FindByHwnd(focused);
+      win = ctx->main.windows->FindByHwnd(focused);
       if (win == nullptr) {
          return -1;
       }
@@ -684,10 +684,10 @@ auto HandleMoveWindow(BFWMContext *ctx, BFWMAction *action) -> int {
    Workspace *workspace = nullptr;
    Window *win = nullptr;
    {
-      ScopedLock const lock(ctx->lock);
-      focused = ctx->focused_hwnd;
-      workspace = ctx->focused_workspace;
-      win = ctx->windows->FindByHwnd(focused);
+      ScopedLock const lock(ctx->main.lock);
+      focused = ctx->main.focused_hwnd;
+      workspace = ctx->main.focused_workspace;
+      win = ctx->main.windows->FindByHwnd(focused);
 
       // For floating windows, offset the saved rect by a fixed increment
       if ((win != nullptr) && (win->IsFloating() != 0)) {
@@ -715,8 +715,8 @@ auto HandleMoveWindow(BFWMContext *ctx, BFWMAction *action) -> int {
          // Clamp to monitor work area so the window stays fully visible
          Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
          if (mon != nullptr) {
-            UINT const dpi = (ctx->dpi != nullptr)
-                                 ? ctx->dpi->GetDpi(mon->GetHandle())
+            UINT const dpi = (ctx->main.dpi != nullptr)
+                                 ? ctx->main.dpi->GetDpi(mon->GetHandle())
                                  : DpiSystem::BaseDpi();
             RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
             win->SetSavedRect(clamped);
@@ -731,24 +731,24 @@ auto HandleMoveWindow(BFWMContext *ctx, BFWMAction *action) -> int {
    }
 
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
       bool moved = false;
       if ((workspace != nullptr) && (workspace->GetEngine() != nullptr)) {
          moved = workspace->GetEngine()->move_window(focused, args.direction);
       }
 
       if (moved) {
-         ctx->transaction.QueueRelayout(workspace);
+         ctx->main.transaction.QueueRelayout(workspace);
       } else if (workspace != nullptr) {
          // No move/promotion possible in this direction — move to neighboring
          // workspace
          Workspace *neighbouring_ws =
              FindNeighbouringWorkspace(ctx, args.direction);
          if ((neighbouring_ws != nullptr) && neighbouring_ws != workspace) {
-            win = ctx->windows->FindByHwnd(focused);
+            win = ctx->main.windows->FindByHwnd(focused);
             if (win != nullptr) {
                workspace->RemoveWindow(win);
-               ctx->transaction.QueueRelayout(workspace);
+               ctx->main.transaction.QueueRelayout(workspace);
                neighbouring_ws->AddWindow(ctx, win);
             }
          }
@@ -765,10 +765,10 @@ auto HandleFocus(BFWMContext *ctx, BFWMAction *action) -> int {
    Workspace *neighbouring_ws = nullptr;
    BOOL switch_to_ws = FALSE;
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
 
-      workspace = ctx->focused_workspace;
-      HWND focused = ctx->focused_hwnd;
+      workspace = ctx->main.focused_workspace;
+      HWND focused = ctx->main.focused_hwnd;
 
       // Try current workspace first
       HWND neighbor = nullptr;
@@ -796,36 +796,36 @@ auto HandleFocus(BFWMContext *ctx, BFWMAction *action) -> int {
 
       // Skip unmanaged fullscreen windows in keyboard focus navigation
       if (neighbor != nullptr) {
-         Window *neighbor_win = ctx->windows->FindByHwnd(neighbor);
+         Window *neighbor_win = ctx->main.windows->FindByHwnd(neighbor);
          if ((neighbor_win != nullptr) &&
              (neighbor_win->IsUnmanagedFullscreen() != 0))
             neighbor = nullptr;
       }
 
-      HWND old_focused = ctx->focused_hwnd;
+      HWND old_focused = ctx->main.focused_hwnd;
       switch_to_ws = static_cast<BOOL>((neighbor == nullptr) &&
                                        (neighbouring_ws != nullptr) &&
                                        neighbouring_ws != workspace);
 
       if (neighbor != nullptr) {
-         ctx->transaction.QueueFocus(neighbor);
+         ctx->main.transaction.QueueFocus(neighbor);
          if ((old_focused != nullptr) && old_focused != neighbor &&
              (IsWindow(old_focused) != 0) &&
              (IsWindowVisible(old_focused) != 0)) {
-            ctx->transaction.QueueBorderColor(
+            ctx->main.transaction.QueueBorderColor(
                 old_focused, ctx->shared.config.inactive_border);
          }
          if ((IsWindow(neighbor) != 0) && (IsWindowVisible(neighbor) != 0)) {
-            ctx->transaction.QueueBorderColor(neighbor,
-                                              ctx->shared.config.border_color);
+            ctx->main.transaction.QueueBorderColor(
+                neighbor, ctx->shared.config.border_color);
          }
       } else if (switch_to_ws != 0) {
          if ((old_focused != nullptr) && (IsWindowVisible(old_focused) != 0)) {
             BorderManagerSetInactive(ctx, old_focused);
             BorderManagerRedraw(ctx, old_focused);
          }
-         ctx->focused_hwnd = nullptr;
-         ctx->focused_workspace = neighbouring_ws;
+         ctx->main.focused_hwnd = nullptr;
+         ctx->main.focused_workspace = neighbouring_ws;
       }
    }
 
@@ -862,7 +862,7 @@ auto HandleWorkspace(BFWMContext *ctx, BFWMAction *action) -> int {
          return 0;
    }
 
-   Workspace *workspace = ctx->focused_workspace;
+   Workspace *workspace = ctx->main.focused_workspace;
    Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
    if (mon == nullptr)
       return 0;
@@ -872,7 +872,7 @@ auto HandleWorkspace(BFWMContext *ctx, BFWMAction *action) -> int {
 
 auto HandleMoveToWorkspace(BFWMContext *ctx, BFWMAction *action) -> int {
    auto &args = std::get<ActionArgsMoveToWorkspace>(action->args);
-   Workspace *src_ws = ctx->focused_workspace;
+   Workspace *src_ws = ctx->main.focused_workspace;
    if (src_ws == nullptr)
       return 0;
    auto target_id = (size_t)args.index;
@@ -890,7 +890,7 @@ auto HandleMoveToWorkspace(BFWMContext *ctx, BFWMAction *action) -> int {
       }
    }
 
-   Window *win = ctx->windows->FindByHwnd(ctx->focused_hwnd);
+   Window *win = ctx->main.windows->FindByHwnd(ctx->main.focused_hwnd);
    if (win == nullptr) {
       // No focused window — just switch to workspace
       return HandleWorkspace(ctx, action);
@@ -979,9 +979,9 @@ auto HandleSplit(BFWMContext *ctx, BFWMAction *action) -> int {
    Workspace *workspace = nullptr;
    bool toggled = false;
    {
-      ScopedLock const lock(ctx->lock);
-      workspace = ctx->focused_workspace;
-      HWND focused = ctx->focused_hwnd;
+      ScopedLock const lock(ctx->main.lock);
+      workspace = ctx->main.focused_workspace;
+      HWND focused = ctx->main.focused_hwnd;
       if ((workspace == nullptr) || (workspace->GetEngine() == nullptr)) {
          return -1;
       }
@@ -999,9 +999,9 @@ auto HandleSwapSplit(BFWMContext *ctx, BFWMAction *action) -> int {
    Workspace *workspace = nullptr;
    bool swapped = false;
    {
-      ScopedLock const lock(ctx->lock);
-      workspace = ctx->focused_workspace;
-      HWND focused = ctx->focused_hwnd;
+      ScopedLock const lock(ctx->main.lock);
+      workspace = ctx->main.focused_workspace;
+      HWND focused = ctx->main.focused_hwnd;
       if ((workspace == nullptr) || (workspace->GetEngine() == nullptr)) {
          return -1;
       }
@@ -1020,7 +1020,7 @@ auto HandleLayout(BFWMContext *ctx, BFWMAction *action) -> int {
       Warn("HandleLayout: unknown layout '%s'", args.layout_name.c_str());
       return -1;
    }
-   Workspace *workspace = ctx->focused_workspace;
+   Workspace *workspace = ctx->main.focused_workspace;
    if (workspace == nullptr)
       return -1;
    return SwitchWorkspaceLayout(ctx, workspace, layout_type);
@@ -1028,7 +1028,7 @@ auto HandleLayout(BFWMContext *ctx, BFWMAction *action) -> int {
 
 auto HandleCycleLayout(BFWMContext *ctx, BFWMAction *action) -> int {
    auto &args = std::get<ActionArgsCycleLayout>(action->args);
-   Workspace *workspace = ctx->focused_workspace;
+   Workspace *workspace = ctx->main.focused_workspace;
    if (workspace == nullptr)
       return -1;
 
@@ -1055,7 +1055,7 @@ auto HandleCycleLayout(BFWMContext *ctx, BFWMAction *action) -> int {
 
 auto HandleCustom(BFWMContext *ctx, BFWMAction *action) -> int {
    auto &args = std::get<ActionArgsCustom>(action->args);
-   LuaConfigCall(&ctx->lua, ctx, args.lua_callback.c_str());
+   LuaConfigCall(&ctx->main.lua, ctx, args.lua_callback.c_str());
    return 0;
 }
 
@@ -1070,17 +1070,17 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
    if (ResolveConfigPath("config.lua", resolved.data(), resolved.size())) {
       reload_path = resolved.data();
    }
-   int const result = LuaConfigLoad(&ctx->lua, ctx, reload_path) ? 0 : -1;
+   int const result = LuaConfigLoad(&ctx->main.lua, ctx, reload_path) ? 0 : -1;
 
    Debug("ReloadConfig: updating bar_height and recalculating workspace rects");
    ctx->shared.config.bar_height = ctx->shared.config.bar_cfg.enabled
                                        ? ctx->shared.config.bar_cfg.height
                                        : 0;
-   for (size_t index = 0; index < ctx->monitors->Size(); index++) {
-      Monitor *mon = ctx->monitors->At(index);
+   for (size_t index = 0; index < ctx->main.monitors->Size(); index++) {
+      Monitor *mon = ctx->main.monitors->At(index);
       /* bar_height is logical config; store it scaled to each monitor's
        * physical pixels (the value reserved from the work area). */
-      mon->SetBarHeight(ctx->dpi->ScaleForMonitor(
+      mon->SetBarHeight(ctx->main.dpi->ScaleForMonitor(
           mon->GetHandle(), ctx->shared.config.bar_height));
    }
    RecalculateAllWorkspaceRects(ctx);
@@ -1095,8 +1095,8 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
    // Re-apply border colors so a changed border_color / inactive_border
    // takes effect immediately.
    Debug("ReloadConfig: re-applying border colors");
-   for (size_t index = 0; index < ctx->monitors->Size(); index++) {
-      Monitor *mon = ctx->monitors->At(index);
+   for (size_t index = 0; index < ctx->main.monitors->Size(); index++) {
+      Monitor *mon = ctx->main.monitors->At(index);
       for (auto *workspace : mon->Workspaces()) {
          for (const auto &window : workspace->Windows()) {
             HWND hwnd = window->GetHwnd();
@@ -1107,9 +1107,9 @@ auto HandleReloadConfig(BFWMContext *ctx, BFWMAction *action) -> int {
          }
       }
    }
-   if ((ctx->focused_hwnd != nullptr) &&
-       (IsWindowVisible(ctx->focused_hwnd) != 0))
-      BorderManagerSetActive(ctx, ctx->focused_hwnd);
+   if ((ctx->main.focused_hwnd != nullptr) &&
+       (IsWindowVisible(ctx->main.focused_hwnd) != 0))
+      BorderManagerSetActive(ctx, ctx->main.focused_hwnd);
 
    Debug("ReloadConfig: done");
    return result;
@@ -1119,7 +1119,7 @@ auto HandleToggleGaps(BFWMContext *ctx, BFWMAction *action) -> int {
    (void)action;
    BOOL enabled = FALSE;
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
       ctx->shared.config.gaps_enabled =
           static_cast<BOOL>(ctx->shared.config.gaps_enabled == 0);
       enabled = ctx->shared.config.gaps_enabled;
@@ -1132,7 +1132,7 @@ auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int {
    if ((ctx == nullptr) || (action == nullptr))
       return -1;
    auto &args = std::get<ActionArgsMoveWorkspaceToMonitor>(action->args);
-   Workspace *workspace = ctx->focused_workspace;
+   Workspace *workspace = ctx->main.focused_workspace;
    if (workspace == nullptr)
       return 0;
 
@@ -1160,7 +1160,7 @@ auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int {
          workspace->GetIdentifier(), src_mon->GetDisplayNumber(),
          dst_mon->GetDisplayNumber());
 
-   ctx->transaction.Begin();
+   ctx->main.transaction.Begin();
 
    BOOL const was_active =
        static_cast<BOOL>(src_mon->GetActiveWorkspace() == workspace);
@@ -1217,7 +1217,7 @@ auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int {
    }
 
    // --- Step 4: activate the moved workspace on destination ---
-   ctx->focused_workspace = workspace;
+   ctx->main.focused_workspace = workspace;
    WorkspaceActivate(ctx, dst_mon, workspace->GetIdentifier());
 
    BFWMTransactionCommit(ctx);
@@ -1227,12 +1227,12 @@ auto HandleMoveWorkspaceToMonitor(BFWMContext *ctx, BFWMAction *action) -> int {
 }
 
 void RestoreFullscreenWindows(BFWMContext *ctx) {
-   for (const auto &window : ctx->windows->Windows()) {
+   for (const auto &window : ctx->main.windows->Windows()) {
       Window *win = window.get();
       if (win->IsFullscreen() != 0)
          RestoreFullscreenForHwnd(win);
    }
-   for (auto *mon : ctx->monitors->Monitors()) {
+   for (auto *mon : ctx->main.monitors->Monitors()) {
       if (mon->GetBar() != nullptr)
          mon->GetBar()->Show();
    }

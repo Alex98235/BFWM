@@ -83,8 +83,8 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
             if (cmd_id == ID_TRAY_EXIT && g_ctx != nullptr) {
                /* Mirror the Ctrl+C handler: signal the loop and enqueue a dummy
                 * keystroke so a blocking DequeueKeystroke() wakes and re-checks
-                * ctx->running. */
-               g_ctx->running = FALSE;
+                * ctx->main.running. */
+               g_ctx->main.running = FALSE;
                Keystroke const dummy = {};
                g_ctx->worker.keystroke_queue.Enqueue(dummy);
             }

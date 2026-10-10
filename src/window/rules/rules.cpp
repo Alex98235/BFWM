@@ -90,11 +90,11 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
 auto WindowRulesApply(struct BFWMContext *ctx, Window *window,
                       const char *class_name, const char *title,
                       const char *process) -> WindowRuleResult {
-   if (ctx->window_rule_count == 0)
+   if (ctx->main.window_rule_count == 0)
       return RULE_RESULT_CONTINUE;
 
-   for (size_t i = 0; i < ctx->window_rule_count; i++) {
-      WindowRule *rule = ctx->window_rules[i];
+   for (size_t i = 0; i < ctx->main.window_rule_count; i++) {
+      WindowRule *rule = ctx->main.window_rules[i];
       if (rule->action.type == RULE_IGNORE)
          continue;
       if (!WindowRuleMatch(rule, process, class_name, title))

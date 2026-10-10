@@ -271,13 +271,13 @@ inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
       lua_rawgeti(lua_state, rules_idx, static_cast<lua_Integer>(i));
       WindowRule *rule = parse_single_rule(lua_state, ctx, i);
       if (rule != nullptr) {
-         ctx->window_rules.push_back(rule);
+         ctx->main.window_rules.push_back(rule);
          count++;
       }
       lua_pop(lua_state, 1);
    }
 
-   ctx->window_rule_count = static_cast<size_t>(count);
+   ctx->main.window_rule_count = static_cast<size_t>(count);
    lua_pop(lua_state, 2);
 
    Info("Loaded %d window rules from config.lua", count);
@@ -325,9 +325,9 @@ inline void parse_workspace_options(WorkspaceConfig *workspace_cfg,
 
 inline void validate_workspace_monitor(struct BFWMContext *ctx,
                                        const WorkspaceConfig *workspace_cfg) {
-   if (workspace_cfg->assigned_monitor > 0 && !ctx->monitors->Empty()) {
+   if (workspace_cfg->assigned_monitor > 0 && !ctx->main.monitors->Empty()) {
       BOOL found = FALSE;
-      for (const auto &monitor : ctx->monitors->Monitors()) {
+      for (const auto &monitor : ctx->main.monitors->Monitors()) {
          if (std::cmp_equal(monitor->GetDisplayNumber(),
                             workspace_cfg->assigned_monitor)) {
             found = TRUE;
@@ -1570,7 +1570,7 @@ inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
    const char *key = (lua_type(lua_state, 2) == LUA_TSTRING)
                          ? lua_tostring(lua_state, 2)
                          : nullptr;
-   if ((ctx == nullptr) || (ctx->exec_cache == nullptr)) {
+   if ((ctx == nullptr) || (ctx->main.exec_cache == nullptr)) {
       lua_pushnil(lua_state);
       return 1;
    }
@@ -1583,7 +1583,7 @@ inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
    lua_Integer const ttl = luaL_optinteger(lua_state, 3, 1000);
    uint64_t const ttl_ms = (ttl > 0) ? static_cast<uint64_t>(ttl) : 0;
    const std::string *value =
-       ExecCacheGet(ctx->exec_cache, argv, std::string(key), ttl_ms);
+       ExecCacheGet(ctx->main.exec_cache, argv, std::string(key), ttl_ms);
    if (value != nullptr) {
       lua_pushlstring(lua_state, value->data(), value->size());
    } else {
@@ -1596,13 +1596,13 @@ inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
    auto *ctx = static_cast<struct BFWMContext *>(
        lua_touserdata(lua_state, lua_upvalueindex(1)));
    std::vector<std::string> argv;
-   if ((ctx == nullptr) || (ctx->exec_cache == nullptr))
+   if ((ctx == nullptr) || (ctx->main.exec_cache == nullptr))
       return 0;
    if (!CollectArgv(lua_state, 1, &argv)) {
       WarnExecArgvOnce();
       return 0;
    }
-   ExecCacheSpawn(ctx->exec_cache, argv);
+   ExecCacheSpawn(ctx->main.exec_cache, argv);
    return 0;
 }
 
@@ -1813,8 +1813,8 @@ move_workspace_to_monitor(struct BFWMContext *ctx, Monitor *mon,
 }
 
 inline void update_workspace_configs_on_reload(struct BFWMContext *ctx) {
-   for (size_t m = 0; m < ctx->monitors->Size(); m++) {
-      Monitor *mon = ctx->monitors->At(m);
+   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
+      Monitor *mon = ctx->main.monitors->At(m);
       for (size_t w = 0; w < mon->Workspaces().size(); w++) {
          Workspace *workspace = mon->Workspaces()[w];
          const struct WorkspaceConfig *workspace_cfg =
@@ -1951,10 +1951,10 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
    parse_keybinds(config, ctx, &ctx->shared.keybinds);
 
    /* Free existing window rules before (re-)parsing */
-   for (WindowRule *rule : ctx->window_rules)
+   for (WindowRule *rule : ctx->main.window_rules)
       WindowRuleDestroy(rule);
-   ctx->window_rules.clear();
-   ctx->window_rule_count = 0;
+   ctx->main.window_rules.clear();
+   ctx->main.window_rule_count = 0;
 
    /* Parse window rules */
    parse_window_rules(config, ctx);

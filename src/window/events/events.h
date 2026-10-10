@@ -136,7 +136,7 @@ void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd);
  * Handles both directions: entering fullscreen (window is removed from the
  * layout engine so later relayouts skip it) and exiting fullscreen (window
  * is re-inserted). Called from ProcessReconcile before ReconcileMonitors,
- * inside a transaction and holding ctx->lock.
+ * inside a transaction and holding ctx->main.lock.
  *
  * @param ctx The BFWM context
  */

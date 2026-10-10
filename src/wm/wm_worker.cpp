@@ -187,22 +187,23 @@ inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
 } // namespace
 
 auto WMWorkerRun(BFWMContext *ctx) -> bool {
-   ctx->worker_thread =
+   ctx->main.worker_thread =
        _beginthreadex(nullptr, 0, StartEventWatching, ctx, 0, nullptr);
-   return ctx->worker_thread != 0;
+   return ctx->main.worker_thread != 0;
 }
 
 auto WMWorkerStop(BFWMContext *ctx) -> bool {
-   if ((ctx == nullptr) || ctx->worker_thread == 0)
+   if ((ctx == nullptr) || ctx->main.worker_thread == 0)
       return true;
 
    /* Post WM_QUIT to the worker thread's message queue so GetMessage returns 0
     */
-   PostThreadMessage(GetThreadId((HANDLE)ctx->worker_thread), WM_QUIT, 0, 0);
+   PostThreadMessage(GetThreadId((HANDLE)ctx->main.worker_thread), WM_QUIT, 0,
+                     0);
 
-   WaitForSingleObject((HANDLE)ctx->worker_thread, INFINITE);
+   WaitForSingleObject((HANDLE)ctx->main.worker_thread, INFINITE);
 
-   WINBOOL const ret = CloseHandle((HANDLE)ctx->worker_thread);
-   ctx->worker_thread = 0;
+   WINBOOL const ret = CloseHandle((HANDLE)ctx->main.worker_thread);
+   ctx->main.worker_thread = 0;
    return ret != FALSE;
 }

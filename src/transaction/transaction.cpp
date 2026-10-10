@@ -73,7 +73,7 @@ inline void ApplyBarVisibility(struct BFWMContext *ctx,
  * overlay.
  */
 inline void MarkWindowOverlayDirty(struct BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->windows->FindByHwnd(hwnd);
+   Window *win = ctx->main.windows->FindByHwnd(hwnd);
    if (win != nullptr)
       win->MarkOverlayDirty();
 }
@@ -83,7 +83,7 @@ inline void MarkWindowOverlayDirty(struct BFWMContext *ctx, HWND hwnd) {
  * commit. Runs after the passes so the last color wins and the async layout
  * moves have been issued. */
 inline void FlushOverlayRings(struct BFWMContext *ctx) {
-   for (const auto &window : ctx->windows->Windows()) {
+   for (const auto &window : ctx->main.windows->Windows()) {
       Window *win = window.get();
       if (win != nullptr) {
          /* Per-commit reconcile: the guaranteed backstop for z-drift and
@@ -116,7 +116,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
       // OP_OVERLAY_MOVE: geometry converges at the commit-end flush, which
       // waits for the async move to land at this rect. Ungated single-shot
       // issue (no backpressure, no moves_in_flight) — see placement.h.
-      Window *win = ctx->windows->FindByHwnd(operation->hwnd);
+      Window *win = ctx->main.windows->FindByHwnd(operation->hwnd);
       if (win != nullptr)
          PlacementIssueMove(win, &r, ctx);
       break;
@@ -131,7 +131,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
    case OP_BORDER_COLOR:
       if (IsWindowVisible(operation->hwnd) != 0) {
          // OP_OVERLAY_PAINT: the ring replaces the DWM border color path.
-         Window *win = ctx->windows->FindByHwnd(operation->hwnd);
+         Window *win = ctx->main.windows->FindByHwnd(operation->hwnd);
          if (win != nullptr) {
             win->SetOverlayColor(operation->op_types.border.color);
          }
@@ -140,7 +140,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
 
    case OP_CLOAK_WINDOW: {
       BOOL const desired = operation->op_types.cloak.cloaked;
-      Window *win = ctx->windows->FindByHwnd(operation->hwnd);
+      Window *win = ctx->main.windows->FindByHwnd(operation->hwnd);
       BOOL const prev = (win != nullptr) ? win->IsCloaked() : FALSE;
       HRESULT const result = SetWindowCloakState(operation->hwnd, desired);
       if (SUCCEEDED(result)) {
@@ -171,7 +171,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
       // foreground from a fullscreen window; keep focused_hwnd unchanged in
       // that case so BFWM still considers the fullscreen window focused.
       if (FocusWindowImmediate(operation->hwnd, ctx) == TRUE)
-         ctx->focused_hwnd = operation->hwnd;
+         ctx->main.focused_hwnd = operation->hwnd;
 
       break;
    }
@@ -439,10 +439,10 @@ void TransactionState::Abort() {
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void BFWMTransactionCommit(struct BFWMContext *ctx) {
-   if (ctx->transaction.IsInTransaction() == FALSE)
+   if (ctx->main.transaction.IsInTransaction() == FALSE)
       return;
-   if (ctx->transaction.IsEmpty() == TRUE) {
-      ctx->transaction.SetInTransaction(FALSE);
+   if (ctx->main.transaction.IsEmpty() == TRUE) {
+      ctx->main.transaction.SetInTransaction(FALSE);
       // Handlers can mark rings dirty without queuing ops (floating moves);
       // converge them even on an otherwise-empty commit.
       FlushOverlayRings(ctx);
@@ -467,42 +467,42 @@ void BFWMTransactionCommit(struct BFWMContext *ctx) {
    //            OP_MINIMIZE_WINDOW
    //
 
-   ctx->transaction.SetInTransaction(
+   ctx->main.transaction.SetInTransaction(
        TRUE); /* ensure ApplyLayout continues queuing */
 
    // --- Pass 1: Apply cloaking FIRST ---
    // DWM must see the correct cloaked/uncloaked state before any
    // SetWindowPos calls to prevent stale visuals.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_CLOAK_WINDOW) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_CLOAK_WINDOW) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 2: Apply window style changes ---
    // SetWindowLong for window styles before relayouts so the layout
    // engine sees correct style state (e.g. borders, captions).
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_SET_WINDOW_STYLE) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_SET_WINDOW_STYLE) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 3: Apply Z-order changes ---
    // SetWindowPos for z-order before repositioning so the window
    // is in its correct Z position before move/size takes effect.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_ZORDER) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_ZORDER) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 4: Process workspace re-layouts ---
    // These call ApplyLayout which will queue additional
    // OP_MOVE_WINDOW and OP_BORDER_COLOR ops during the transaction.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_RELAYOUT_WORKSPACE) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_RELAYOUT_WORKSPACE) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
@@ -510,50 +510,50 @@ void BFWMTransactionCommit(struct BFWMContext *ctx) {
    // Use individual SetWindowPos calls.  DeferWindowPos can suppress
    // synchronous side-effects (WM_WINDOWPOSCHANGED, WM_NCCALCSIZE) that
    // certain windows need to correctly process position changes.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_MOVE_WINDOW) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_MOVE_WINDOW) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 6: Apply borders and close ---
    // Exclude focus ops, they must run LAST to win over any stale
    // border ops queued by ApplyLayout (which uses the old
-   // ctx->focused_hwnd value during Pass 4).
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      OperationType const t = ctx->transaction.OpAt(index).type;
+   // ctx->main.focused_hwnd value during Pass 4).
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      OperationType const t = ctx->main.transaction.OpAt(index).type;
       if (t == OP_BORDER_COLOR || t == OP_CLOSE_WINDOW) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 7: Redraw window borders and content ---
    // Redraw after all positioning and border color changes so the
    // visual update reflects the final state.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      OperationType const t = ctx->transaction.OpAt(index).type;
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      OperationType const t = ctx->main.transaction.OpAt(index).type;
       if (t == OP_REDRAW_BORDER || t == OP_REDRAW_CONTENT) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 8: Apply visibility changes ---
    // Show/hide windows after all positioning and redraw so the
    // window becomes visible in its final position.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      OperationType const t = ctx->transaction.OpAt(index).type;
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      OperationType const t = ctx->main.transaction.OpAt(index).type;
       if (t == OP_SHOW_WINDOW || t == OP_HIDE_WINDOW ||
           t == OP_BAR_VISIBILITY) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
    // --- Pass 9: Apply focus ---
    // Focus queues border/redraw ops (FocusWindowImmediate); Pass 10
    // applies them so focus wins by queue position.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      if (ctx->transaction.OpAt(index).type == OP_FOCUS_WINDOW) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      if (ctx->main.transaction.OpAt(index).type == OP_FOCUS_WINDOW) {
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
@@ -569,11 +569,11 @@ void BFWMTransactionCommit(struct BFWMContext *ctx) {
    // Picks up ops queued during Pass 9 (relayout inactives already
    // applied in Pass 6; queue order preserves borders-then-redraws).
    // Focus-tracking/minimize run last.
-   for (size_t index = 0; index < ctx->transaction.OpCount(); index++) {
-      OperationType const t = ctx->transaction.OpAt(index).type;
+   for (size_t index = 0; index < ctx->main.transaction.OpCount(); index++) {
+      OperationType const t = ctx->main.transaction.OpAt(index).type;
       if (t == OP_BORDER_COLOR || t == OP_REDRAW_BORDER ||
           t == OP_UPDATE_FOCUS_TRACKING || t == OP_MINIMIZE_WINDOW) {
-         ApplyOperation(ctx, &ctx->transaction.OpAt(index));
+         ApplyOperation(ctx, &ctx->main.transaction.OpAt(index));
       }
    }
 
@@ -583,8 +583,8 @@ void BFWMTransactionCommit(struct BFWMContext *ctx) {
    FlushOverlayRings(ctx);
 
    // Clear the queue
-   ctx->transaction.ClearOps();
-   ctx->transaction.SetInTransaction(FALSE);
+   ctx->main.transaction.ClearOps();
+   ctx->main.transaction.SetInTransaction(FALSE);
 
    ForceDwmComposite();
 }
@@ -610,8 +610,8 @@ void DrainEventQueue(struct BFWMContext *ctx) {
       return;
 
    // Phase 2: Begin transaction, process events under lock, commit
-   ctx->transaction.Begin();
-   ScopedLock const lock(ctx->lock);
+   ctx->main.transaction.Begin();
+   ScopedLock const lock(ctx->main.lock);
 
    for (size_t i = 0; i < count; i++) {
       switch (records[i].event) {
@@ -649,8 +649,8 @@ void DrainEventQueue(struct BFWMContext *ctx) {
          // which may have been destroyed and recreated since the event was
          // queued (a stale handle would resolve to the wrong monitor).
          auto *hmon = reinterpret_cast<HMONITOR>(records[i].hwnd);
-         ctx->dpi->RegisterMonitor(hmon, records[i].dpi);
-         ctx->dpi_update = TRUE;
+         ctx->main.dpi->RegisterMonitor(hmon, records[i].dpi);
+         ctx->main.dpi_update = TRUE;
          break;
       }
       default:

@@ -27,9 +27,9 @@ void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
    BOOL need_focus = FALSE;
    HWND fallback = nullptr;
    {
-      ScopedLock const lock(ctx->lock);
+      ScopedLock const lock(ctx->main.lock);
 
-      Window *win = ctx->windows->FindByHwnd(hWnd);
+      Window *win = ctx->main.windows->FindByHwnd(hWnd);
       if (win == nullptr) {
          Debug("CleanupTerminatedWindow: HWND %p not in window registry", hWnd);
          return;
@@ -37,7 +37,7 @@ void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
 
       workspace = FindWorkspaceByHwnd(ctx, hWnd);
 
-      need_focus = static_cast<BOOL>(ctx->focused_hwnd == hWnd);
+      need_focus = static_cast<BOOL>(ctx->main.focused_hwnd == hWnd);
       BOOL const was_fullscreen = win->IsFullscreen();
 
       // Compute fallback BEFORE removal — the reference window must still
@@ -62,9 +62,9 @@ void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
       }
 
       if (need_focus == TRUE)
-         ctx->focused_hwnd = nullptr;
+         ctx->main.focused_hwnd = nullptr;
 
-      ctx->windows->Remove(win);
+      ctx->main.windows->Remove(win);
    }
 
    if (workspace != nullptr) {

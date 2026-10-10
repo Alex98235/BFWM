@@ -416,7 +416,7 @@ CBELT_TEST(load_with_window_rules) {
    LuaConfig config = {};
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
-   cbelt_assert(ctx->window_rule_count == 1);
+   cbelt_assert(ctx->main.window_rule_count == 1);
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
    remove(path.c_str());
@@ -993,7 +993,7 @@ CBELT_TEST(exec_cache_invalid_args_return_nil) {
    BFWMContext *ctx = create_test_ctx();
    LuaConfig config = {};
    cbelt_assert(LuaConfigLoad(&config, ctx, "") == TRUE);
-   cbelt_assert_not_null(ctx->exec_cache);
+   cbelt_assert_not_null(ctx->main.exec_cache);
 
    const char *cases[] = {
        "r = BFWM.exec_cache(42, 'k')",   /* argv not a string/table */
@@ -1035,7 +1035,8 @@ CBELT_TEST(exec_cache_valid_argv_roundtrip) {
    std::vector<std::string> const argv = {"cmd.exe", "/c", "echo", "bfwm_lua"};
    bool found = false;
    for (int i = 0; i < 300; i++) {
-      const std::string *value = ExecCacheGet(ctx->exec_cache, argv, "lk", 0);
+      const std::string *value =
+          ExecCacheGet(ctx->main.exec_cache, argv, "lk", 0);
       if ((value != nullptr) &&
           (value->find("bfwm_lua") != std::string::npos)) {
          found = true;
@@ -1050,7 +1051,7 @@ CBELT_TEST(exec_cache_valid_argv_roundtrip) {
        LuaConfigCall(&config, ctx,
                      "BFWM.spawn({ 'cmd.exe', '/c', 'echo', 'sp' })") == TRUE);
    Sleep(50);
-   (void)ExecCacheGet(ctx->exec_cache, argv, "lk", 0);
+   (void)ExecCacheGet(ctx->main.exec_cache, argv, "lk", 0);
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);

@@ -38,8 +38,8 @@ void IssueRectWithDpiConversion(struct BFWMContext *ctx, HWND hwnd,
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
    DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
-   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->dpi != nullptr)) {
-      UINT const dpi = ctx->dpi->GetDpi(hmon);
+   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->main.dpi != nullptr)) {
+      UINT const dpi = ctx->main.dpi->GetDpi(hmon);
       float const scale = (float)dpi / (float)DpiSystem::BaseDpi();
       if ((dpi != 0) && (scale > 1.0F)) {
          prev_ctx = SetThreadDpiAwarenessContext(target_ctx);

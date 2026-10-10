@@ -466,12 +466,12 @@ auto CALLBACK BarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       }
    case WM_LBUTTONDOWN:
       if ((bar != nullptr) && (bar->monitor() != nullptr) &&
-          (bar->context()->suspended == 0))
+          (bar->context()->main.suspended == 0))
          return bar->OnLButtonDown(lParam);
       break;
    case WM_MOUSEWHEEL:
       if ((bar != nullptr) && (bar->monitor() != nullptr) &&
-          (bar->context()->suspended == 0))
+          (bar->context()->main.suspended == 0))
          return bar->OnMouseWheel(wParam, lParam);
       break;
    case WM_DPICHANGED:
@@ -483,9 +483,9 @@ auto CALLBACK BarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       // an idempotent upsert, so double-firing is safe.
       if ((bar != nullptr) && (bar->monitor() != nullptr) &&
           (bar->context() != nullptr)) {
-         bar->context()->dpi->RegisterMonitor(bar->monitor()->GetHandle(),
-                                              LOWORD(wParam));
-         bar->context()->dpi_update = TRUE;
+         bar->context()->main.dpi->RegisterMonitor(bar->monitor()->GetHandle(),
+                                                   LOWORD(wParam));
+         bar->context()->main.dpi_update = TRUE;
       }
       return 0;
    case WM_DESTROY:
@@ -523,7 +523,7 @@ auto Bar::OnCreate(HWND hwnd, LPARAM l_param) -> LRESULT {
 }
 
 auto Bar::OnTimer() -> LRESULT {
-   if ((ctx != nullptr) && (ctx->suspended == 0))
+   if ((ctx != nullptr) && (ctx->main.suspended == 0))
       InvalidateRect(hwnd, nullptr, FALSE);
    return 0;
 }
@@ -686,8 +686,8 @@ void Bar::DispatchIndicatorClick(const BarHit &hit) {
       bool const ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
       bool const shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
       bool const alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
-      LuaConfigCallClick(&ctx->lua, ctx, cfg.on_click.c_str(), cfg.id.c_str(),
-                         "left", ctrl, shift, alt);
+      LuaConfigCallClick(&ctx->main.lua, ctx, cfg.on_click.c_str(),
+                         cfg.id.c_str(), "left", ctrl, shift, alt);
       return;
    }
    provider->OnClick(cfg, hit.item, ctx);
@@ -704,8 +704,8 @@ void Bar::DispatchIndicatorScroll(const BarHit &hit, int delta) {
 
    if (!cfg.on_scroll.empty()) {
       const char *dir = (delta > 0) ? "up" : "down";
-      LuaConfigCallScroll(&ctx->lua, ctx, cfg.on_scroll.c_str(), cfg.id.c_str(),
-                          dir);
+      LuaConfigCallScroll(&ctx->main.lua, ctx, cfg.on_scroll.c_str(),
+                          cfg.id.c_str(), dir);
       return;
    }
    provider->OnScroll(cfg, delta, ctx);
@@ -821,9 +821,9 @@ auto Bar::ComputeWorkspaceTabWidth(const BarIndicatorConfig *indicator_config,
    // and min-width by this bar's monitor DPI so the tab geometry is
    // proportional to the rest of the bar.
    int const tab_padding =
-       ctx->dpi->ScaleForMonitor(mon->GetHandle(), WS_TAB_PADDING);
+       ctx->main.dpi->ScaleForMonitor(mon->GetHandle(), WS_TAB_PADDING);
    int const tab_min_width =
-       ctx->dpi->ScaleForMonitor(mon->GetHandle(), WS_TAB_MIN_WIDTH);
+       ctx->main.dpi->ScaleForMonitor(mon->GetHandle(), WS_TAB_MIN_WIDTH);
    int tab_w = static_cast<int>(lround(measured + ROUNDING_HALF)) + tab_padding;
    tab_w = std::max<int>(tab_w, tab_min_width);
    if (indicator_config->max_width > 0 && tab_w > indicator_config->max_width)
@@ -987,11 +987,11 @@ void Bar::RefreshWorkspaces(const BarIndicatorConfig &cfg,
 void Bar::RefreshTitle(const BarIndicatorConfig &cfg,
                        IndicatorRuntime &runtime) {
    std::wstring wtitle;
-   if ((ctx != nullptr) && (ctx->focused_hwnd != nullptr) &&
-       (IsWindow(ctx->focused_hwnd) != 0)) {
+   if ((ctx != nullptr) && (ctx->main.focused_hwnd != nullptr) &&
+       (IsWindow(ctx->main.focused_hwnd) != 0)) {
       wtitle.resize(TITLE_BUF_SIZE);
       int const title_length =
-          GetWindowTextW(ctx->focused_hwnd, wtitle.data(), TITLE_BUF_SIZE);
+          GetWindowTextW(ctx->main.focused_hwnd, wtitle.data(), TITLE_BUF_SIZE);
       wtitle.resize(title_length > 0 ? title_length : 0);
    }
 
@@ -1222,7 +1222,7 @@ void Bar::RenderIndicator(int slot) {
            idx++) {
          int const workspace_index = order[idx];
          Workspace *workspace = mon->Workspaces()[workspace_index];
-         COLORREF const tag_bg = (workspace == ctx->focused_workspace)
+         COLORREF const tag_bg = (workspace == ctx->main.focused_workspace)
                                      ? config.colors.active_workspace
                                      : config.colors.inactive_workspace;
 
@@ -1238,8 +1238,9 @@ void Bar::RenderIndicator(int slot) {
          size_t managed_count = 0;
          size_t focused_index = 0;
          BOOL show_bar = FALSE;
-         CountManagedWindows(workspace, ctx->focused_hwnd, cfg.position_bar,
-                             &managed_count, &focused_index, &show_bar);
+         CountManagedWindows(workspace, ctx->main.focused_hwnd,
+                             cfg.position_bar, &managed_count, &focused_index,
+                             &show_bar);
 
          uint32_t const tab_idx =
              IndicatorWorkspaceIndex(slot, workspace_index);
@@ -1714,24 +1715,32 @@ auto Bar::Init() -> bool {
    // fields (colours, poll rates, flags, font weight/name) stay logical; the
    // 0 sentinels (font_size = default, max_width = unlimited) stay 0.
    HMONITOR hmon = mon->GetHandle();
-   config.height = ctx->dpi->ScaleForMonitor(hmon, config.height);
-   config.margin.left = ctx->dpi->ScaleForMonitor(hmon, config.margin.left);
-   config.margin.right = ctx->dpi->ScaleForMonitor(hmon, config.margin.right);
-   config.margin.top = ctx->dpi->ScaleForMonitor(hmon, config.margin.top);
-   config.margin.bottom = ctx->dpi->ScaleForMonitor(hmon, config.margin.bottom);
-   config.padding.left = ctx->dpi->ScaleForMonitor(hmon, config.padding.left);
-   config.padding.right = ctx->dpi->ScaleForMonitor(hmon, config.padding.right);
-   config.padding.top = ctx->dpi->ScaleForMonitor(hmon, config.padding.top);
+   config.height = ctx->main.dpi->ScaleForMonitor(hmon, config.height);
+   config.margin.left =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.margin.left);
+   config.margin.right =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.margin.right);
+   config.margin.top = ctx->main.dpi->ScaleForMonitor(hmon, config.margin.top);
+   config.margin.bottom =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.margin.bottom);
+   config.padding.left =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.padding.left);
+   config.padding.right =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.padding.right);
+   config.padding.top =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.padding.top);
    config.padding.bottom =
-       ctx->dpi->ScaleForMonitor(hmon, config.padding.bottom);
-   config.corner_radius = ctx->dpi->ScaleForMonitor(hmon, config.corner_radius);
-   config.border.width = ctx->dpi->ScaleForMonitor(hmon, config.border.width);
-   config.font.size = ctx->dpi->ScaleForMonitor(hmon, config.font.size);
+       ctx->main.dpi->ScaleForMonitor(hmon, config.padding.bottom);
+   config.corner_radius =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.corner_radius);
+   config.border.width =
+       ctx->main.dpi->ScaleForMonitor(hmon, config.border.width);
+   config.font.size = ctx->main.dpi->ScaleForMonitor(hmon, config.font.size);
    for (int i = 0; i < config.indicator_count; i++) {
       config.indicators[i].font_size =
-          ctx->dpi->ScaleForMonitor(hmon, config.indicators[i].font_size);
+          ctx->main.dpi->ScaleForMonitor(hmon, config.indicators[i].font_size);
       config.indicators[i].max_width =
-          ctx->dpi->ScaleForMonitor(hmon, config.indicators[i].max_width);
+          ctx->main.dpi->ScaleForMonitor(hmon, config.indicators[i].max_width);
    }
 
    RECT const mon_rect = mon->GetRect();
@@ -1825,14 +1834,14 @@ void Bar::EnsureTopZ() {
 }
 
 void Bar::UpdateAll(BFWMContext *ctx) {
-   for (const auto &mon : ctx->monitors->Monitors()) {
+   for (const auto &mon : ctx->main.monitors->Monitors()) {
       if (mon->GetBar() != nullptr)
          mon->GetBar()->Update();
    }
 }
 
 void Bar::ResetPollTimers(BFWMContext *ctx) {
-   for (const auto &mon : ctx->monitors->Monitors()) {
+   for (const auto &mon : ctx->main.monitors->Monitors()) {
       if (mon->GetBar() != nullptr)
          mon->GetBar()->ResetPollTimers();
    }

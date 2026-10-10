@@ -177,7 +177,7 @@ auto SortMonitorByPosition(Monitor const *a, Monitor const *b) -> bool;
  * @brief EnumDisplayMonitors callback payload: target registry + context.
  *
  * MonitorEnumProc needs both the registry to fill and the BFWMContext so it
- * can register each monitor's effective DPI with ctx->dpi.
+ * can register each monitor's effective DPI with ctx->main.dpi.
  */
 using MonitorEnumData = struct {
    MonitorRegistry *reg;

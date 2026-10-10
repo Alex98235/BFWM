@@ -17,7 +17,7 @@
  *
  * Usage:
  * @code
- *    ctx->transaction.Begin();
+ *    ctx->main.transaction.Begin();
  *    DispatchKeybind(ctx, &queued);     // handlers queue ops
  *    BFWMTransactionCommit(ctx);      // flush to Win32 in priority order
  * @endcode

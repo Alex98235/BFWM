@@ -292,7 +292,8 @@ static inline auto IsWindowManagedByLayout(const Window *win) -> BOOL {
 template <typename Context>
 [[nodiscard]] inline auto FindWindowIfManaged(Context *ctx, HWND hwnd)
     -> Window * {
-   Window *win = (ctx != nullptr) ? ctx->windows->FindByHwnd(hwnd) : nullptr;
+   Window *win =
+       (ctx != nullptr) ? ctx->main.windows->FindByHwnd(hwnd) : nullptr;
    if ((win == nullptr) || (IsWindowManagedByLayout(win) == FALSE))
       return nullptr;
    return win;

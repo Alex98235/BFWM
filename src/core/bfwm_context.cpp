@@ -64,8 +64,8 @@ inline auto CALLBACK MonitorHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                  (wParam == PBT_APMRESUMECRITICAL) ||
                  (wParam == PBT_APMRESUMESTANDBY)) {
          // Any resume broadcast must clear the suspend flag. Only posting
-         // for PBT_APMRESUMEAUTOMATIC would leave ctx->suspended stuck TRUE
-         // after a resume delivered as another type, permanently gating
+         // for PBT_APMRESUMEAUTOMATIC would leave ctx->main.suspended stuck
+         // TRUE after a resume delivered as another type, permanently gating
          // OverlayReconcileAll (and the stale-window sweep) in the main loop.
          PostThreadMessageW(ctx->shared.main_thread_id, WM_APP_RESUME, 0, 0);
       }
@@ -86,15 +86,15 @@ inline auto CreateMonitorHelperWindow(BFWMContext *ctx) -> BOOL {
       return FALSE;
    }
 
-   ctx->monitor_helper_hwnd =
+   ctx->main.monitor_helper_hwnd =
        CreateWindowExW(0, MONITOR_HELPER_CLASS, L"", WS_POPUP, 0, 0, 0, 0,
                        nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
-   if (ctx->monitor_helper_hwnd == nullptr) {
+   if (ctx->main.monitor_helper_hwnd == nullptr) {
       BFWMLogLastError("CreateWindowExW(BFWMMonitorHelper) failed");
       return FALSE;
    }
 
-   BFWMSetWindowData(ctx->monitor_helper_hwnd, ctx);
+   BFWMSetWindowData(ctx->main.monitor_helper_hwnd, ctx);
    return TRUE;
 }
 
@@ -102,29 +102,29 @@ inline auto CreateMonitorHelperWindow(BFWMContext *ctx) -> BOOL {
 // STATIC INIT FUNCTIONS
 // ============================================================
 inline void InitMonitorReg(BFWMContext *context) {
-   context->monitors = std::make_unique<MonitorRegistry>();
+   context->main.monitors = std::make_unique<MonitorRegistry>();
 }
 
 inline void InitWindowReg(BFWMContext *context) {
-   context->windows = std::make_unique<WindowRegistry>();
+   context->main.windows = std::make_unique<WindowRegistry>();
 }
 
 inline void InitLuaConfig(BFWMContext *context) {
-   context->lua.L = nullptr;
-   context->lua.config_path = {};
+   context->main.lua.L = nullptr;
+   context->main.lua.config_path = {};
 }
 
 inline void InitWindowRules(BFWMContext *context) {
-   context->window_rule_count = 0;
+   context->main.window_rule_count = 0;
 }
 
 // ============================================================
 // STATIC FREE FUNCTIONS
 // ============================================================
 inline void FreeMonitorReg(BFWMContext *context) {
-   if (context->monitors == nullptr)
+   if (context->main.monitors == nullptr)
       return;
-   for (auto *mon : context->monitors->Monitors()) {
+   for (auto *mon : context->main.monitors->Monitors()) {
       if (mon->GetBar() != nullptr)
          mon->ResetBar();
       for (Workspace *workspace : mon->Workspaces()) {
@@ -132,23 +132,25 @@ inline void FreeMonitorReg(BFWMContext *context) {
       }
       delete mon;
    }
-   context->monitors.reset();
+   context->main.monitors.reset();
 }
 
-inline void FreeWindowReg(BFWMContext *context) { context->windows.reset(); }
+inline void FreeWindowReg(BFWMContext *context) {
+   context->main.windows.reset();
+}
 
 inline void FreeLuaConfig(BFWMContext *context) {
-   if (context->lua.L != nullptr) {
-      lua_close(context->lua.L);
-      context->lua.L = nullptr;
+   if (context->main.lua.L != nullptr) {
+      lua_close(context->main.lua.L);
+      context->main.lua.L = nullptr;
    }
 }
 
 inline void FreeWindowRules(BFWMContext *context) {
-   for (WindowRule *rule : context->window_rules)
+   for (WindowRule *rule : context->main.window_rules)
       WindowRuleDestroy(rule);
-   context->window_rules.clear();
-   context->window_rule_count = 0;
+   context->main.window_rules.clear();
+   context->main.window_rule_count = 0;
 }
 
 // ============================================================
@@ -178,7 +180,7 @@ inline void AssignWindowToWorkspace(BFWMContext *ctx, Window *win) {
                 ctx, (UINT)ws_config->assigned_monitor);
          }
          if (monitor == nullptr)
-            monitor = FindMonitorByWorkspace(ctx, ctx->focused_workspace);
+            monitor = FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
          if (monitor != nullptr) {
             size_t const target_id = win->RuleTargetWorkspace();
             std::wstring const name = L"ws_" + std::to_wstring(target_id);
@@ -197,13 +199,13 @@ inline void AssignWindowToWorkspace(BFWMContext *ctx, Window *win) {
 
    Workspace *workspace = ResolveTargetWorkspace(ctx, win->GetHwnd());
    if (workspace == nullptr)
-      workspace = ctx->focused_workspace;
+      workspace = ctx->main.focused_workspace;
    workspace->AddWindow(ctx, win);
 }
 
 inline auto FilterDisabledMonitors(BFWMContext *ctx, MonitorRegistry *reg)
     -> size_t {
-   ctx->disabled_uid_count = 0;
+   ctx->main.disabled_uid_count = 0;
    size_t dd_dst = 0;
    auto const &monitors = reg->Monitors();
    size_t mon_count = monitors.size();
@@ -220,7 +222,8 @@ inline auto FilterDisabledMonitors(BFWMContext *ctx, MonitorRegistry *reg)
       }
       if (disabled != 0) {
          if (!monitor->GetUid().empty()) {
-            ctx->disabled_uids[ctx->disabled_uid_count++] = monitor->GetUid();
+            ctx->main.disabled_uids[ctx->main.disabled_uid_count++] =
+                monitor->GetUid();
          }
          delete monitor;
       } else {
@@ -241,7 +244,7 @@ inline auto SetupBarHeights(BFWMContext *ctx,
       for (const auto &monitor : monitors) {
          /* bar_height config is logical; store it scaled to each monitor's
           * physical pixels (the value reserved from the work area). */
-         monitor->SetBarHeight(ctx->dpi->ScaleForMonitor(
+         monitor->SetBarHeight(ctx->main.dpi->ScaleForMonitor(
              monitor->GetHandle(), ctx->shared.config.bar_height));
       }
    }
@@ -263,7 +266,7 @@ inline auto CreateDefaultWorkspaces(BFWMContext *ctx,
 
 inline auto AssignWindowsToWorkspaces(BFWMContext *ctx, HWND pre_focus)
     -> void {
-   const auto &all_windows = ctx->windows->Windows();
+   const auto &all_windows = ctx->main.windows->Windows();
    size_t const win_count = all_windows.size();
 
    for (size_t index = 0; index < win_count; index++) {
@@ -303,23 +306,24 @@ inline auto ApplyLayoutsOnAllWorkspaces(BFWMContext *ctx,
 } // namespace
 
 auto BFWMContextSetup(BFWMContext *ctx) -> bool {
-   // Enumerate monitors into ctx->monitors
+   // Enumerate monitors into ctx->main.monitors
    Debug("Enumerating displays...");
-   MonitorEnumData const enum_data = {.reg = ctx->monitors.get(), .ctx = ctx};
+   MonitorEnumData const enum_data = {.reg = ctx->main.monitors.get(),
+                                      .ctx = ctx};
    EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)&enum_data);
    Debug("Display enumeration complete (%zu monitors found)",
-         ctx->monitors->Size());
+         ctx->main.monitors->Size());
 
-   auto const &monitors = ctx->monitors->Monitors();
+   auto const &monitors = ctx->main.monitors->Monitors();
 
    // Sort monitors by position for deterministic navigation order
    // regardless of EnumDisplayMonitors callback order.
-   ctx->monitors->SortByPosition();
+   ctx->main.monitors->SortByPosition();
    // Populate disabled_uids from config and filter disabled monitors
    // out before workspace creation.
-   size_t const dd_dst = FilterDisabledMonitors(ctx, ctx->monitors.get());
+   size_t const dd_dst = FilterDisabledMonitors(ctx, ctx->main.monitors.get());
    size_t const mon_count = dd_dst;
-   ctx->monitors->Resize(mon_count);
+   ctx->main.monitors->Resize(mon_count);
 
    // Set bar height on monitors *before* workspace creation so
    // workspaces reserve the correct top-margin.  Bar window creation
@@ -332,7 +336,7 @@ auto BFWMContextSetup(BFWMContext *ctx) -> bool {
 
    // Set the first monitor's first workspace as active on the context
    if (mon_count > 0)
-      ctx->focused_workspace = monitors[0]->GetActiveWorkspace();
+      ctx->main.focused_workspace = monitors[0]->GetActiveWorkspace();
 
    // Capture the window focused before setup so we can restore it as the
    // first-inserted window (anchors the dwindle layout) and refocus it.
@@ -361,8 +365,8 @@ auto BFWMContextSetup(BFWMContext *ctx) -> bool {
    CreateBarWindows(ctx, monitors);
 
    // Initialise the notification snackbar
-   ctx->snackbar = new Snackbar(ctx);
-   if (!ctx->snackbar->Init())
+   ctx->main.snackbar = new Snackbar(ctx);
+   if (!ctx->main.snackbar->Init())
       Error("Snackbar init failed");
 
    ApplyLayoutsOnAllWorkspaces(ctx, monitors);
@@ -371,7 +375,7 @@ auto BFWMContextSetup(BFWMContext *ctx) -> bool {
    // AddWindow cycles focus through every enlisted window,
    // leaving it on an arbitrary last-enumerated window.
    if ((pre_focus != nullptr) &&
-       (ctx->windows->FindByHwnd(pre_focus) != nullptr))
+       (ctx->main.windows->FindByHwnd(pre_focus) != nullptr))
       FocusWindow(pre_focus, ctx);
 
    CreateMonitorHelperWindow(ctx);
@@ -386,15 +390,15 @@ auto BFWMContextInit() -> BFWMContext * {
    auto *context = new BFWMContext();
 
    // Initialize synchronization
-   InitializeCriticalSection(&context->lock);
+   InitializeCriticalSection(&context->main.lock);
 
    // Initialize sub-registries in dependency-safe order
-   context->dpi = std::make_unique<DpiSystem>();
+   context->main.dpi = std::make_unique<DpiSystem>();
    InitMonitorReg(context);
    InitWindowReg(context);
    InitLuaConfig(context);
    InitWindowRules(context);
-   context->exec_cache = ExecCacheCreate();
+   context->main.exec_cache = ExecCacheCreate();
 
    // Populate config with defaults (must happen after sub-registries are
    // allocated)
@@ -408,35 +412,35 @@ void BFWMContextFree(BFWMContext *context) {
       return;
 
    // Destroy monitor helper window
-   if (context->monitor_helper_hwnd != nullptr) {
-      DestroyWindow(context->monitor_helper_hwnd);
-      context->monitor_helper_hwnd = nullptr;
+   if (context->main.monitor_helper_hwnd != nullptr) {
+      DestroyWindow(context->main.monitor_helper_hwnd);
+      context->main.monitor_helper_hwnd = nullptr;
    }
    UnregisterClassW(MONITOR_HELPER_CLASS, GetModuleHandleW(nullptr));
 
    // Destroy notification snackbar
-   delete context->snackbar;
-   context->snackbar = nullptr;
+   delete context->main.snackbar;
+   context->main.snackbar = nullptr;
 
    // Release single-instance mutex
-   if (context->instance_mutex != nullptr) {
-      CloseHandle(context->instance_mutex);
-      context->instance_mutex = nullptr;
+   if (context->main.instance_mutex != nullptr) {
+      CloseHandle(context->main.instance_mutex);
+      context->main.instance_mutex = nullptr;
    }
 
    // Terminate/close any in-flight exec_cache children before tearing down Lua
    // (the BFWM closures capture ctx and the cache).
-   ExecCacheDestroy(context->exec_cache);
-   context->exec_cache = nullptr;
+   ExecCacheDestroy(context->main.exec_cache);
+   context->main.exec_cache = nullptr;
 
    // Free in reverse dependency order
    FreeWindowRules(context);
    FreeLuaConfig(context);
    FreeWindowReg(context);
-   context->dpi.reset();
+   context->main.dpi.reset();
    FreeMonitorReg(context);
 
-   DeleteCriticalSection(&context->lock);
+   DeleteCriticalSection(&context->main.lock);
 
    delete context;
 }
