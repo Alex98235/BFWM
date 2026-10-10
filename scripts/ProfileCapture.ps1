@@ -6,7 +6,7 @@
 # wait analysis, automatic symbol resolution from the PDB next to the exe.
 #
 # Usage (from a normal shell):
-#   powershell -File ProfileCapture.ps1
+#   powershell -File ProfileCapture.ps1 [-PerfView <path>] [-CaptureDir <path>]
 #
 # Prompts for: capture name [idle], duration in seconds [60], window churn [0].
 # Self-elevates (kernel ETW needs admin), starts PerfView in the background,
@@ -16,19 +16,44 @@
 # normal window and the hook sees everything), runs the workload, waits for
 # PerfView's MaxCollectSec auto-stop, restores the console, and reports.
 #
-# Output: <captures>\<name>.etl.zip  (PerfView zips + merges by default)
+# Output: <repo>\profiling\captures\<name>.etl.zip  (PerfView zips + merges by
+# default). PerfView is auto-detected; see Resolve-PerfView below.
 # Analysis: PerfView.exe open <file>  -> CPU Stacks / Thread Time views.
 
 param(
     [string]$Name = "",
     [int]$DurationSec = 0,
-    [int]$WindowChurn = -1
+    [int]$WindowChurn = -1,
+    [string]$CaptureDir = "",
+    [string]$PerfView = ""
 )
 
 $ErrorActionPreference = 'Stop'
 
-$CaptureDir = "C:\Users\alind\Programming\BFWM\profiling\captures"
-$PerfView = "C:\Users\alind\AppData\Local\PerfView\PerfView.exe"
+# Resolve everything relative to the checkout so no machine-specific path is
+# baked in. $PSScriptRoot is <repo>\scripts.
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+
+function Resolve-PerfView {
+    param([string]$Explicit)
+    $onPath = Get-Command PerfView.exe -ErrorAction SilentlyContinue
+    # Explicit path / env overrides win, then PATH, then the usual install dirs.
+    $candidates = @($Explicit, $env:BFWM_PERFVIEW, $env:BFWM_PROFILE_PERFVIEW, $onPath.Source)
+    if ($env:LOCALAPPDATA) { $candidates += Join-Path $env:LOCALAPPDATA 'PerfView\PerfView.exe' }
+    if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'PerfView\PerfView.exe' }
+    if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'PerfView\PerfView.exe' }
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    throw "PerfView.exe not found. Pass -PerfView <path> or set `$env:BFWM_PERFVIEW; install from https://github.com/microsoft/perfview/releases."
+}
+
+# Captures default to <repo>\profiling\captures (git-ignored).
+if (-not $CaptureDir) { $CaptureDir = Join-Path $RepoRoot 'profiling\captures' }
+$CaptureDir = [IO.Path]::GetFullPath($CaptureDir)
+$PerfView = Resolve-PerfView $PerfView
 
 # -- Interactive prompts (skipped when values come from params/env) ------------
 function Get-Value {
@@ -54,15 +79,19 @@ if (-not $isAdmin) {
     $env:BFWM_PROFILE_NAME = $Name
     $env:BFWM_PROFILE_DURATION = "$DurationSec"
     $env:BFWM_PROFILE_CHURN = "$WindowChurn"
+    $env:BFWM_PROFILE_CAPTURES = $CaptureDir
+    $env:BFWM_PROFILE_PERFVIEW = $PerfView
     $p = Start-Process powershell -Verb RunAs -ArgumentList "-NoExit -NoProfile -File `"$PSCommandPath`"" -PassThru
     if (-not $p) { throw "Elevation cancelled or failed." }
     exit
 }
 
 # Elevated path: values arrived via env vars (or params).
-if ($env:BFWM_PROFILE_NAME)    { $Name = $env:BFWM_PROFILE_NAME }
+if ($env:BFWM_PROFILE_NAME)     { $Name = $env:BFWM_PROFILE_NAME }
 if ($env:BFWM_PROFILE_DURATION) { $DurationSec = [int]$env:BFWM_PROFILE_DURATION }
-if ($env:BFWM_PROFILE_CHURN)   { $WindowChurn = [int]$env:BFWM_PROFILE_CHURN }
+if ($env:BFWM_PROFILE_CHURN)    { $WindowChurn = [int]$env:BFWM_PROFILE_CHURN }
+if ($env:BFWM_PROFILE_CAPTURES) { $CaptureDir = $env:BFWM_PROFILE_CAPTURES }
+if ($env:BFWM_PROFILE_PERFVIEW) { $PerfView = $env:BFWM_PROFILE_PERFVIEW }
 
 # -- Console minimize/restore (UIPI fix) --------------------------------------
 Add-Type -TypeDefinition @'
@@ -82,7 +111,7 @@ function Minimize-Console { if ($consoleHwnd -ne [IntPtr]::Zero) { [Win32NativeC
 function Restore-Console  { if ($consoleHwnd -ne [IntPtr]::Zero) { [Win32NativeConsole]::ShowWindow($consoleHwnd, [Win32NativeConsole]::SW_RESTORE) | Out-Null } }
 
 # -- Preflight -----------------------------------------------------------------
-if (-not (Test-Path $PerfView)) { throw "PerfView not found at $PerfView" }
+if (-not (Test-Path -LiteralPath $PerfView)) { throw "PerfView not found at $PerfView" }
 if (-not (Get-Process BFWM -ErrorAction SilentlyContinue)) {
     Write-Warning "BFWM.exe is not running - the trace will show no BFWM activity."
 }
