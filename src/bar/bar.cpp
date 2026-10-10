@@ -58,123 +58,6 @@ enum {
 #define ROUNDING_HALF 0.5F
 #define BYTES_PER_GB (1024.0F * 1024.0F * 1024.0F)
 
-/**
- * @brief Static description of one built-in indicator provider.
- *
- * The refresh callback fills an IndicatorRuntime's value bag (and any
- * provider-specific defaults); ComposeIndicator turns that bag into text. The
- * table is returned by BarProviderTable() (a friend of Bar) so entries can
- * reference the private provider methods.
- */
-struct IndicatorProvider {
-   const char *name;
-   const char *default_format;
-   int default_poll_ms; // 0 => per-frame
-   bool per_frame;
-   bool is_collection;
-   void (Bar::*refresh)(const BarIndicatorConfig &, IndicatorRuntime &);
-   void (Bar::*default_click)(const BarIndicatorConfig &, int item);
-   void (Bar::*default_scroll)(const BarIndicatorConfig &, int delta);
-};
-
-auto BarProviderTable() -> const IndicatorProvider * {
-   // clang-format off
-   // NOLINTBEGIN(modernize-avoid-c-arrays, modernize-use-designated-initializers)
-   // clang-format on
-   static const IndicatorProvider kProviders[BAR_INDICATOR_COUNT] = {
-       /* WORKSPACES */
-       {
-           .name = "workspaces",
-           .default_format = "{id}",
-           .default_poll_ms = 0,
-           .per_frame = true,
-           .is_collection = true,
-           .refresh = &Bar::RefreshWorkspaces,
-           .default_click = &Bar::DefaultWorkspacesClick,
-           .default_scroll = &Bar::DefaultWorkspacesScroll,
-       },
-       /* TITLE */
-       {
-           .name = "title",
-           .default_format = "",
-           .default_poll_ms = 0,
-           .per_frame = true,
-           .is_collection = false,
-           .refresh = &Bar::RefreshTitle,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* CLOCK */
-       {
-           .name = "clock",
-           .default_format = "%H:%M",
-           .default_poll_ms = 0,
-           .per_frame = true,
-           .is_collection = false,
-           .refresh = &Bar::RefreshClock,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* VOLUME */
-       {
-           .name = "volume",
-           .default_format = "{icon}{value:.0f}%",
-           .default_poll_ms = DEFAULT_POLL_RATE_MS,
-           .per_frame = false,
-           .is_collection = false,
-           .refresh = &Bar::RefreshVolume,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* NETWORK */
-       {
-           .name = "network",
-           .default_format = "{icon}{value:.0f}%",
-           .default_poll_ms = DEFAULT_POLL_RATE_MS,
-           .per_frame = false,
-           .is_collection = false,
-           .refresh = &Bar::RefreshNetwork,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* CPU */
-       {
-           .name = "cpu",
-           .default_format = "{icon}{value:.0f}%",
-           .default_poll_ms = DEFAULT_POLL_RATE_MS,
-           .per_frame = false,
-           .is_collection = false,
-           .refresh = &Bar::RefreshCpu,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* MEMORY */
-       {
-           .name = "memory",
-           .default_format = "{icon}{value:.1f}G",
-           .default_poll_ms = DEFAULT_POLL_RATE_MS,
-           .per_frame = false,
-           .is_collection = false,
-           .refresh = &Bar::RefreshMemory,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-       /* CUSTOM */
-       {
-           .name = "custom",
-           .default_format = "",
-           .default_poll_ms = CUSTOM_POLL_RATE_MS,
-           .per_frame = false,
-           .is_collection = false,
-           .refresh = &Bar::RefreshCustom,
-           .default_click = nullptr,
-           .default_scroll = nullptr,
-       },
-   };
-   // NOLINTEND(modernize-avoid-c-arrays, modernize-use-designated-initializers)
-   return kProviders;
-}
-
 auto IndicatorWorkspaceIndex(int slot, int ws_index) -> uint32_t {
    return static_cast<uint32_t>((slot * BAR_MAX_WS_LABELS) + ws_index);
 }
@@ -271,21 +154,21 @@ inline void HandleClayError(Clay_ErrorData error) {
 /// Append a numeric value to a runtime's value bag.
 inline void AddNumericValue(IndicatorRuntime &runtime, const char *name,
                             double value, int precision) {
-   IndicatorValue v;
-   v.name = name;
-   v.is_num = true;
-   v.num = value;
-   v.precision = precision;
-   runtime.values.push_back(std::move(v));
+   IndicatorValue entry;
+   entry.name = name;
+   entry.is_num = true;
+   entry.num = value;
+   entry.precision = precision;
+   runtime.values.push_back(std::move(entry));
 }
 
 /// Append a string value to a runtime's value bag.
 inline void AddStringValue(IndicatorRuntime &runtime, const char *name,
                            const std::string &value) {
-   IndicatorValue v;
-   v.name = name;
-   v.str = value;
-   runtime.values.push_back(std::move(v));
+   IndicatorValue entry;
+   entry.name = name;
+   entry.str = value;
+   runtime.values.push_back(std::move(entry));
 }
 
 /// Find a named value in the bag (nullptr when absent).
@@ -329,19 +212,19 @@ inline void LogUnknownSpecifier(const std::string &name) {
 inline auto FormatDialect(const IndicatorRuntime &runtime,
                           const std::string &fmt) -> std::string {
    std::string out;
-   size_t i = 0;
-   while (i < fmt.size()) {
-      if (fmt[i] != '{') {
-         out += fmt[i++];
+   size_t cursor = 0;
+   while (cursor < fmt.size()) {
+      if (fmt[cursor] != '{') {
+         out += fmt[cursor++];
          continue;
       }
-      size_t const close = fmt.find('}', i + 1);
+      size_t const close = fmt.find('}', cursor + 1);
       if (close == std::string::npos) {
-         out += fmt[i++];
+         out += fmt[cursor++];
          continue;
       }
 
-      std::string const token = fmt.substr(i + 1, close - i - 1);
+      std::string const token = fmt.substr(cursor + 1, close - cursor - 1);
       std::string name = token;
       int explicit_precision = -1;
       size_t const colon = token.find(':');
@@ -349,15 +232,16 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
          name = token.substr(0, colon);
          std::string const spec = token.substr(colon + 1);
          if (spec.size() >= 2 && spec[0] == '.') {
-            size_t p = 1;
+            size_t spec_cursor = 1;
             int decimals = 0;
             bool any = false;
-            while (p < spec.size() && spec[p] >= '0' && spec[p] <= '9') {
-               decimals = (decimals * DECIMAL_BASE) + (spec[p] - '0');
-               p++;
+            while (spec_cursor < spec.size() && spec[spec_cursor] >= '0' &&
+                   spec[spec_cursor] <= '9') {
+               decimals = (decimals * DECIMAL_BASE) + (spec[spec_cursor] - '0');
+               spec_cursor++;
                any = true;
             }
-            if (any && p < spec.size() && spec[p] == 'f') {
+            if (any && spec_cursor < spec.size() && spec[spec_cursor] == 'f') {
                if (decimals < 0) {
                   decimals = 0;
                } else if (decimals > MAX_FORMAT_PRECISION) {
@@ -376,7 +260,7 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
          const IndicatorValue *value = FindValue(runtime, name);
          if (value == nullptr) {
             // Unknown name: emit the token literally, log once.
-            out += fmt.substr(i, close - i + 1);
+            out += fmt.substr(cursor, close - cursor + 1);
             LogUnknownSpecifier(name);
          } else if (value->is_num) {
             int const precision = (explicit_precision >= 0) ? explicit_precision
@@ -386,7 +270,7 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
             out += value->str;
          }
       }
-      i = close + 1;
+      cursor = close + 1;
    }
    return out;
 }
@@ -394,33 +278,30 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
 /// Effective format for a config/runtime pair: matched-rule format, then the
 /// indicator format, then the provider default.
 inline auto EffectiveFormat(const BarIndicatorConfig &cfg,
-                            const IndicatorRuntime &runtime) -> std::string {
+                            const IndicatorRuntime &runtime,
+                            const IndicatorProvider *provider) -> std::string {
    const IndicatorStateRule *rule = IndicatorFindStateRule(cfg, runtime);
    if ((rule != nullptr) && !rule->format.empty())
       return rule->format;
    if (!cfg.format.empty())
       return cfg.format;
-   const int type = static_cast<int>(cfg.type);
-   if (type >= 0 && type < BAR_INDICATOR_COUNT) {
-      const char *default_format = BarProviderTable()[type].default_format;
-      if (default_format != nullptr)
-         return default_format;
-   }
+   if (provider != nullptr && provider->default_format != nullptr)
+      return provider->default_format;
    return {};
 }
 
 inline void SortWorkspaceOrder(Monitor *mon, int *order, size_t count) {
-   for (size_t j = 0; j < count; j++)
-      order[j] = static_cast<int>(j);
-   for (size_t j = 1; j < count; j++) {
-      int const key = order[j];
-      int k = static_cast<int>(j) - 1;
-      while (k >= 0 && mon->Workspaces()[order[k]]->GetIdentifier() >
-                           mon->Workspaces()[key]->GetIdentifier()) {
-         order[k + 1] = order[k];
-         k--;
+   for (size_t i = 0; i < count; i++)
+      order[i] = static_cast<int>(i);
+   for (size_t current = 1; current < count; current++) {
+      int const key = order[current];
+      int scan = static_cast<int>(current) - 1;
+      while (scan >= 0 && mon->Workspaces()[order[scan]]->GetIdentifier() >
+                              mon->Workspaces()[key]->GetIdentifier()) {
+         order[scan + 1] = order[scan];
+         scan--;
       }
-      order[k + 1] = key;
+      order[scan + 1] = key;
    }
 }
 
@@ -627,11 +508,15 @@ auto Bar::OnCreate(HWND hwnd, LPARAM l_param) -> LRESULT {
       int const type = static_cast<int>(indicator.type);
       if (type < 0 || type >= BAR_INDICATOR_COUNT)
          continue;
-      int r = indicator.poll_rate_ms;
-      if (r <= 0)
-         r = BarProviderTable()[type].default_poll_ms;
-      if (r > 0 && std::cmp_less(r, timer_ms))
-         timer_ms = static_cast<UINT>(r);
+      int poll_interval_ms = indicator.poll_rate_ms;
+      if (poll_interval_ms <= 0) {
+         const IndicatorProvider *provider =
+             provider_registry->Get(indicator.type);
+         if (provider != nullptr)
+            poll_interval_ms = provider->default_poll_ms;
+      }
+      if (poll_interval_ms > 0 && std::cmp_less(poll_interval_ms, timer_ms))
+         timer_ms = static_cast<UINT>(poll_interval_ms);
    }
    SetTimer(hwnd, BAR_TIMER_ID, timer_ms, nullptr);
    return 0;
@@ -712,11 +597,12 @@ auto Bar::OnPaint() -> LRESULT {
  * Hit-test the rendered indicator slots against the current pointer. Ids are
  * per config slot, so no render-order counter is needed:
  *   - single-value indicators render the element id ("ind", slot);
- *   - workspaces render per-tab ids ("ws", slot * BAR_MAX_WS_LABELS + j),
- *     where `j` is the workspace array index at sorted position w
- *     (SortWorkspaceOrder). The same mapping is used to return the workspace
- *     array index, so the hit test decodes exactly what the renderer encoded.
- * Clay_PointerOver is position-based, so iteration order is irrelevant.
+ *   - workspaces render per-tab ids ("ws", slot * BAR_MAX_WS_LABELS + index),
+ *     where `index` is the workspace array index at the current sorted
+ *     position (SortWorkspaceOrder). The same mapping is used to return the
+ *     workspace array index, so the hit test decodes exactly what the renderer
+ *     encoded. Clay_PointerOver is position-based, so iteration order is
+ *     irrelevant.
  */
 auto Bar::HitTest() -> BarHit {
    // NOTE (v1): Clay's pointer state is computed from the last completed
@@ -725,7 +611,7 @@ auto Bar::HitTest() -> BarHit {
    // flight.
    for (int slot = 0; slot < config.indicator_count; slot++) {
       const IndicatorProvider *provider =
-          ProviderFor(config.indicators[slot].type);
+          provider_registry->Get(config.indicators[slot].type);
       if (provider == nullptr)
          continue;
 
@@ -736,10 +622,11 @@ auto Bar::HitTest() -> BarHit {
          size_t const count =
              std::min<size_t>(mon->Workspaces().size(), BAR_MAX_WS_LABELS);
          SortWorkspaceOrder(mon, order.data(), count);
-         for (size_t w = 0; w < count; w++) {
-            int const tab_idx = order[w];
-            if (Clay_PointerOver(IndicatorElementId(true, slot, tab_idx)))
-               return {.slot = slot, .item = tab_idx};
+         for (size_t sorted_pos = 0; sorted_pos < count; sorted_pos++) {
+            int const workspace_index = order[sorted_pos];
+            if (Clay_PointerOver(
+                    IndicatorElementId(true, slot, workspace_index)))
+               return {.slot = slot, .item = workspace_index};
          }
       } else if (Clay_PointerOver(IndicatorElementId(false, slot, -1))) {
          return {.slot = slot, .item = -1};
@@ -791,7 +678,7 @@ void Bar::DispatchIndicatorClick(const BarHit &hit) {
        (ctx == nullptr))
       return;
    BarIndicatorConfig const &cfg = config.indicators[hit.slot];
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
 
@@ -803,8 +690,7 @@ void Bar::DispatchIndicatorClick(const BarHit &hit) {
                          "left", ctrl, shift, alt);
       return;
    }
-   if (provider->default_click != nullptr)
-      (this->*provider->default_click)(cfg, hit.item);
+   provider->OnClick(cfg, hit.item, ctx);
 }
 
 void Bar::DispatchIndicatorScroll(const BarHit &hit, int delta) {
@@ -812,7 +698,7 @@ void Bar::DispatchIndicatorScroll(const BarHit &hit, int delta) {
        (ctx == nullptr) || (delta == 0))
       return;
    BarIndicatorConfig const &cfg = config.indicators[hit.slot];
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
 
@@ -822,8 +708,7 @@ void Bar::DispatchIndicatorScroll(const BarHit &hit, int delta) {
                           dir);
       return;
    }
-   if (provider->default_scroll != nullptr)
-      (this->*provider->default_scroll)(cfg, delta);
+   provider->OnScroll(cfg, delta, ctx);
 }
 
 auto Bar::OnLButtonDown(LPARAM l_param) -> LRESULT {
@@ -981,18 +866,12 @@ auto IndicatorFindStateRule(const BarIndicatorConfig &cfg,
 }
 
 auto IndicatorComposeFormat(const BarIndicatorConfig &cfg,
-                            const IndicatorRuntime &runtime) -> std::string {
-   std::string const fmt = EffectiveFormat(cfg, runtime);
+                            const IndicatorRuntime &runtime,
+                            const IndicatorProvider *provider) -> std::string {
+   std::string const fmt = EffectiveFormat(cfg, runtime, provider);
    if (fmt.empty())
       return runtime.text;
    return FormatDialect(runtime, fmt);
-}
-
-auto ProviderFor(BarIndicatorType type) -> const IndicatorProvider * {
-   int const index = static_cast<int>(type);
-   if (index < 0 || index >= BAR_INDICATOR_COUNT)
-      return nullptr;
-   return &BarProviderTable()[index];
 }
 
 auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
@@ -1072,6 +951,12 @@ void ApplyIndicatorOutput(const LuaIndicatorOutput &out,
 
 void Bar::RefreshWorkspaces(const BarIndicatorConfig &cfg,
                             IndicatorRuntime &runtime) {
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
+   if (provider == nullptr) {
+      runtime.valid = false;
+      return;
+   }
+
    runtime.item_text.clear();
    runtime.item_width.clear();
    if (mon == nullptr) {
@@ -1084,14 +969,14 @@ void Bar::RefreshWorkspaces(const BarIndicatorConfig &cfg,
        std::min<size_t>(mon->Workspaces().size(), BAR_MAX_WS_LABELS);
    SortWorkspaceOrder(mon, order.data(), count);
    for (size_t idx = 0; idx < count; idx++) {
-      int const j = order[idx];
-      Workspace *workspace = mon->Workspaces()[j];
+      int const workspace_index = order[idx];
+      Workspace *workspace = mon->Workspaces()[workspace_index];
 
       IndicatorRuntime tab_rt;
       AddStringValue(tab_rt, "id", std::to_string(workspace->GetIdentifier()));
       AddStringValue(tab_rt, "label", workspace->GetLabel());
 
-      std::string const text = IndicatorComposeFormat(cfg, tab_rt);
+      std::string const text = IndicatorComposeFormat(cfg, tab_rt, provider);
       runtime.item_text.push_back(text);
       runtime.item_width.push_back(
           ComputeWorkspaceTabWidth(&cfg, text.c_str()));
@@ -1105,147 +990,26 @@ void Bar::RefreshTitle(const BarIndicatorConfig &cfg,
    if ((ctx != nullptr) && (ctx->focused_hwnd != nullptr) &&
        (IsWindow(ctx->focused_hwnd) != 0)) {
       wtitle.resize(TITLE_BUF_SIZE);
-      int const n =
+      int const title_length =
           GetWindowTextW(ctx->focused_hwnd, wtitle.data(), TITLE_BUF_SIZE);
-      wtitle.resize(n > 0 ? n : 0);
+      wtitle.resize(title_length > 0 ? title_length : 0);
    }
 
-if (cfg.max_width > 0)
-       TruncateTextWithEllipsis(wtitle, cfg.max_width, IndicatorFontSize(&cfg));
+   if (cfg.max_width > 0)
+      TruncateTextWithEllipsis(wtitle, cfg.max_width, IndicatorFontSize(&cfg));
 
    std::string utf8;
    if (!wtitle.empty()) {
       utf8.resize((wtitle.size() * 4) + 1);
-      int const len =
+      int const utf8_length =
           WideCharToMultiByte(CP_UTF8, 0, wtitle.c_str(), -1, utf8.data(),
                               static_cast<int>(utf8.size()), nullptr, nullptr);
-      utf8.resize(len > 0 ? static_cast<size_t>(len - 1) : 0);
+      utf8.resize(utf8_length > 0 ? static_cast<size_t>(utf8_length - 1) : 0);
    }
 
    AddStringValue(runtime, "title", utf8);
    runtime.text = utf8; // raw title default when no format is configured
    runtime.valid = true;
-}
-
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-void Bar::RefreshClock(const BarIndicatorConfig &cfg,
-                       IndicatorRuntime &runtime) {
-   SYSTEMTIME system_time;
-   GetLocalTime(&system_time);
-   if (!cfg.format.empty()) {
-      struct tm tm_time = {};
-      tm_time.tm_sec = system_time.wSecond;
-      tm_time.tm_min = system_time.wMinute;
-      tm_time.tm_hour = system_time.wHour;
-      tm_time.tm_mday = system_time.wDay;
-      tm_time.tm_mon = system_time.wMonth - 1;
-      tm_time.tm_year = system_time.wYear - TM_YEAR_BASE;
-      tm_time.tm_wday = system_time.wDayOfWeek;
-      tm_time.tm_isdst = -1;
-      runtime.text.resize(64);
-      strftime(runtime.text.data(), runtime.text.size(), cfg.format.c_str(),
-               &tm_time);
-      runtime.text.resize(std::strlen(runtime.text.c_str()));
-   } else {
-      runtime.text.resize(64);
-      snprintf(runtime.text.data(), runtime.text.size(), "%02d:%02d",
-               system_time.wHour, system_time.wMinute);
-      runtime.text.resize(std::strlen(runtime.text.c_str()));
-   }
-   runtime.valid = true;
-}
-
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-void Bar::RefreshVolume(const BarIndicatorConfig &cfg,
-                        IndicatorRuntime &runtime) {
-   (void)cfg;
-   VolumeStatus const status = SystemGetVolumeStatus();
-   if (status.available == 0) {
-      runtime.valid = false;
-      return;
-   }
-   AddNumericValue(runtime, "value", static_cast<double>(status.level) * 100.0,
-                   0);
-   if (status.muted != 0)
-      runtime.state = "muted";
-   runtime.valid = true;
-}
-
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-void Bar::RefreshNetwork(const BarIndicatorConfig &cfg,
-                         IndicatorRuntime &runtime) {
-   (void)cfg;
-   NetworkStatus const status = SystemGetNetworkStatus();
-   if (status.available == 0) {
-      runtime.valid = false;
-      return;
-   }
-   switch (status.type) {
-   case NET_DISCONNECTED:
-      runtime.state = "disconnected";
-      AddNumericValue(runtime, "value", 0.0, 0);
-      break;
-   case NET_ETHERNET:
-      runtime.state = "ethernet";
-      AddNumericValue(runtime, "value", 0.0, 0);
-      break;
-   case NET_WIFI:
-      AddNumericValue(runtime, "value",
-                      static_cast<double>(status.signal_percent), 0);
-      break;
-   }
-   AddStringValue(runtime, "ssid", status.ssid);
-   runtime.valid = true;
-}
-
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-void Bar::RefreshCpu(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime) {
-   (void)cfg;
-   CpuStatus const status = SystemGetCpuStatus();
-   if (status.available == 0) {
-      runtime.valid = false;
-      return;
-   }
-   AddNumericValue(runtime, "value", static_cast<double>(status.load), 0);
-   runtime.valid = true;
-}
-
-// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-void Bar::RefreshMemory(const BarIndicatorConfig &cfg,
-                        IndicatorRuntime &runtime) {
-   (void)cfg;
-   MemoryStatus const status = SystemGetMemoryStatus();
-   if (status.available == 0) {
-      runtime.valid = false;
-      return;
-   }
-   double const to_gb = 1.0 / BYTES_PER_GB;
-   double const total_gb = static_cast<double>(status.total_bytes) * to_gb;
-   double const used_gb =
-       static_cast<double>(status.total_bytes - status.available_bytes) * to_gb;
-   double const avail_gb = static_cast<double>(status.available_bytes) * to_gb;
-   AddNumericValue(runtime, "value", used_gb, 1);
-   AddNumericValue(runtime, "used_gb", used_gb, 1);
-   AddNumericValue(runtime, "total_gb", total_gb, 1);
-   AddNumericValue(runtime, "avail_gb", avail_gb, 1);
-   runtime.valid = true;
-}
-
-void Bar::RefreshCustom(const BarIndicatorConfig &cfg,
-                        IndicatorRuntime &runtime) {
-   LuaIndicatorOutput out;
-   bool const success = (ctx != nullptr) &&
-                        LuaConfigCallOutput(&ctx->lua, ctx, cfg.output.c_str(),
-                                            cfg.id.c_str(), &out);
-   if (!success || !out.valid) {
-      // Signal failure; RefreshIndicator restores the whole previous runtime
-      // (text, value bag, state, icon, color+flag), so nothing is recomposed
-      // from an already-cleared bag. The first-ever failure restores the
-      // default (invalid) runtime, i.e. the indicator stays hidden.
-      runtime.valid = false;
-      return;
-   }
-   ApplyIndicatorOutput(out, runtime);
 }
 
 // ---------------------------------------------------------------------------
@@ -1256,7 +1020,7 @@ void Bar::ComposeIndicator(int slot) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime &runtime = runtimes[slot];
 
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
 
@@ -1276,12 +1040,12 @@ void Bar::ComposeIndicator(int slot) {
    if (cfg.type == BAR_INDICATOR_CLOCK) {
       // RefreshClock already produced strftime text.
    } else if (cfg.type == BAR_INDICATOR_TITLE) {
-      std::string const effective = EffectiveFormat(cfg, runtime);
+      std::string const effective = EffectiveFormat(cfg, runtime, provider);
       if (!effective.empty())
-         runtime.text = IndicatorComposeFormat(cfg, runtime);
+         runtime.text = IndicatorComposeFormat(cfg, runtime, provider);
       // else: raw title already in runtime.text (set by RefreshTitle)
    } else if (!provider->is_collection) {
-      runtime.text = IndicatorComposeFormat(cfg, runtime);
+      runtime.text = IndicatorComposeFormat(cfg, runtime, provider);
    }
    // Truncate non-collection text with ellipsis when max_width is exceeded.
    if (cfg.max_width > 0 && !runtime.text.empty() && !provider->is_collection &&
@@ -1294,24 +1058,25 @@ void Bar::ComposeIndicator(int slot) {
           .chars = runtime.text.c_str(),
           .baseChars = runtime.text.c_str(),
       };
-      float const text_w = ClayGdiMeasureText(slice, &tcfg, &clay_cfg).width;
-      if (text_w > static_cast<float>(cfg.max_width)) {
+      float const text_width =
+          ClayGdiMeasureText(slice, &tcfg, &clay_cfg).width;
+      if (text_width > static_cast<float>(cfg.max_width)) {
          std::wstring wtext;
-         int const req_len = MultiByteToWideChar(CP_UTF8, 0, runtime.text.c_str(),
-                                                 -1, nullptr, 0);
-         if (req_len > 0) {
-            wtext.resize(static_cast<size_t>(req_len));
+         int const wide_length = MultiByteToWideChar(
+             CP_UTF8, 0, runtime.text.c_str(), -1, nullptr, 0);
+         if (wide_length > 0) {
+            wtext.resize(static_cast<size_t>(wide_length));
             MultiByteToWideChar(CP_UTF8, 0, runtime.text.c_str(), -1,
-                                wtext.data(), req_len);
-            wtext.resize(static_cast<size_t>(req_len) - 1);
+                                wtext.data(), wide_length);
+            wtext.resize(static_cast<size_t>(wide_length) - 1);
             TruncateTextWithEllipsis(wtext, cfg.max_width, font_size);
             std::string new_text;
             new_text.resize((wtext.size() * 4) + 1);
-            int const out_len = WideCharToMultiByte(
+            int const utf8_length = WideCharToMultiByte(
                 CP_UTF8, 0, wtext.c_str(), -1, new_text.data(),
                 static_cast<int>(new_text.size()), nullptr, nullptr);
-            if (out_len > 0) {
-               new_text.resize(static_cast<size_t>(out_len) - 1);
+            if (utf8_length > 0) {
+               new_text.resize(static_cast<size_t>(utf8_length) - 1);
                runtime.text = std::move(new_text);
             }
          }
@@ -1335,7 +1100,7 @@ void Bar::ComposeIndicator(int slot) {
 void Bar::RefreshIndicator(int slot) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime &runtime = runtimes[slot];
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
 
@@ -1368,7 +1133,7 @@ void Bar::RefreshIndicator(int slot) {
    runtime.polled = true;
    runtime.last_poll_ms = now;
 
-   (this->*provider->refresh)(cfg, runtime);
+   provider->Refresh(cfg, runtime, ctx);
 
    if (IndicatorKeepPrevious(provider->per_frame, previous, runtime)) {
       // Keep the last good runtime (no flicker) but retry after the poll rate.
@@ -1432,7 +1197,7 @@ void Bar::RenderIndicator(int slot) {
    if (!runtime.valid)
       return;
 
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
 
@@ -1455,8 +1220,8 @@ void Bar::RenderIndicator(int slot) {
 
       for (size_t idx = 0; idx < count && idx < runtime.item_text.size();
            idx++) {
-         int const j = order[idx];
-         Workspace *workspace = mon->Workspaces()[j];
+         int const workspace_index = order[idx];
+         Workspace *workspace = mon->Workspaces()[workspace_index];
          COLORREF const tag_bg = (workspace == ctx->focused_workspace)
                                      ? config.colors.active_workspace
                                      : config.colors.inactive_workspace;
@@ -1476,8 +1241,9 @@ void Bar::RenderIndicator(int slot) {
          CountManagedWindows(workspace, ctx->focused_hwnd, cfg.position_bar,
                              &managed_count, &focused_index, &show_bar);
 
-         uint32_t const tab_idx = IndicatorWorkspaceIndex(slot, j);
-         CLAY(IndicatorElementId(true, slot, j),
+         uint32_t const tab_idx =
+             IndicatorWorkspaceIndex(slot, workspace_index);
+         CLAY(IndicatorElementId(true, slot, workspace_index),
               {
 
                   {
@@ -1570,24 +1336,26 @@ void Bar::TruncateTextWithEllipsis(std::wstring &wtitle, int max_width,
        .chars = "...",
        .baseChars = "...",
    };
-   float const dot_w = ClayGdiMeasureText(dot_slice, &tcfg, &clay_cfg).width;
+   float const ellipsis_width =
+       ClayGdiMeasureText(dot_slice, &tcfg, &clay_cfg).width;
 
    // Check if truncation is needed
    std::string utf8_buf;
    utf8_buf.resize((static_cast<size_t>(TITLE_BUF_SIZE) * 4) + 1);
-   int len =
+   int utf8_length =
        WideCharToMultiByte(CP_UTF8, 0, wtitle.c_str(), -1, utf8_buf.data(),
                            static_cast<int>(utf8_buf.size()), nullptr, nullptr);
-   if (len <= 0)
+   if (utf8_length <= 0)
       return;
 
    Clay_StringSlice const full_slice = {
-       .length = len - 1,
+       .length = utf8_length - 1,
        .chars = utf8_buf.c_str(),
        .baseChars = utf8_buf.c_str(),
    };
-   float const full_w = ClayGdiMeasureText(full_slice, &tcfg, &clay_cfg).width;
-   if (full_w <= static_cast<float>(max_width))
+   float const full_width =
+       ClayGdiMeasureText(full_slice, &tcfg, &clay_cfg).width;
+   if (full_width <= static_cast<float>(max_width))
       return;
 
    /*
@@ -1602,29 +1370,31 @@ void Bar::TruncateTextWithEllipsis(std::wstring &wtitle, int max_width,
    const int SURROGATE_LOW_MIN = 0xDC00;
    const int SURROGATE_LOW_MAX = 0xDFFF;
 
-   size_t wlen = wtitle.size();
-   while (wlen > 0) {
-      wlen--;
-      if (wlen > 0 && wtitle[wlen] >= SURROGATE_LOW_MIN &&
-          wtitle[wlen] <= SURROGATE_LOW_MAX &&
-          wtitle[wlen - 1] >= SURROGATE_HIGH_MIN &&
-          wtitle[wlen - 1] <= SURROGATE_HIGH_MAX)
-         wlen--;
-      wtitle.resize(wlen);
+   size_t truncated_length = wtitle.size();
+   while (truncated_length > 0) {
+      truncated_length--;
+      if (truncated_length > 0 &&
+          wtitle[truncated_length] >= SURROGATE_LOW_MIN &&
+          wtitle[truncated_length] <= SURROGATE_LOW_MAX &&
+          wtitle[truncated_length - 1] >= SURROGATE_HIGH_MIN &&
+          wtitle[truncated_length - 1] <= SURROGATE_HIGH_MAX)
+         truncated_length--;
+      wtitle.resize(truncated_length);
 
-      len = WideCharToMultiByte(CP_UTF8, 0, wtitle.c_str(), -1, utf8_buf.data(),
-                                static_cast<int>(utf8_buf.size()), nullptr,
-                                nullptr);
-      if (len <= 0)
+      utf8_length = WideCharToMultiByte(
+          CP_UTF8, 0, wtitle.c_str(), -1, utf8_buf.data(),
+          static_cast<int>(utf8_buf.size()), nullptr, nullptr);
+      if (utf8_length <= 0)
          continue;
 
       Clay_StringSlice const slice = {
-          .length = len - 1,
+          .length = utf8_length - 1,
           .chars = utf8_buf.c_str(),
           .baseChars = utf8_buf.c_str(),
       };
-      float const w = ClayGdiMeasureText(slice, &tcfg, &clay_cfg).width;
-      if (w + dot_w <= static_cast<float>(max_width)) {
+      float const measured_width =
+          ClayGdiMeasureText(slice, &tcfg, &clay_cfg).width;
+      if (measured_width + ellipsis_width <= static_cast<float>(max_width)) {
          wtitle += L"...";
          return;
       }
@@ -1639,7 +1409,7 @@ auto Bar::MeasureIndicatorWidth(int slot) -> float {
    if (cfg.max_width > 0)
       return static_cast<float>(cfg.max_width);
 
-   const IndicatorProvider *provider = ProviderFor(cfg.type);
+   const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return 0;
 
@@ -1932,6 +1702,9 @@ auto Bar::Init() -> bool {
       config.indicators[2].id = "clock";
       config.indicators[2].format = "%m/%d, %H:%M";
    }
+
+   // Initialize provider registry with built-in providers
+   provider_registry = IndicatorRegistry::CreateDefault(this);
 
    // Phase 3 (per-monitor DPI): this bar renders in physical pixels on its
    // own monitor, so convert every logical (96-DPI) config dimension to

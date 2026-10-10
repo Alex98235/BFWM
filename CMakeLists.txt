@@ -96,6 +96,7 @@ set(DPI_SOURCES
 # Bar
 set(BAR_SOURCES
     src/bar/bar.cpp
+    src/bar/indicator_provider.cpp
     src/bar/renderer/clay_gdi.cpp
 )
 

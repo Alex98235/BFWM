@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include "../../src/bar/bar.h"
+#include "../../src/bar/system_indicator_mapping.h"
 
 CBELT_GROUP("bar_indicators")
 
@@ -40,6 +41,33 @@ auto discrete_rule(const char *state, const char *icon) -> IndicatorStateRule {
    return rule;
 }
 
+/// Minimal provider for testing IndicatorComposeFormat (default_format = "")
+struct TestIndicatorProvider : IndicatorProvider {
+    TestIndicatorProvider() {
+        name = "test";
+        default_format = "";
+        default_poll_ms = 0;
+        per_frame = true;
+        is_collection = false;
+    }
+    void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, BFWMContext *) const override {}
+};
+
+/// Workspaces provider for testing (default_format = "{id}")
+struct WorkspacesTestProvider : IndicatorProvider {
+    WorkspacesTestProvider() {
+        name = "workspaces";
+        default_format = "{id}";
+        default_poll_ms = 0;
+        per_frame = true;
+        is_collection = true;
+    }
+    void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, BFWMContext *) const override {}
+};
+
+static TestIndicatorProvider g_test_provider;
+static WorkspacesTestProvider g_workspaces_test_provider;
+
 } // namespace
 
 /* =========================================================================
@@ -55,7 +83,7 @@ CBELT_TEST(format_value_alias_and_explicit_precision) {
    rt.values.push_back(num_value("value", 3.14159, 1));
    rt.values.push_back(num_value("total_gb", 15.9, 1));
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(out.c_str(), "3.14/15.9") == 0);
    return TEST_SUCCESS;
 }
@@ -68,7 +96,7 @@ CBELT_TEST(format_uses_value_default_precision) {
    IndicatorRuntime rt;
    rt.values.push_back(num_value("value", 3.14159, 1));
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(out.c_str(), "3.1") == 0);
    return TEST_SUCCESS;
 }
@@ -82,7 +110,7 @@ CBELT_TEST(format_icon_and_state_tokens) {
    rt.icon = "M";
    rt.state = "muted";
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(out.c_str(), "M|muted") == 0);
    return TEST_SUCCESS;
 }
@@ -95,7 +123,7 @@ CBELT_TEST(format_unknown_specifier_is_literal) {
    IndicatorRuntime rt;
    rt.values.push_back(num_value("value", 1.0, 0));
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(out.c_str(), "x{nope}y") == 0);
    return TEST_SUCCESS;
 }
@@ -108,7 +136,7 @@ CBELT_TEST(format_provider_default_when_empty) {
    IndicatorRuntime rt;
    rt.values.push_back(str_value("id", "3"));
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_workspaces_test_provider);
    cbelt_assert(strcmp(out.c_str(), "3") == 0);
    return TEST_SUCCESS;
 }
@@ -121,7 +149,7 @@ CBELT_TEST(format_title_raw_when_empty) {
    IndicatorRuntime rt;
    rt.text = "raw window title";
 
-   std::string const out = IndicatorComposeFormat(cfg, rt);
+   std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(out.c_str(), "raw window title") == 0);
    return TEST_SUCCESS;
 }
@@ -211,13 +239,13 @@ CBELT_TEST(same_type_instances_are_independent) {
    IndicatorRuntime b;
    b.values.push_back(num_value("value", 90.0, 0));
 
-   std::string const ta = IndicatorComposeFormat(cfg, a);
-   std::string const tb = IndicatorComposeFormat(cfg, b);
-   cbelt_assert(strcmp(ta.c_str(), "10") == 0);
-   cbelt_assert(strcmp(tb.c_str(), "90") == 0);
+std::string const ta = IndicatorComposeFormat(cfg, a, &g_test_provider);
+    std::string const tb = IndicatorComposeFormat(cfg, b, &g_test_provider);
+    cbelt_assert(strcmp(ta.c_str(), "10") == 0);
+    cbelt_assert(strcmp(tb.c_str(), "90") == 0);
 
-   // Composing b must not have mutated a's value bag or text.
-   std::string const ta2 = IndicatorComposeFormat(cfg, a);
+    // Composing b must not have mutated a's value bag or text.
+    std::string const ta2 = IndicatorComposeFormat(cfg, a, &g_test_provider);
    cbelt_assert(strcmp(ta2.c_str(), "10") == 0);
    cbelt_assert(a.values.size() == 1);
    cbelt_assert(a.values[0].num == 10.0);
@@ -523,7 +551,7 @@ CBELT_TEST(custom_value_bag_composes) {
    BarIndicatorConfig cfg = {};
    cfg.type = BAR_INDICATOR_CUSTOM;
    cfg.format = "{value:.2f} {ratio:.1f}";
-   std::string const composed = IndicatorComposeFormat(cfg, rt);
+   std::string const composed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(composed.c_str(), "3.14 2.5") == 0);
    return TEST_SUCCESS;
 }
@@ -541,7 +569,7 @@ CBELT_TEST(custom_output_bytes_survive_mapping_and_compose) {
    ApplyIndicatorOutput(out, rt);
    cbelt_assert(rt.text.size() == 3);
    cbelt_assert(rt.text[0] == 'a' && rt.text[1] == '\0' && rt.text[2] == 'b');
-   std::string composed = IndicatorComposeFormat(cfg, rt);
+   std::string composed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(composed.size() == 3);
    cbelt_assert(composed == rt.text);
 
@@ -551,7 +579,7 @@ CBELT_TEST(custom_output_bytes_survive_mapping_and_compose) {
    cbelt_assert(rt.text.size() == 5);
    cbelt_assert(static_cast<unsigned char>(rt.text[3]) == 0xC3);
    cbelt_assert(static_cast<unsigned char>(rt.text[4]) == 0xA9);
-   composed = IndicatorComposeFormat(cfg, rt);
+   composed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(composed == rt.text);
    return TEST_SUCCESS;
 }
@@ -594,6 +622,192 @@ CBELT_TEST(keep_previous_restores_whole_runtime_on_polled_failure) {
    cbelt_assert(IndicatorKeepPrevious(false, no_previous, fresh) == true);
    cbelt_assert(fresh.valid == false);
    cbelt_assert(fresh.text.empty());
+   return TEST_SUCCESS;
+}
+
+/* =========================================================================
+ * Registry totality (regression: Workspaces/Title must resolve everywhere)
+ * ========================================================================= */
+
+namespace {
+
+/// Find a numeric value by name in a runtime's bag.
+auto bag_num(const IndicatorRuntime &rt, const char *name, double *out)
+    -> bool {
+   for (const auto &v : rt.values) {
+      if (v.name == name) {
+         if (!v.is_num)
+            return false;
+         *out = v.num;
+         return true;
+      }
+   }
+   return false;
+}
+
+/// Find a string value by name in a runtime's bag.
+auto bag_str(const IndicatorRuntime &rt, const char *name, std::string *out)
+    -> bool {
+   for (const auto &v : rt.values) {
+      if (v.name == name) {
+         if (v.is_num)
+            return false;
+         *out = v.str;
+         return true;
+      }
+   }
+   return false;
+}
+
+} // namespace
+
+CBELT_TEST(registry_resolves_every_indicator_type) {
+   /* The registry must be total: every type resolves to a provider. Workspaces
+      and Title used to be missing from the registry, which silently broke
+      hit-testing, click/scroll dispatch and width measurement. */
+   Bar bar(nullptr, nullptr, nullptr);
+   auto registry = IndicatorRegistry::CreateDefault(&bar);
+
+   for (int t = 0; t < static_cast<int>(BAR_INDICATOR_COUNT); t++) {
+      const IndicatorProvider *p = registry->Get(static_cast<BarIndicatorType>(t));
+      cbelt_assert(p != nullptr);
+   }
+
+   const IndicatorProvider *ws = registry->Get(BAR_INDICATOR_WORKSPACES);
+   cbelt_assert_not_null(ws);
+   cbelt_assert(ws->is_collection == true);
+   cbelt_assert_str_equal(ws->default_format, "{id}");
+
+   const IndicatorProvider *title = registry->Get(BAR_INDICATOR_TITLE);
+   cbelt_assert_not_null(title);
+   cbelt_assert(title->is_collection == false);
+
+   /* Defaults must match the historical provider table (byte-identical UI). */
+   const IndicatorProvider *clock = registry->Get(BAR_INDICATOR_CLOCK);
+   cbelt_assert_str_equal(clock->default_format, "%H:%M");
+   cbelt_assert(clock->per_frame == true);
+   cbelt_assert(clock->default_poll_ms == 0);
+
+   const IndicatorProvider *mem = registry->Get(BAR_INDICATOR_MEMORY);
+   cbelt_assert_str_equal(mem->default_format, "{icon}{value:.1f}G");
+   cbelt_assert(mem->per_frame == false);
+   cbelt_assert(mem->default_poll_ms == 500);
+
+   return TEST_SUCCESS;
+}
+
+/* =========================================================================
+ * Status -> runtime mapping (byte-identical value bag / state semantics)
+ * ========================================================================= */
+
+CBELT_TEST(volume_mapping_value_and_muted_state) {
+   IndicatorRuntime rt;
+   VolumeStatus s = {};
+   s.available = TRUE;
+   s.level = 0.5F;
+   s.muted = FALSE;
+   bar_indicator_mapping::ApplyVolumeStatus(s, rt);
+   cbelt_assert(rt.valid == true);
+   double v = -1;
+   cbelt_assert(bag_num(rt, "value", &v) == true);
+   cbelt_assert(v == 50.0);
+   cbelt_assert(rt.state.empty());
+
+   IndicatorRuntime muted;
+   s.muted = TRUE;
+   bar_indicator_mapping::ApplyVolumeStatus(s, muted);
+   cbelt_assert_str_equal(muted.state.c_str(), "muted");
+
+   IndicatorRuntime unavailable;
+   s.available = FALSE;
+   bar_indicator_mapping::ApplyVolumeStatus(s, unavailable);
+   cbelt_assert(unavailable.valid == false);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(network_mapping_state_and_value) {
+   NetworkStatus s = {};
+   s.available = TRUE;
+   s.signal_percent = 77;
+   s.ssid = "ignored";
+
+   IndicatorRuntime disc;
+   s.type = NET_DISCONNECTED;
+   bar_indicator_mapping::ApplyNetworkStatus(s, disc);
+   cbelt_assert(disc.valid == true);
+   cbelt_assert_str_equal(disc.state.c_str(), "disconnected");
+   double v = -1;
+   cbelt_assert(bag_num(disc, "value", &v) == true);
+   cbelt_assert(v == 0.0);
+
+   IndicatorRuntime eth;
+   s.type = NET_ETHERNET;
+   bar_indicator_mapping::ApplyNetworkStatus(s, eth);
+   cbelt_assert_str_equal(eth.state.c_str(), "ethernet");
+   v = -1;
+   cbelt_assert(bag_num(eth, "value", &v) == true);
+   cbelt_assert(v == 0.0);
+
+   IndicatorRuntime wifi;
+   s.type = NET_WIFI;
+   bar_indicator_mapping::ApplyNetworkStatus(s, wifi);
+   cbelt_assert(wifi.state.empty());
+   v = -1;
+   cbelt_assert(bag_num(wifi, "value", &v) == true);
+   cbelt_assert(v == 77.0);
+   std::string ssid;
+   cbelt_assert(bag_str(wifi, "ssid", &ssid) == true);
+   cbelt_assert_str_equal(ssid.c_str(), "ignored");
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(memory_mapping_gigabytes) {
+   IndicatorRuntime rt;
+   MemoryStatus s = {};
+   s.available = TRUE;
+   s.total_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
+   s.available_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+   bar_indicator_mapping::ApplyMemoryStatus(s, rt);
+   cbelt_assert(rt.valid == true);
+
+   double v = -1;
+   cbelt_assert(bag_num(rt, "value", &v) == true);
+   cbelt_assert(v == 12.0);
+   double total = -1;
+   cbelt_assert(bag_num(rt, "total_gb", &total) == true);
+   cbelt_assert(total == 16.0);
+   double avail = -1;
+   cbelt_assert(bag_num(rt, "avail_gb", &avail) == true);
+   cbelt_assert(avail == 4.0);
+
+   /* The refactor had introduced an extra "load" value; the original had none. */
+   double load = -1;
+   cbelt_assert(bag_num(rt, "load", &load) == false);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(clock_format_and_default) {
+   SYSTEMTIME t = {};
+   t.wYear = 2026;
+   t.wMonth = 10;
+   t.wDay = 10;
+   t.wHour = 13;
+   t.wMinute = 5;
+   t.wSecond = 7;
+   t.wDayOfWeek = 6;
+
+   IndicatorRuntime def;
+   bar_indicator_mapping::FormatClock(t, "", def);
+   cbelt_assert(def.valid == true);
+   cbelt_assert_str_equal(def.text.c_str(), "13:05");
+
+   IndicatorRuntime fmt;
+   bar_indicator_mapping::FormatClock(t, "%H:%M:%S", fmt);
+   cbelt_assert_str_equal(fmt.text.c_str(), "13:05:07");
+
+   IndicatorRuntime year;
+   bar_indicator_mapping::FormatClock(t, "%Y", year);
+   cbelt_assert_str_equal(year.text.c_str(), "2026");
    return TEST_SUCCESS;
 }
 
