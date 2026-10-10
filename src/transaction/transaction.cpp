@@ -14,7 +14,7 @@
 #include "../core/sync.h"
 #include "../dpi/dpi.h"
 #include "../logging/logger.h"
-#include "../window/border/overlay.h"
+#include "../win/win_utils.h"
 #include "../window/cloaking.h"
 #include "../window/events/events.h"
 #include "../window/window.h"
@@ -105,12 +105,14 @@ inline void ApplyOperation(struct BFWMContext *ctx,
    switch (operation->type) {
 
    case OP_MOVE_WINDOW: {
-      RECT const r = {.left = operation->op_types.move_rect.x,
-                      .top = operation->op_types.move_rect.y,
-                      .right = operation->op_types.move_rect.x +
-                               operation->op_types.move_rect.width,
-                      .bottom = operation->op_types.move_rect.y +
-                                operation->op_types.move_rect.height};
+      RECT const r = {
+          .left = operation->op_types.move_rect.x,
+          .top = operation->op_types.move_rect.y,
+          .right = operation->op_types.move_rect.x +
+                   operation->op_types.move_rect.width,
+          .bottom = operation->op_types.move_rect.y +
+                    operation->op_types.move_rect.height,
+      };
       // OP_OVERLAY_MOVE: geometry converges at the commit-end flush, which
       // waits for the async move to land at this rect. Ungated single-shot
       // issue (no backpressure, no moves_in_flight) — see placement.h.
@@ -156,7 +158,7 @@ inline void ApplyOperation(struct BFWMContext *ctx,
          }
          Warn("OP_CLOAK_WINDOW: SetWindowCloakState(%p, %d) failed "
               "(result=0x%08lx)",
-              operation->hwnd, desired, (unsigned long)result);
+              operation->hwnd, desired, static_cast<unsigned long>(result));
       }
       // Visibility is keyed on cloak state inside the module; the flush
       // hides/shows the ring with the cloaking.
@@ -203,9 +205,10 @@ inline void ApplyOperation(struct BFWMContext *ctx,
 
    case OP_SET_WINDOW_STYLE:
       SetWindowLong(operation->hwnd, GWL_STYLE,
-                    (LONG)operation->op_types.window_style.style);
-      SetWindowLong(operation->hwnd, GWL_EXSTYLE,
-                    (LONG)operation->op_types.window_style.exstyle);
+                    static_cast<LONG>(operation->op_types.window_style.style));
+      SetWindowLong(
+          operation->hwnd, GWL_EXSTYLE,
+          static_cast<LONG>(operation->op_types.window_style.exstyle));
       SetWindowPos(operation->hwnd, nullptr, 0, 0, 0, 0,
                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                        SWP_FRAMECHANGED);
@@ -243,7 +246,11 @@ auto MakeMoveWindowOperation(HWND hwnd, int x, int y, int width, int height)
    operation.type = OP_MOVE_WINDOW;
    operation.hwnd = hwnd;
    operation.op_types.move_rect = {
-       .x = x, .y = y, .width = width, .height = height};
+       .x = x,
+       .y = y,
+       .width = width,
+       .height = height,
+   };
    return operation;
 }
 
@@ -549,6 +556,13 @@ void BFWMTransactionCommit(struct BFWMContext *ctx) {
          ApplyOperation(ctx, &ctx->transaction.OpAt(index));
       }
    }
+
+   /* Restack workspace layers: after focus moves to a window, raise every
+    * peer in the same layer (tiled or floating) above the opposite layer,
+    * so a cross-layer focus transition promotes the entire layer at once.
+    * The subsequent FlushOverlayRings fixes each ring's z-band via the
+    * overlay reconcile. */
+   RestackWorkspaceLayers(ctx);
 
    // --- Pass 10: Apply focus-queued borders, redraws, focus-tracking,
    // and minimize LAST ---

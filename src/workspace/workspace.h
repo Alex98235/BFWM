@@ -294,4 +294,9 @@ static inline void ForceDwmComposite() { DwmFlush(); }
  */
 auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace *;
 
+/// After a focus change, promote every window in the same layer (tiled or
+/// floating) above the opposite layer. A HWND + layer cache skips when
+/// focus stays within the same layer (the common case).
+void RestackWorkspaceLayers(struct BFWMContext *ctx);
+
 #endif

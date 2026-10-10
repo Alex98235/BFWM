@@ -10,7 +10,6 @@
 #include "../transaction/transaction.h"
 #include "../win/win_utils.h"
 #include "../window/border/border_manager.h"
-#include "../window/border/overlay.h"
 #include "../window/cloaking.h"
 #include "../window/filter.h"
 #include "../window/focus.h"
@@ -163,7 +162,7 @@ inline void CloakInactiveWorkspaces(Workspace *workspace,
             if (FAILED(result)) {
                Warn("CloakInactiveWorkspaces: cloak HWND %p failed "
                     "(result=0x%08lx)",
-                    h, (unsigned long)result);
+                    h, static_cast<unsigned long>(result));
             } else {
                win->SetCloaked(TRUE);
             }
@@ -488,7 +487,7 @@ auto ForegroundIsFullscreen(HWND target) -> BOOL {
 } // namespace
 
 void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
-   if (IsWindow(hwnd) == FALSE)
+   if (ctx == nullptr || IsWindow(hwnd) == FALSE)
       return;
 
    // Never steal the foreground from a window that is currently fullscreen
@@ -543,6 +542,13 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx) {
    ctx->focused_hwnd = hwnd;
    if (hwnd_workspace != nullptr) {
       ctx->focused_workspace = hwnd_workspace;
+
+      /* Restack workspace layers: after an event-driven focus change (click,
+       * hover, workspace switch), promote every peer in the focused layer
+       * above the opposite layer so the visual z-order matches the layer
+       * hierarchy. The cache inside RestackWorkspaceLayers skips when focus
+       * stays within the same layer (the common case). */
+      RestackWorkspaceLayers(ctx);
       BarUpdateRequest(ctx, BAR_UPDATE_DIRTY);
    }
 
@@ -709,10 +715,13 @@ auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace * {
    if (found == FALSE) {
       // Check if any corner of the window is on a monitor
       std::array<POINT, 4> corners = {
-          {{.x = win_rect.left, .y = win_rect.top},
-           {.x = win_rect.right, .y = win_rect.top},
-           {.x = win_rect.left, .y = win_rect.bottom},
-           {.x = win_rect.right, .y = win_rect.bottom}}};
+          {
+              {.x = win_rect.left, .y = win_rect.top},
+              {.x = win_rect.right, .y = win_rect.top},
+              {.x = win_rect.left, .y = win_rect.bottom},
+              {.x = win_rect.right, .y = win_rect.bottom},
+          },
+      };
 
       for (int i = 0; i < 4; i++) {
          for (auto *mon : ctx->monitors->Monitors()) {
@@ -829,7 +838,7 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
             if (FAILED(result)) {
                Error("WorkspaceActivateSimple: cloak HWND %p failed "
                      "(result=0x%08lx)",
-                     h, (unsigned long)result);
+                     h, static_cast<unsigned long>(result));
             } else {
                win->SetCloaked(TRUE);
             }
@@ -844,7 +853,7 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
             if (FAILED(result)) {
                Error("WorkspaceActivateSimple: uncloak HWND %p failed "
                      "(result=0x%08lx)",
-                     h, (unsigned long)result);
+                     h, static_cast<unsigned long>(result));
             } else {
                win->SetCloaked(FALSE);
             }
@@ -1169,5 +1178,46 @@ auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon)
          continue;
       }
       return identifier;
+   }
+}
+
+/* ── Z-layer restacking ──────────────────────────────────────────────── */
+
+void RestackWorkspaceLayers(BFWMContext *ctx) {
+   if (ctx->focused_hwnd == nullptr)
+      return;
+
+   Window *focused = ctx->windows->FindByHwnd(ctx->focused_hwnd);
+   if (focused == nullptr || focused->IsFullscreen() != FALSE ||
+       focused->IsUnmanagedFullscreen() != FALSE)
+      return;
+
+   /* Cache: skip when the focus didn't cross layers (the static cache is
+    * safe because this always runs on the main thread). */
+   static HWND s_last_hwnd = nullptr;
+   static bool s_last_floating = false;
+   bool const now_floating = (focused->IsFloating() != FALSE);
+   if (ctx->focused_hwnd == s_last_hwnd && now_floating == s_last_floating)
+      return;
+   s_last_hwnd = ctx->focused_hwnd;
+   s_last_floating = now_floating;
+
+   Workspace *workspace = FindWorkspaceByHwnd(ctx, ctx->focused_hwnd);
+   if (workspace == nullptr)
+      return;
+
+   /* Raise every sibling in the focused layer above the other layer.
+    * Inserting each peer after (below) the focused window keeps the
+    * focused window at the top while bringing all its layer peers
+    * above the opposite layer. */
+   RECT const ignore = {};
+   for (Window *win : workspace->Windows()) {
+      if (win == focused || win->IsFullscreen() != FALSE ||
+          win->IsUnmanagedFullscreen() != FALSE)
+         continue;
+      if ((win->IsFloating() != FALSE) == now_floating) {
+         BFWMSetWindowPosEx(win->GetHwnd(), focused->GetHwnd(), &ignore,
+                            SWP_NOMOVE | SWP_NOSIZE);
+      }
    }
 }
