@@ -24,7 +24,8 @@ HICON g_icon = nullptr;
 NOTIFYICONDATA g_nid = {};
 
 auto OpenTextFileWithEnv(const std::wstring &pathWithVars) -> bool {
-   DWORD size = ExpandEnvironmentStringsW(pathWithVars.c_str(), nullptr, 0);
+   DWORD const size =
+       ExpandEnvironmentStringsW(pathWithVars.c_str(), nullptr, 0);
    if (size == 0) {
       return false;
    }

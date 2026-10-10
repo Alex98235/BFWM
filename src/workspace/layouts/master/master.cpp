@@ -8,6 +8,9 @@
 
 namespace {
 
+/// Default share of the region given to the master column (half).
+constexpr double kDefaultMasterFactor = 0.5;
+
 /**
  * @brief Split a region into `count` equal-height vertical slices.
  *
@@ -51,7 +54,7 @@ auto MasterLayoutCreate(RECT workspace_rect) -> MasterLayout * {
    master_layout->gap_edge = 0;
    master_layout->border_width = 0;
    master_layout->master_count = 1;
-   master_layout->master_factor = 0.5;
+   master_layout->master_factor = kDefaultMasterFactor;
    master_layout->tiled_rect = workspace_rect;
    master_layout->selected_hwnd = nullptr;
    return master_layout;
