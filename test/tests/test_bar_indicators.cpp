@@ -10,7 +10,8 @@ CBELT_GROUP("bar_indicators")
 
 namespace {
 
-auto num_value(const char *name, double value, int precision) -> IndicatorValue {
+auto num_value(const char *name, double value, int precision)
+    -> IndicatorValue {
    IndicatorValue v;
    v.name = name;
    v.is_num = true;
@@ -43,30 +44,32 @@ auto discrete_rule(const char *state, const char *icon) -> IndicatorStateRule {
 
 /// Minimal provider for testing IndicatorComposeFormat (default_format = "")
 struct TestIndicatorProvider : IndicatorProvider {
-    TestIndicatorProvider() {
-        name = "test";
-        default_format = "";
-        default_poll_ms = 0;
-        per_frame = true;
-        is_collection = false;
-    }
-    void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, BFWMContext *) const override {}
+   TestIndicatorProvider() {
+      name = "test";
+      default_format = "";
+      default_poll_ms = 0;
+      per_frame = true;
+      is_collection = false;
+   }
+   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &,
+                BFWMContext *) const override {}
 };
 
 /// Workspaces provider for testing (default_format = "{id}")
 struct WorkspacesTestProvider : IndicatorProvider {
-    WorkspacesTestProvider() {
-        name = "workspaces";
-        default_format = "{id}";
-        default_poll_ms = 0;
-        per_frame = true;
-        is_collection = true;
-    }
-    void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, BFWMContext *) const override {}
+   WorkspacesTestProvider() {
+      name = "workspaces";
+      default_format = "{id}";
+      default_poll_ms = 0;
+      per_frame = true;
+      is_collection = true;
+   }
+   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &,
+                BFWMContext *) const override {}
 };
 
-static TestIndicatorProvider g_test_provider;
-static WorkspacesTestProvider g_workspaces_test_provider;
+TestIndicatorProvider g_test_provider;
+WorkspacesTestProvider g_workspaces_test_provider;
 
 } // namespace
 
@@ -136,7 +139,8 @@ CBELT_TEST(format_provider_default_when_empty) {
    IndicatorRuntime rt;
    rt.values.push_back(str_value("id", "3"));
 
-   std::string const out = IndicatorComposeFormat(cfg, rt, &g_workspaces_test_provider);
+   std::string const out =
+       IndicatorComposeFormat(cfg, rt, &g_workspaces_test_provider);
    cbelt_assert(strcmp(out.c_str(), "3") == 0);
    return TEST_SUCCESS;
 }
@@ -239,13 +243,13 @@ CBELT_TEST(same_type_instances_are_independent) {
    IndicatorRuntime b;
    b.values.push_back(num_value("value", 90.0, 0));
 
-std::string const ta = IndicatorComposeFormat(cfg, a, &g_test_provider);
-    std::string const tb = IndicatorComposeFormat(cfg, b, &g_test_provider);
-    cbelt_assert(strcmp(ta.c_str(), "10") == 0);
-    cbelt_assert(strcmp(tb.c_str(), "90") == 0);
+   std::string const ta = IndicatorComposeFormat(cfg, a, &g_test_provider);
+   std::string const tb = IndicatorComposeFormat(cfg, b, &g_test_provider);
+   cbelt_assert(strcmp(ta.c_str(), "10") == 0);
+   cbelt_assert(strcmp(tb.c_str(), "90") == 0);
 
-    // Composing b must not have mutated a's value bag or text.
-    std::string const ta2 = IndicatorComposeFormat(cfg, a, &g_test_provider);
+   // Composing b must not have mutated a's value bag or text.
+   std::string const ta2 = IndicatorComposeFormat(cfg, a, &g_test_provider);
    cbelt_assert(strcmp(ta2.c_str(), "10") == 0);
    cbelt_assert(a.values.size() == 1);
    cbelt_assert(a.values[0].num == 10.0);
@@ -363,8 +367,7 @@ CBELT_TEST(indicator_element_id_workspace_reads_back) {
          /* The id the renderer/hit-test build from the shared helper matches
           * the explicit Clay computation for that index. */
          Clay_ElementId const got = IndicatorElementId(true, slot, item);
-         Clay_ElementId const expected =
-             Clay_GetElementIdWithIndex(ws, index);
+         Clay_ElementId const expected = Clay_GetElementIdWithIndex(ws, index);
          cbelt_assert(got.id == expected.id);
          cbelt_assert(got.offset == expected.offset);
       }
@@ -551,7 +554,8 @@ CBELT_TEST(custom_value_bag_composes) {
    BarIndicatorConfig cfg = {};
    cfg.type = BAR_INDICATOR_CUSTOM;
    cfg.format = "{value:.2f} {ratio:.1f}";
-   std::string const composed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   std::string const composed =
+       IndicatorComposeFormat(cfg, rt, &g_test_provider);
    cbelt_assert(strcmp(composed.c_str(), "3.14 2.5") == 0);
    return TEST_SUCCESS;
 }
@@ -669,7 +673,8 @@ CBELT_TEST(registry_resolves_every_indicator_type) {
    auto registry = IndicatorRegistry::CreateDefault(&bar);
 
    for (int t = 0; t < static_cast<int>(BAR_INDICATOR_COUNT); t++) {
-      const IndicatorProvider *p = registry->Get(static_cast<BarIndicatorType>(t));
+      const IndicatorProvider *p =
+          registry->Get(static_cast<BarIndicatorType>(t));
       cbelt_assert(p != nullptr);
    }
 
@@ -780,7 +785,8 @@ CBELT_TEST(memory_mapping_gigabytes) {
    cbelt_assert(bag_num(rt, "avail_gb", &avail) == true);
    cbelt_assert(avail == 4.0);
 
-   /* The refactor had introduced an extra "load" value; the original had none. */
+   /* The refactor had introduced an extra "load" value; the original had none.
+    */
    double load = -1;
    cbelt_assert(bag_num(rt, "load", &load) == false);
    return TEST_SUCCESS;
@@ -810,6 +816,3 @@ CBELT_TEST(clock_format_and_default) {
    cbelt_assert_str_equal(year.text.c_str(), "2026");
    return TEST_SUCCESS;
 }
-
-
-

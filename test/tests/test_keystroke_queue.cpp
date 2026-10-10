@@ -8,8 +8,8 @@ CBELT_GROUP("keystroke_queue")
 
 namespace {
 
-inline auto make_key(DWORD vkCode, BOOL ctrl, BOOL shift, BOOL alt,
-                     BOOL super) -> Keystroke {
+inline auto make_key(DWORD vkCode, BOOL ctrl, BOOL shift, BOOL alt, BOOL super)
+    -> Keystroke {
    Keystroke ks = {};
    ks.key.vkCode = vkCode;
    ks.key.flags = 0;

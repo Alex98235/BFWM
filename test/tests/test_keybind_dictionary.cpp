@@ -4,8 +4,8 @@
 #include <variant>
 #include <windows.h>
 
-#include "../../src/config/keybinds.h"
 #include "../../src/config/action.h"
+#include "../../src/config/keybinds.h"
 
 CBELT_GROUP("keybind_dictionary")
 
@@ -88,8 +88,7 @@ CBELT_TEST(insert_two_different_keys) {
    KeybindDictionary dict;
 
    Keystroke ks_a = make_keystroke('A', FALSE, FALSE, FALSE, FALSE);
-   Keystroke ks_b =
-       make_keystroke('B', TRUE, FALSE, FALSE, FALSE); /* Ctrl+B */
+   Keystroke ks_b = make_keystroke('B', TRUE, FALSE, FALSE, FALSE); /* Ctrl+B */
 
    BFWMAction *act1 = BFWMActionCreateSpawn("app1.exe");
    BFWMAction *act2 = BFWMActionCreateSpawn("app2.exe");
@@ -133,7 +132,9 @@ CBELT_TEST(multiple_actions_per_key) {
    BFWMAction *act1 = BFWMActionCreateSpawn("cmd.exe");
    BFWMAction *act2 = BFWMActionCreateFocus(DirNext);
    KBDictInsert(dict, ks, std::unique_ptr<BFWMAction>(act1));
-   KBDictInsert(dict, ks, std::unique_ptr<BFWMAction>(act2)); /* same keystroke — should append */
+   KBDictInsert(
+       dict, ks,
+       std::unique_ptr<BFWMAction>(act2)); /* same keystroke — should append */
 
    Keystroke lookup;
    memset(&lookup, 0, sizeof(lookup));
@@ -290,7 +291,9 @@ CBELT_TEST(insert_same_key_twice_single_entry) {
    BFWMAction *act1 = BFWMActionCreateKillActive();
    BFWMAction *act2 = BFWMActionCreateFullscreen();
    KBDictInsert(dict, ks, std::unique_ptr<BFWMAction>(act1));
-   KBDictInsert(dict, ks, std::unique_ptr<BFWMAction>(act2)); /* same key — should append */
+   KBDictInsert(
+       dict, ks,
+       std::unique_ptr<BFWMAction>(act2)); /* same key — should append */
 
    /* Should be exactly ONE entry in the dictionary */
    cbelt_assert(dict.entries.size() == 1);

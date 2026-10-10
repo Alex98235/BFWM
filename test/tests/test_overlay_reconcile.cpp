@@ -17,13 +17,14 @@ CBELT_GROUP("overlay_reconcile")
 namespace {
 
 inline auto reference_action(BOOL ring_visible, BOOL target_visible,
-                             BOOL target_iconic, BOOL cloaked,
-                             BOOL suppress) -> Overlay::OverlayReconcileAction {
+                             BOOL target_iconic, BOOL cloaked, BOOL suppress)
+    -> Overlay::OverlayReconcileAction {
    if (ring_visible && target_visible && !target_iconic && !suppress) {
       return Overlay::OVERLAY_RECONCILE_ASSERT_Z;
    }
    if (!ring_visible && target_visible && !target_iconic && !suppress) {
-      return cloaked ? Overlay::OVERLAY_RECONCILE_NONE : Overlay::OVERLAY_RECONCILE_MARK_DIRTY;
+      return cloaked ? Overlay::OVERLAY_RECONCILE_NONE
+                     : Overlay::OVERLAY_RECONCILE_MARK_DIRTY;
    }
    if (ring_visible) {
       return Overlay::OVERLAY_RECONCILE_MARK_DIRTY;
@@ -40,8 +41,9 @@ CBELT_TEST(full_32_combination_truth_table) {
          for (int iconic = 0; iconic < 2; iconic++) {
             for (int cloaked = 0; cloaked < 2; cloaked++) {
                for (int suppress = 0; suppress < 2; suppress++) {
-                  Overlay::OverlayReconcileAction got = Overlay::OverlayReconcileClassify(
-                      ring, target, iconic, cloaked, suppress);
+                  Overlay::OverlayReconcileAction got =
+                      Overlay::OverlayReconcileClassify(ring, target, iconic,
+                                                        cloaked, suppress);
                   Overlay::OverlayReconcileAction want =
                       reference_action(ring, target, iconic, cloaked, suppress);
                   cbelt_assert_equal(want, got);
@@ -59,8 +61,8 @@ CBELT_TEST(assert_z_never_with_hidden_ring) {
       for (int iconic = 0; iconic < 2; iconic++) {
          for (int cloaked = 0; cloaked < 2; cloaked++) {
             for (int suppress = 0; suppress < 2; suppress++) {
-               cbelt_assert(Overlay::OverlayReconcileClassify(0, target, iconic, cloaked,
-                                                     suppress) !=
+               cbelt_assert(Overlay::OverlayReconcileClassify(
+                                0, target, iconic, cloaked, suppress) !=
                             Overlay::OVERLAY_RECONCILE_ASSERT_Z);
             }
          }
@@ -75,8 +77,8 @@ CBELT_TEST(assert_z_never_with_hidden_target) {
       for (int iconic = 0; iconic < 2; iconic++) {
          for (int cloaked = 0; cloaked < 2; cloaked++) {
             for (int suppress = 0; suppress < 2; suppress++) {
-               cbelt_assert(Overlay::OverlayReconcileClassify(ring, 0, iconic, cloaked,
-                                                     suppress) !=
+               cbelt_assert(Overlay::OverlayReconcileClassify(
+                                ring, 0, iconic, cloaked, suppress) !=
                             Overlay::OVERLAY_RECONCILE_ASSERT_Z);
             }
          }
@@ -91,8 +93,8 @@ CBELT_TEST(assert_z_never_with_iconic_target) {
       for (int target = 0; target < 2; target++) {
          for (int cloaked = 0; cloaked < 2; cloaked++) {
             for (int suppress = 0; suppress < 2; suppress++) {
-               cbelt_assert(Overlay::OverlayReconcileClassify(ring, target, 1, cloaked,
-                                                     suppress) !=
+               cbelt_assert(Overlay::OverlayReconcileClassify(
+                                ring, target, 1, cloaked, suppress) !=
                             Overlay::OVERLAY_RECONCILE_ASSERT_Z);
             }
          }
@@ -107,8 +109,8 @@ CBELT_TEST(assert_z_never_when_suppressed) {
       for (int target = 0; target < 2; target++) {
          for (int iconic = 0; iconic < 2; iconic++) {
             for (int cloaked = 0; cloaked < 2; cloaked++) {
-               cbelt_assert(Overlay::OverlayReconcileClassify(ring, target, iconic,
-                                                     cloaked, 1) !=
+               cbelt_assert(Overlay::OverlayReconcileClassify(
+                                ring, target, iconic, cloaked, 1) !=
                             Overlay::OVERLAY_RECONCILE_ASSERT_Z);
             }
          }
@@ -127,8 +129,9 @@ CBELT_TEST(mark_dirty_exactly_for_visibility_drift) {
       for (int iconic = 0; iconic < 2; iconic++) {
          for (int cloaked = 0; cloaked < 2; cloaked++) {
             for (int suppress = 0; suppress < 2; suppress++) {
-               Overlay::OverlayReconcileAction got = Overlay::OverlayReconcileClassify(
-                   1, target, iconic, cloaked, suppress);
+               Overlay::OverlayReconcileAction got =
+                   Overlay::OverlayReconcileClassify(1, target, iconic, cloaked,
+                                                     suppress);
                if (target && !iconic && !suppress) {
                   cbelt_assert(got == Overlay::OVERLAY_RECONCILE_ASSERT_Z);
                } else {
@@ -162,8 +165,8 @@ CBELT_TEST(none_covers_agreed_hidden_and_cloaked) {
    for (int iconic = 0; iconic < 2; iconic++) {
       for (int cloaked = 0; cloaked < 2; cloaked++) {
          for (int suppress = 0; suppress < 2; suppress++) {
-            cbelt_assert(Overlay::OverlayReconcileClassify(0, 0, iconic, cloaked,
-                                                  suppress) ==
+            cbelt_assert(Overlay::OverlayReconcileClassify(0, 0, iconic,
+                                                           cloaked, suppress) ==
                          Overlay::OVERLAY_RECONCILE_NONE);
          }
       }

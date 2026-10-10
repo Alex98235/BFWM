@@ -12,27 +12,27 @@ class TestLogger : public ILogger {
    TestLogger() = default;
    ~TestLogger() override = default;
 
-void VLog(LogLevel level, const char *format, va_list args) override {
-       if (level < level_) {
-          return;
-       }
-       char buf[1024];
-       vsnprintf(buf, sizeof(buf), format, args);
-       last_message_ = buf;
-       last_level_ = level;
-       call_count_++;
-    }
+   void VLog(LogLevel level, const char *format, va_list args) override {
+      if (level < level_) {
+         return;
+      }
+      char buf[1024];
+      vsnprintf(buf, sizeof(buf), format, args);
+      last_message_ = buf;
+      last_level_ = level;
+      call_count_++;
+   }
 
-    void VLogW(LogLevel level, const wchar_t *format, va_list args) override {
-       if (level < level_) {
-          return;
-       }
-       wchar_t buf[1024];
-       _vsnwprintf(buf, sizeof(buf) / sizeof(wchar_t), format, args);
-       last_message_w_ = buf;
-       last_level_ = level;
-       call_count_++;
-    }
+   void VLogW(LogLevel level, const wchar_t *format, va_list args) override {
+      if (level < level_) {
+         return;
+      }
+      wchar_t buf[1024];
+      _vsnwprintf(buf, sizeof(buf) / sizeof(wchar_t), format, args);
+      last_message_w_ = buf;
+      last_level_ = level;
+      call_count_++;
+   }
 
    void SetLevel(LogLevel level) override { level_ = level; }
    void UseTimestamps(bool, const char *) override {}
@@ -162,10 +162,12 @@ CBELT_TEST(di_pattern) {
 
    // Component using DI
    struct Component {
+      // Test fixture.
+      // NOLINTNEXTLINE(misc-non-private-member-variables-in-classes)
       ILogger *log_;
       explicit Component(ILogger *log = nullptr)
           : log_(log ? log : GetGlobalLogger()) {}
-      void DoWork() { log_->VLog(LogLevel::Info, "working", nullptr); }
+      void DoWork() const { log_->VLog(LogLevel::Info, "working", nullptr); }
    };
 
    // Use logger1 via DI

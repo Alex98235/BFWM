@@ -19,26 +19,22 @@ namespace {
 
 /* Creates a Window owned by `owned` (a per-test vector) and returns the raw
  * pointer to hand to the workspace. Scope destroys the Window for us. */
-inline auto make_win(std::vector<std::unique_ptr<Window>> &owned,
-                     HWND hwnd) -> Window * {
+inline auto make_win(std::vector<std::unique_ptr<Window>> &owned, HWND hwnd)
+    -> Window * {
    owned.push_back(std::make_unique<Window>(hwnd, L"W"));
    return owned.back().get();
 }
 
 /* The workspace only stores raw pointers — the Window objects live in the
  * test's `owned` vector. Release just clears the workspace's view. */
-inline void release_ws_windows(Workspace *ws) {
-   ws->ClearWindows();
-}
+inline void release_ws_windows(Workspace *ws) { ws->ClearWindows(); }
 
 /* The stack-declared BFWMContext used by these tests only needs a heap
  * monitor registry (ctx->monitors is now a unique_ptr member). */
 inline void init_test_monitors(BFWMContext *ctx) {
    ctx->monitors = std::make_unique<MonitorRegistry>();
 }
-inline void free_test_monitors(BFWMContext *ctx) {
-   ctx->monitors.reset();
-}
+inline void free_test_monitors(BFWMContext *ctx) { ctx->monitors.reset(); }
 } // namespace
 
 CBELT_TEST(create_and_destroy_workspace) {
@@ -46,6 +42,8 @@ CBELT_TEST(create_and_destroy_workspace) {
    Workspace *ws = new Workspace(1, L"Main", DWINDLE, rect, 0, 0, 0);
 
    cbelt_assert(ws != nullptr);
+   // Intentional: test fixture, never freed.
+   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
    cbelt_assert(ws->GetIdentifier() == 1);
    cbelt_assert(ws->GetName() == L"Main");
    cbelt_assert(ws->IsEmpty());
@@ -63,6 +61,8 @@ CBELT_TEST(create_workspace_with_different_ids) {
 
    cbelt_assert(ws1 != nullptr);
    cbelt_assert(ws2 != nullptr);
+   // Intentional: test fixture, never freed.
+   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
    cbelt_assert(ws1->GetIdentifier() == 0);
    cbelt_assert(ws2->GetIdentifier() == 42);
    cbelt_assert(ws1 != ws2);
@@ -112,13 +112,14 @@ CBELT_TEST(contains_window_with_multiple_windows) {
    std::vector<std::unique_ptr<Window>> owned;
    std::array<Window *, 4> wins{};
    for (int i = 0; i < 4; i++) {
-      wins[i] = make_win(owned, reinterpret_cast<HWND>(static_cast<intptr_t>(100 + i)));
+      wins[i] = make_win(
+          owned, reinterpret_cast<HWND>(static_cast<intptr_t>(100 + i)));
       ws->TrackWindow(wins[i]);
    }
 
    for (int i = 0; i < 4; i++) {
-      cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(static_cast<intptr_t>(100 + i))) ==
-                   true);
+      cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(
+                       static_cast<intptr_t>(100 + i))) == true);
    }
 
    cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(999)) == false);
@@ -204,7 +205,8 @@ CBELT_TEST(find_workspace_by_hwnd_multiple_monitors) {
 
    cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(10)) == ws1);
    cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(20)) == ws2);
-   cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(30)) == nullptr);
+   cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(30)) ==
+                nullptr);
 
    release_ws_windows(ws1);
    release_ws_windows(ws2);

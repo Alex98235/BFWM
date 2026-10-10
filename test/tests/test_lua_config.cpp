@@ -42,9 +42,7 @@ inline auto create_test_ctx(void) -> BFWMContext * {
    return BFWMContextInit();
 }
 
-inline void destroy_test_ctx(BFWMContext *ctx) {
-   BFWMContextFree(ctx);
-}
+inline void destroy_test_ctx(BFWMContext *ctx) { BFWMContextFree(ctx); }
 } // namespace
 
 /* =========================================================================
@@ -65,7 +63,7 @@ CBELT_TEST(bar_config_defaults) {
    cbelt_assert(cfg.colors.active_workspace == RGB(0xef, 0x9f, 0x76));
    cbelt_assert(cfg.colors.inactive_workspace == RGB(0x62, 0x68, 0x80));
    cbelt_assert(cfg.colors.tab_border == RGB(0x23, 0x26, 0x34));
-    cbelt_assert(cfg.indicator_count == 3);
+   cbelt_assert(cfg.indicator_count == 3);
    return TEST_SUCCESS;
 }
 
@@ -210,7 +208,7 @@ CBELT_TEST(load_with_indicator_states) {
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->config.bar_cfg.indicator_count == 1);
 
-   const BarIndicatorConfig *ind = &ctx->config.bar_cfg.indicators[0];
+   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
    cbelt_assert(ind->type == BAR_INDICATOR_VOLUME);
    cbelt_assert(ind->align == BAR_ALIGN_RIGHT);
    cbelt_assert(strcmp(ind->id.c_str(), "vol") == 0);
@@ -255,7 +253,7 @@ CBELT_TEST(load_black_color_is_expressible) {
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   const BarIndicatorConfig *ind = &ctx->config.bar_cfg.indicators[0];
+   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
    cbelt_assert(ind->color_set == true);
    cbelt_assert(ind->color == RGB(0x00, 0x00, 0x00));
    cbelt_assert(ind->state_count == 1);
@@ -273,8 +271,8 @@ CBELT_TEST(load_defaults_id_and_tolerates_bad_rules) {
        "Bar.indicators = {\n"
        "    { type = \"memory\", align = \"right\",\n"
        "      states = {\n"
-       "          { doesnothave = \"state\" },\n"       // unknown key + no state/at
-       "          { at = \"not-a-number\" },\n"        // malformed at
+       "          { doesnothave = \"state\" },\n" // unknown key + no state/at
+       "          { at = \"not-a-number\" },\n"   // malformed at
        "      } },\n"
        "}\n";
    std::string path = write_temp_config(lua);
@@ -284,7 +282,7 @@ CBELT_TEST(load_defaults_id_and_tolerates_bad_rules) {
    bool ok = LuaConfigLoad(&config, ctx, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   const BarIndicatorConfig *ind = &ctx->config.bar_cfg.indicators[0];
+   const BarIndicatorConfig *ind = ctx->config.bar_cfg.indicators.data();
    cbelt_assert(strcmp(ind->id.c_str(), "memory") == 0);
    cbelt_assert(ind->color_set == false);
    /* Rules are retained even when unusable; resolution just ignores them. */
@@ -347,13 +345,12 @@ CBELT_TEST(load_dedupes_indicator_ids) {
 }
 
 CBELT_TEST(load_drops_unknown_indicator_type) {
-   const char *lua =
-       "Bar.indicators = {\n"
-       "    { type = \"clock\", align = \"right\" },\n"
-       "    { type = \"not_a_type\", align = \"left\" },\n"
-       "    { align = \"left\" },\n"
-       "    { type = \"cpu\", align = \"right\" },\n"
-       "}\n";
+   const char *lua = "Bar.indicators = {\n"
+                     "    { type = \"clock\", align = \"right\" },\n"
+                     "    { type = \"not_a_type\", align = \"left\" },\n"
+                     "    { align = \"left\" },\n"
+                     "    { type = \"cpu\", align = \"right\" },\n"
+                     "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
    BFWMContext *ctx = create_test_ctx();
@@ -372,18 +369,17 @@ CBELT_TEST(load_drops_unknown_indicator_type) {
 }
 
 CBELT_TEST(load_truncates_extra_indicators) {
-   const char *lua =
-       "Bar.indicators = {\n"
-       "    { type = \"workspaces\", align = \"left\" },\n"
-       "    { type = \"title\", align = \"center\" },\n"
-       "    { type = \"clock\", align = \"right\" },\n"
-       "    { type = \"cpu\", align = \"right\" },\n"
-       "    { type = \"memory\", align = \"right\" },\n"
-       "    { type = \"volume\", align = \"right\" },\n"
-       "    { type = \"network\", align = \"right\" },\n"
-       "    { type = \"cpu\", align = \"right\" },\n"
-       "    { type = \"memory\", align = \"right\" },\n"
-       "}\n";
+   const char *lua = "Bar.indicators = {\n"
+                     "    { type = \"workspaces\", align = \"left\" },\n"
+                     "    { type = \"title\", align = \"center\" },\n"
+                     "    { type = \"clock\", align = \"right\" },\n"
+                     "    { type = \"cpu\", align = \"right\" },\n"
+                     "    { type = \"memory\", align = \"right\" },\n"
+                     "    { type = \"volume\", align = \"right\" },\n"
+                     "    { type = \"network\", align = \"right\" },\n"
+                     "    { type = \"cpu\", align = \"right\" },\n"
+                     "    { type = \"memory\", align = \"right\" },\n"
+                     "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
    BFWMContext *ctx = create_test_ctx();
@@ -588,7 +584,8 @@ CBELT_TEST(call_click_receives_args) {
    bool const ok = LuaConfigCallClick(&config, ctx, "probe_click", "vol",
                                       "left", true, false, true);
    cbelt_assert(ok == TRUE);
-   cbelt_assert(lua_gettop(config.L) == before); /* success keeps stack balanced */
+   cbelt_assert(lua_gettop(config.L) ==
+                before); /* success keeps stack balanced */
 
    lua_State *L = config.L;
    lua_getglobal(L, "seen");
@@ -633,7 +630,8 @@ CBELT_TEST(call_scroll_receives_args) {
    bool const ok =
        LuaConfigCallScroll(&config, ctx, "probe_scroll", "cpu", "down");
    cbelt_assert(ok == TRUE);
-   cbelt_assert(lua_gettop(config.L) == before); /* success keeps stack balanced */
+   cbelt_assert(lua_gettop(config.L) ==
+                before); /* success keeps stack balanced */
 
    lua_State *L = config.L;
    lua_getglobal(L, "seen_scroll");
@@ -664,8 +662,8 @@ CBELT_TEST(call_missing_callback_returns_false_without_throwing) {
    int const before = lua_gettop(config.L);
    cbelt_assert_false(LuaConfigCallClick(&config, ctx, "no_such_click", "id",
                                          "left", false, false, false));
-   cbelt_assert_false(LuaConfigCallScroll(&config, ctx, "no_such_scroll", "id",
-                                          "up"));
+   cbelt_assert_false(
+       LuaConfigCallScroll(&config, ctx, "no_such_scroll", "id", "up"));
    cbelt_assert(lua_gettop(config.L) == before); /* stack balanced */
 
    LuaConfigFree(&config);
@@ -708,8 +706,7 @@ CBELT_TEST(call_non_function_global_returns_false_and_balances) {
    int const before = lua_gettop(config.L);
    cbelt_assert_false(LuaConfigCallClick(&config, ctx, "cb_func", "id", "left",
                                          false, false, false));
-   cbelt_assert_false(
-       LuaConfigCallScroll(&config, ctx, "cb_func", "id", "up"));
+   cbelt_assert_false(LuaConfigCallScroll(&config, ctx, "cb_func", "id", "up"));
    cbelt_assert(lua_gettop(config.L) == before); /* stack balanced */
 
    LuaConfigFree(&config);
@@ -935,7 +932,8 @@ CBELT_TEST(call_output_preserves_raw_bytes) {
    cbelt_assert(LuaConfigCallOutput(&config, ctx, "nul", "s", &out) == TRUE);
    cbelt_assert(out.has_text == true);
    cbelt_assert(out.text.size() == 3);
-   cbelt_assert(out.text[0] == 'a' && out.text[1] == '\0' && out.text[2] == 'b');
+   cbelt_assert(out.text[0] == 'a' && out.text[1] == '\0' &&
+                out.text[2] == 'b');
 
    cbelt_assert(LuaConfigCallOutput(&config, ctx, "utf8", "s", &out) == TRUE);
    cbelt_assert(out.text.size() == 5);
@@ -987,10 +985,10 @@ CBELT_TEST(exec_cache_invalid_args_return_nil) {
    cbelt_assert_not_null(ctx->exec_cache);
 
    const char *cases[] = {
-       "r = BFWM.exec_cache(42, 'k')",               /* argv not a string/table */
-       "r = BFWM.exec_cache({}, 'k')",               /* empty argv */
-       "r = BFWM.exec_cache('', 'k')",               /* empty argv[0] */
-       "r = BFWM.exec_cache('cmd.exe')",             /* missing key */
+       "r = BFWM.exec_cache(42, 'k')",   /* argv not a string/table */
+       "r = BFWM.exec_cache({}, 'k')",   /* empty argv */
+       "r = BFWM.exec_cache('', 'k')",   /* empty argv[0] */
+       "r = BFWM.exec_cache('cmd.exe')", /* missing key */
        "r = BFWM.exec_cache({ 'cmd.exe', 5 }, 'k')", /* non-string element */
        "BFWM.spawn(42)",                             /* invalid spawn argv */
        "BFWM.spawn({})",                             /* empty spawn argv */
@@ -1013,11 +1011,11 @@ CBELT_TEST(exec_cache_valid_argv_roundtrip) {
    cbelt_assert(LuaConfigLoad(&config, ctx, "") == TRUE);
 
    /* First call starts a child and returns nil (nothing cached yet). */
-   cbelt_assert(LuaConfigCall(
-                    &config, ctx,
-                    "r = BFWM.exec_cache("
-                    "{ 'cmd.exe', '/c', 'echo', 'bfwm_lua' }, 'lk', 0)") ==
-                TRUE);
+   cbelt_assert(
+       LuaConfigCall(&config, ctx,
+                     "r = BFWM.exec_cache("
+                     "{ 'cmd.exe', '/c', 'echo', 'bfwm_lua' }, 'lk', 0)") ==
+       TRUE);
    lua_getglobal(config.L, "r");
    cbelt_assert(lua_isnil(config.L, -1));
    lua_pop(config.L, 1);
@@ -1037,9 +1035,9 @@ CBELT_TEST(exec_cache_valid_argv_roundtrip) {
    cbelt_assert(found == true);
 
    /* Fire-and-forget spawn must not crash; harvest it before teardown. */
-   cbelt_assert(LuaConfigCall(&config, ctx,
-                              "BFWM.spawn({ 'cmd.exe', '/c', 'echo', 'sp' })") ==
-                TRUE);
+   cbelt_assert(
+       LuaConfigCall(&config, ctx,
+                     "BFWM.spawn({ 'cmd.exe', '/c', 'echo', 'sp' })") == TRUE);
    Sleep(50);
    (void)ExecCacheGet(ctx->exec_cache, argv, "lk", 0);
 

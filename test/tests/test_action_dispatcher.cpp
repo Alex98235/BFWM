@@ -27,16 +27,14 @@ inline auto mock_handler_kill(BFWMContext *ctx, BFWMAction *action) -> int {
    return g_mock_return_value;
 }
 
-inline auto mock_handler_spawn(BFWMContext *ctx, BFWMAction *action)
-    -> int {
+inline auto mock_handler_spawn(BFWMContext *ctx, BFWMAction *action) -> int {
    g_last_handler_called = ActionSpawn;
    g_last_handler_action = action;
    g_last_handler_ctx = ctx;
    return g_mock_return_value;
 }
 
-inline auto mock_handler_custom(BFWMContext *ctx, BFWMAction *action)
-    -> int {
+inline auto mock_handler_custom(BFWMContext *ctx, BFWMAction *action) -> int {
    g_last_handler_called = ActionCustom;
    g_last_handler_action = action;
    g_last_handler_ctx = ctx;
@@ -212,6 +210,8 @@ CBELT_TEST(multiple_handlers_independent) {
 
 CBELT_TEST(dispatch_out_of_range_type_returns_minus_one) {
    BFWMAction bad_action;
+   // Deliberately tests an out-of-range value.
+   // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
    bad_action.type = static_cast<BFWMActionType>(99);
    bad_action.args = std::monostate{};
 

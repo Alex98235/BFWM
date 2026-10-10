@@ -668,7 +668,7 @@ CBELT_TEST(resize_window_first_child_down) {
    cbelt_assert(c2 != nullptr && c2->is_leaf == FALSE);
 
    cbelt_assert(DwindleResizeWindow(layout, win2, DirDown, 40) == true);
-   ASSERT_RATIO(0.5 + 40.0 / 900.0, c2->split_ratio);
+   ASSERT_RATIO(0.5 + (40.0 / 900.0), c2->split_ratio);
 
    RECT r2;
    DwindleGetWindowRect(layout, win2, &r2);
@@ -704,7 +704,7 @@ CBELT_TEST(resize_window_second_child_up) {
    cbelt_assert(c2 != nullptr && c2->is_leaf == FALSE);
 
    cbelt_assert(DwindleResizeWindow(layout, win3, DirUp, 40) == true);
-   ASSERT_RATIO(0.5 - 40.0 / 900.0, c2->split_ratio);
+   ASSERT_RATIO(0.5 - (40.0 / 900.0), c2->split_ratio);
 
    RECT r3;
    DwindleGetWindowRect(layout, win3, &r3);

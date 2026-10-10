@@ -4,8 +4,8 @@
 #include <windows.h>
 
 #include "../../src/core/bfwm_context.h"
-#include "../../src/window/window.h"
 #include "../../src/window/rules/rules.h"
+#include "../../src/window/window.h"
 
 CBELT_GROUP("window_rule")
 

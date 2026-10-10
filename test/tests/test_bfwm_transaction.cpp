@@ -74,7 +74,8 @@ CBELT_TEST(abort_clears_queue_and_flag) {
 
    ctx->transaction.Begin();
 
-   ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(1), 10, 20, 100, 200);
+   ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(1), 10, 20, 100,
+                                    200);
    ctx->transaction.QueueFocus(reinterpret_cast<HWND>(2));
    cbelt_assert(ctx->transaction.OpCount() == 2);
 
@@ -103,7 +104,8 @@ CBELT_TEST(queue_move_window) {
 
    ctx->transaction.Begin();
 
-   ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(42), 10, 20, 800, 600);
+   ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(42), 10, 20, 800,
+                                    600);
    cbelt_assert(ctx->transaction.OpCount() == 1);
 
    PendingOperation *op = &ctx->transaction.OpAt(0);
@@ -197,7 +199,8 @@ CBELT_TEST(multiple_ops_maintain_order) {
    ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(1), 0, 0, 100, 100);
    ctx->transaction.QueueBorderColor(reinterpret_cast<HWND>(2), 0xFF0000);
    ctx->transaction.QueueFocus(reinterpret_cast<HWND>(3));
-   ctx->transaction.QueueRelayout(reinterpret_cast<Workspace *>(static_cast<intptr_t>(0x1234)));
+   ctx->transaction.QueueRelayout(
+       reinterpret_cast<Workspace *>(static_cast<intptr_t>(0x1234)));
 
    cbelt_assert(ctx->transaction.OpCount() == 4);
    cbelt_assert(ctx->transaction.OpAt(0).type == OP_MOVE_WINDOW);
@@ -216,8 +219,8 @@ CBELT_TEST(queue_capacity_expands_beyond_initial) {
    ctx->transaction.Begin();
 
    for (int i = 0; i < 33; i++) {
-      ctx->transaction.QueueMoveWindow(reinterpret_cast<HWND>(static_cast<intptr_t>(i + 1)), i, 0, 100,
-                                       100);
+      ctx->transaction.QueueMoveWindow(
+          reinterpret_cast<HWND>(static_cast<intptr_t>(i + 1)), i, 0, 100, 100);
    }
 
    cbelt_assert(ctx->transaction.OpCount() == 33);
@@ -225,7 +228,8 @@ CBELT_TEST(queue_capacity_expands_beyond_initial) {
 
    for (int i = 0; i < 33; i++) {
       cbelt_assert(ctx->transaction.OpAt(i).type == OP_MOVE_WINDOW);
-      cbelt_assert(ctx->transaction.OpAt(i).hwnd == reinterpret_cast<HWND>(static_cast<intptr_t>(i + 1)));
+      cbelt_assert(ctx->transaction.OpAt(i).hwnd ==
+                   reinterpret_cast<HWND>(static_cast<intptr_t>(i + 1)));
    }
 
    BFWMContextFree(ctx);
