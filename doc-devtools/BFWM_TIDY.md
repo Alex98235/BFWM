@@ -19,8 +19,10 @@ bfwm-tidy splits the work the way LLVM's own `run-clang-tidy` does:
 
 1. **analyze** — runs every target translation unit in parallel, each exporting
    its fixes to its own YAML file. Analysis never writes source.
-2. **fix** — applies every exported replacement **once, serially**, with
-   `clang-apply-replacements` (which dedupes identical header fixes).
+2. **fix** — applies the **source-file** replacements (`src/`, `include/`)
+   **once, serially**, with `clang-apply-replacements` (which dedupes identical
+   header fixes). Test files are **never auto-fixed** — clang-tidy's fixes
+   break CBelt's macros; fix or `NOLINT` those by hand.
 3. **format** — runs clang-format, one process per file, in parallel.
 
 A full run over the tree drops from ~20 minutes (serial) to a few minutes.
@@ -47,7 +49,7 @@ uv run scripts/bfwm_tidy.py analyze --diff
 # Analyze the whole source tree instead.
 uv run scripts/bfwm_tidy.py analyze --all
 
-# Apply the last analyze session's fix-list (single serial pass).
+# Apply the last analyze session's source fixes (single serial pass).
 uv run scripts/bfwm_tidy.py fix
 
 # Format. --check is a dry run that only reports.
@@ -73,6 +75,10 @@ uv run scripts/bfwm_tidy.py status
 With `--diff`, only **staged** files are in scope. A changed header has no
 compile command of its own, so it is **mapped to the translation units that
 include it** and those are analyzed — a header-only change is still covered.
+
+`analyze` and `format` cover `src/` + `test/tests/` (CBelt's `test/cbelt` is
+excluded). `fix`, however, only ever writes **source files** (`src/`,
+`include/`); test findings are never auto-applied.
 
 ## MCP server
 

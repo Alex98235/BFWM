@@ -16,8 +16,9 @@ This tool splits the work the way LLVM's own `run-clang-tidy` does:
 
   * analyze - runs every target translation unit in parallel, each with
     ``--export-fixes`` into its own file. Analysis never writes source.
-  * fix     - applies every exported replacement once, serially, with
-    ``clang-apply-replacements`` (dedupes identical header fixes).
+  * fix     - applies the *source-file* replacements (``src/``, ``include/``)
+    once, serially, with ``clang-apply-replacements`` (dedupes identical header
+    fixes). Test files are never auto-fixed.
   * format  - runs clang-format, one process per file, in parallel.
 
 Scoping
@@ -59,8 +60,15 @@ DB_CACHE = WORK_DIR / "compile_commands.json"
 SESSIONS_DIR = WORK_DIR / "sessions"
 CURRENT_SESSION = WORK_DIR / "current-session"
 
-SOURCE_DIRS = tuple(d for d in (REPO_ROOT / "src", REPO_ROOT / "include") if d.is_dir())
-HEADER_FILTER = r".*[/\\]BFWM[/\\](src|include)[/\\].*"
+SOURCE_DIRS = tuple(
+    d
+    for d in (REPO_ROOT / "src", REPO_ROOT / "include", REPO_ROOT / "test" / "tests")
+    if d.is_dir()
+)
+HEADER_FILTER = r".*[/\\]BFWM[/\\](src|include|test[/\\]tests)[/\\].*"
+# Only source files are auto-fixed. Tests are analyzed and formatted but never
+# auto-fixed: clang-tidy rewrites tokens inside CBelt's function-like macros.
+FIXABLE_DIRS = tuple(d for d in (REPO_ROOT / "src", REPO_ROOT / "include") if d.is_dir())
 SOURCE_SUFFIXES = (".cpp", ".h", ".hpp")
 DEFAULT_JOBS = max(1, min(8, os.cpu_count() or 4))
 
@@ -186,6 +194,15 @@ def _in_source_tree(path: Path) -> bool:
     return any(path == d or d in path.parents for d in SOURCE_DIRS)
 
 
+def _is_fixable(path: str) -> bool:
+    """True when a path may be auto-fixed (under src/ or include/)."""
+    try:
+        resolved = Path(path).resolve()
+    except OSError:
+        return False
+    return any(resolved == d or d in resolved.parents for d in FIXABLE_DIRS)
+
+
 def _iter_source_files():
     for directory in SOURCE_DIRS:
         for path in directory.rglob("*"):
@@ -262,7 +279,7 @@ def resolve_targets(
     headers: set[Path] = set()
 
     for path in changed:
-        if not _in_source_tree(path):
+        if not _in_source_tree(path) or path.suffix not in SOURCE_SUFFIXES:
             continue
         fmt.add(path)
         if path.suffix == ".cpp" and path in tus_in_db:
@@ -297,6 +314,9 @@ def _parse_diagnostics(text: str) -> list[dict]:
         match = _DIAG_RE.match(line)
         if not match:
             continue
+        # Notes are source context for a preceding diagnostic, not findings.
+        if match.group("sev") == "note":
+            continue
         message = match.group("msg")
         check = ""
         check_match = _CHECK_RE.search(message)
@@ -328,12 +348,15 @@ def _parse_diagnostics(text: str) -> list[dict]:
 _FP_RE = re.compile(r"FilePath:\s*(.+)")
 
 
+def _yaml_paths(yaml_file: Path) -> list[str]:
+    text = yaml_file.read_text(encoding="utf-8", errors="replace")
+    return [raw.strip().strip("'\"") for raw in _FP_RE.findall(text)]
+
+
 def _yaml_fix_files(fixes_dir: Path) -> list[str]:
     files: set[str] = set()
     for yaml_file in fixes_dir.glob("*.yaml"):
-        text = yaml_file.read_text(encoding="utf-8", errors="replace")
-        for raw in _FP_RE.findall(text):
-            files.add(raw.strip().strip("'\""))
+        files.update(_yaml_paths(yaml_file))
     return sorted(files)
 
 
@@ -405,16 +428,48 @@ def current_session() -> str | None:
 
 
 def apply_fixes(session_id: str | None = None) -> dict:
-    """Apply an analyze session's fix-list once, serially."""
+    """Apply an analyze session's fix-list once, serially.
+
+    Only replacements targeting source files (``src/``, ``include/``) are
+    applied. Test files are analyzed but never auto-fixed: clang-tidy rewrites
+    tokens inside CBelt's function-like macros and breaks the build. Fix test
+    findings by hand (or NOLINT them).
+    """
     session_id = session_id or current_session()
     if not session_id:
         _die("no session to fix - run `analyze` first")
-    fixes_dir = SESSIONS_DIR / session_id / "fixes"
+    session = SESSIONS_DIR / session_id
+    fixes_dir = session / "fixes"
     if not fixes_dir.is_dir():
         _die(f"session {session_id} has no fixes directory")
 
+    # Stage only the source-file replacements; drop anything touching tests.
+    staging = session / "fixes-src"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
+    applied = 0
+    skipped = 0
+    for yaml_file in fixes_dir.glob("*.yaml"):
+        paths = _yaml_paths(yaml_file)
+        if not paths:
+            continue
+        if all(_is_fixable(p) for p in paths):
+            shutil.copy2(yaml_file, staging / yaml_file.name)
+            applied += 1
+        else:
+            skipped += 1
+
+    if applied == 0:
+        return {
+            "session": session_id,
+            "returncode": 0,
+            "applied": 0,
+            "skipped": skipped,
+            "output": "no source-file fixes to apply",
+        }
+
     proc = subprocess.run(
-        [clang_apply_replacements(), "-ignore-insert-conflict", str(fixes_dir)],
+        [clang_apply_replacements(), "-ignore-insert-conflict", str(staging)],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -422,6 +477,8 @@ def apply_fixes(session_id: str | None = None) -> dict:
     return {
         "session": session_id,
         "returncode": proc.returncode,
+        "applied": applied,
+        "skipped": skipped,
         "output": ((proc.stdout or "") + (proc.stderr or "")).strip(),
     }
 
@@ -433,16 +490,34 @@ def format_files(targets: list[str], check: bool = False, jobs: int = DEFAULT_JO
 
     exe = clang_format()
 
-    def run_one(path: str) -> tuple[str, int]:
-        args = [exe, "--dry-run", "-Werror", path] if check else [exe, "-i", path]
-        proc = subprocess.run(args, cwd=REPO_ROOT, capture_output=True, text=True)
+    def needs_format(path: str) -> tuple[str, int]:
+        proc = subprocess.run(
+            [exe, "--dry-run", "-Werror", path],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
         return path, proc.returncode
 
     changed: list[str] = []
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
-        for path, code in pool.map(run_one, targets):
+        for path, code in pool.map(needs_format, targets):
             if code != 0:
                 changed.append(path)
+
+    if not check and changed:
+        with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
+            list(
+                pool.map(
+                    lambda path: subprocess.run(
+                        [exe, "-i", path],
+                        cwd=REPO_ROOT,
+                        capture_output=True,
+                        text=True,
+                    ),
+                    changed,
+                )
+            )
 
     return {
         "changed": changed,
@@ -581,7 +656,11 @@ def build_mcp_server():
 
     @server.tool()
     def apply_fixes_tool(session: str | None = None) -> dict:
-        """Apply the fix-list from an analyze session, once and serially."""
+        """Apply an analyze session's source-file fixes, once and serially.
+
+        Only `src/` and `include/` files are fixed; test files are never
+        auto-fixed (clang-tidy's fixes break CBelt's macros).
+        """
         return apply_fixes(session)
 
     @server.tool()
@@ -629,7 +708,9 @@ def main(argv: list[str] | None = None) -> int:
     p_analyze.add_argument("--all", action="store_true", help="entire source tree")
     p_analyze.add_argument("--fail-on-findings", action="store_true", help="exit 1 if anything was reported")
 
-    p_fix = sub.add_parser("fix", help="apply the last analyze session's fix-list")
+    p_fix = sub.add_parser(
+        "fix", help="apply the last analyze session's source fixes (tests are never auto-fixed)"
+    )
     p_fix.add_argument("--session", default=None)
 
     p_format = sub.add_parser("format", help="run clang-format")
