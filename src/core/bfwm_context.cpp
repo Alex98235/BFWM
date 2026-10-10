@@ -398,7 +398,7 @@ auto BFWMContextInit() -> BFWMContext * {
 
    // Populate config with defaults (must happen after sub-registries are
    // allocated)
-   ConfigLoadDefaults(context);
+   ConfigLoadDefaults(&context->shared);
 
    return context;
 }

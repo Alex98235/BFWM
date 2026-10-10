@@ -1917,7 +1917,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
       from config.lua on reload must revert to defaults instead of
       retaining stale values.  On first load this also ensures sane
       defaults even if the config file is missing or fails. */
-   ConfigLoadDefaults(ctx);
+   ConfigLoadDefaults(&ctx->shared);
 
    /* No config file found (empty path): the C++ defaults loaded above are
       the whole configuration.  Do not attempt to dofile an empty path,

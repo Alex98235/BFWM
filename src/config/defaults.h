@@ -12,7 +12,7 @@
 #include "../config/lua/parser.h"
 #include "../notification/snackbar.h"
 
-struct BFWMContext;
+struct SharedState;
 
 // ── Layout / global ──────────────────────────────────────────
 // clang-format off
@@ -111,7 +111,7 @@ BFWM_DEFAULT_RESIZE_PX_AMOUNT =          50
 
 // ── Master loader ────────────────────────────────────────────
 
-void ConfigLoadDefaults(struct BFWMContext *ctx);
-void ConfigLoadDefaultKeybinds(struct BFWMContext *ctx);
+void ConfigLoadDefaults(struct SharedState *shared);
+void ConfigLoadDefaultKeybinds(struct SharedState *shared);
 
 #endif

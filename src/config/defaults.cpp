@@ -4,8 +4,8 @@
  */
 
 #include "defaults.h"
-#include "../core/bfwm_context.h"
 #include "../core/bfwm_def.h"
+#include "../core/shared_state.h"
 #include "../input/keystroke.h"
 #include "action.h"
 #include "keybinds.h"
@@ -53,7 +53,7 @@ void BarConfigDefaults(BarConfig *cfg) {
 
 namespace {
 
-inline void insert_bind(BFWMContext *ctx, DWORD vkCode, BOOL alt, BOOL shift,
+inline void insert_bind(SharedState *shared, DWORD vkCode, BOOL alt, BOOL shift,
                         BOOL repeat, BFWMAction *action) {
    Keystroke keystroke;
    memset(&keystroke, 0, sizeof(keystroke));
@@ -63,144 +63,139 @@ inline void insert_bind(BFWMContext *ctx, DWORD vkCode, BOOL alt, BOOL shift,
    keystroke.repeat = repeat;
    if (action != nullptr) {
       action->repeatable = repeat;
-      KBDictInsert(ctx->shared.keybinds, keystroke,
+      KBDictInsert(shared->keybinds, keystroke,
                    std::unique_ptr<BFWMAction>(action));
    }
 }
 } // namespace
 
-void ConfigLoadDefaultKeybinds(BFWMContext *ctx) {
-   insert_bind(ctx, 'Q', TRUE, FALSE, FALSE, BFWMActionCreateKillActive());
-   insert_bind(ctx, 'F', TRUE, FALSE, FALSE, BFWMActionCreateFullscreen());
-   insert_bind(ctx, 'X', TRUE, FALSE, FALSE, BFWMActionCreateMinimize());
-   insert_bind(ctx, 'W', TRUE, FALSE, FALSE, BFWMActionCreateToggleFloat());
+void ConfigLoadDefaultKeybinds(SharedState *shared) {
+   insert_bind(shared, 'Q', TRUE, FALSE, FALSE, BFWMActionCreateKillActive());
+   insert_bind(shared, 'F', TRUE, FALSE, FALSE, BFWMActionCreateFullscreen());
+   insert_bind(shared, 'X', TRUE, FALSE, FALSE, BFWMActionCreateMinimize());
+   insert_bind(shared, 'W', TRUE, FALSE, FALSE, BFWMActionCreateToggleFloat());
 
    /* Resize (vim-style HJKL) */
    insert_bind(
-       ctx, 'H', TRUE, FALSE, TRUE,
+       shared, 'H', TRUE, FALSE, TRUE,
        BFWMActionCreateResizeWindow(DirLeft, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
    insert_bind(
-       ctx, 'J', TRUE, FALSE, TRUE,
+       shared, 'J', TRUE, FALSE, TRUE,
        BFWMActionCreateResizeWindow(DirDown, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
    insert_bind(
-       ctx, 'K', TRUE, FALSE, TRUE,
+       shared, 'K', TRUE, FALSE, TRUE,
        BFWMActionCreateResizeWindow(DirUp, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
    insert_bind(
-       ctx, 'L', TRUE, FALSE, TRUE,
+       shared, 'L', TRUE, FALSE, TRUE,
        BFWMActionCreateResizeWindow(DirRight, BFWM_DEFAULT_RESIZE_PX_AMOUNT));
 
    /* Move focus (arrows) */
-   insert_bind(ctx, VK_LEFT, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirLeft));
-   insert_bind(ctx, VK_DOWN, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirDown));
-   insert_bind(ctx, VK_UP, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirUp));
-   insert_bind(ctx, VK_RIGHT, TRUE, FALSE, TRUE,
+   insert_bind(shared, VK_LEFT, TRUE, FALSE, TRUE,
+               BFWMActionCreateFocus(DirLeft));
+   insert_bind(shared, VK_DOWN, TRUE, FALSE, TRUE,
+               BFWMActionCreateFocus(DirDown));
+   insert_bind(shared, VK_UP, TRUE, FALSE, TRUE, BFWMActionCreateFocus(DirUp));
+   insert_bind(shared, VK_RIGHT, TRUE, FALSE, TRUE,
                BFWMActionCreateFocus(DirRight));
 
    /* Move window (arrows) */
-   insert_bind(ctx, VK_LEFT, TRUE, TRUE, TRUE,
+   insert_bind(shared, VK_LEFT, TRUE, TRUE, TRUE,
                BFWMActionCreateMoveWindow(DirLeft, 0));
-   insert_bind(ctx, VK_DOWN, TRUE, TRUE, TRUE,
+   insert_bind(shared, VK_DOWN, TRUE, TRUE, TRUE,
                BFWMActionCreateMoveWindow(DirDown, 0));
-   insert_bind(ctx, VK_UP, TRUE, TRUE, TRUE,
+   insert_bind(shared, VK_UP, TRUE, TRUE, TRUE,
                BFWMActionCreateMoveWindow(DirUp, 0));
-   insert_bind(ctx, VK_RIGHT, TRUE, TRUE, TRUE,
+   insert_bind(shared, VK_RIGHT, TRUE, TRUE, TRUE,
                BFWMActionCreateMoveWindow(DirRight, 0));
 
    /* Workspaces + move-to-workspace */
    for (int i = 1; i <= MAX_WORKSPACE_KEYBINDS; i++) {
       DWORD const virtual_key = (DWORD)'0' + i;
-      insert_bind(ctx, virtual_key, TRUE, FALSE, FALSE,
+      insert_bind(shared, virtual_key, TRUE, FALSE, FALSE,
                   BFWMActionCreateWorkspace(i, DirNext));
-      insert_bind(ctx, virtual_key, TRUE, TRUE, FALSE,
+      insert_bind(shared, virtual_key, TRUE, TRUE, FALSE,
                   BFWMActionCreateMoveToWorkspace(i));
    }
 
    /* Layout */
-   insert_bind(ctx, 'P', TRUE, FALSE, FALSE, BFWMActionCreateSwapSplit());
-   insert_bind(ctx, 'P', TRUE, TRUE, FALSE, BFWMActionCreateSplit());
-   insert_bind(ctx, 'C', TRUE, FALSE, FALSE, BFWMActionCreateToggleGaps());
-   insert_bind(ctx, 'D', TRUE, FALSE, FALSE,
+   insert_bind(shared, 'P', TRUE, FALSE, FALSE, BFWMActionCreateSwapSplit());
+   insert_bind(shared, 'P', TRUE, TRUE, FALSE, BFWMActionCreateSplit());
+   insert_bind(shared, 'C', TRUE, FALSE, FALSE, BFWMActionCreateToggleGaps());
+   insert_bind(shared, 'D', TRUE, FALSE, FALSE,
                BFWMActionCreateCycleLayout(DirNext));
-   insert_bind(ctx, 'D', TRUE, TRUE, FALSE,
+   insert_bind(shared, 'D', TRUE, TRUE, FALSE,
                BFWMActionCreateCycleLayout(DirPrev));
 
    /* System */
-   insert_bind(ctx, 'R', TRUE, TRUE, FALSE, BFWMActionCreateReloadConfig());
+   insert_bind(shared, 'R', TRUE, TRUE, FALSE, BFWMActionCreateReloadConfig());
 }
 
-void ConfigLoadDefaults(BFWMContext *ctx) {
-   ctx->shared.config.gap_between = BFWM_DEFAULT_GAP_BETWEEN;
-   ctx->shared.config.gap_edge = BFWM_DEFAULT_GAP_EDGE;
-   ctx->shared.config.gaps_enabled = BFWM_DEFAULT_GAPS_ENABLED;
-   ctx->shared.config.bar_height = BFWM_DEFAULT_BAR_HEIGHT;
-   ctx->shared.config.border_color = BFWM_DEFAULT_BORDER_COLOR;
-   ctx->shared.config.inactive_border = BFWM_DEFAULT_INACTIVE_BORDER;
-   ctx->shared.config.border_width = BFWM_DEFAULT_BORDER_WIDTH;
-   ctx->shared.config.border_radius = BFWM_DEFAULT_BORDER_RADIUS;
-   ctx->shared.config.focus_follows_mouse = BFWM_DEFAULT_FOCUS_FOLLOWS_MOUSE;
-   ctx->shared.config.mouse_follows_focus = BFWM_DEFAULT_MOUSE_FOLLOWS_FOCUS;
-   ctx->shared.config.unlock_modifier = BFWM_DEFAULT_UNLOCK_MODIFIER;
-   ctx->shared.config.unlock_move_modifier = BFWM_DEFAULT_UNLOCK_MOVE_MODIFIER;
-   ctx->shared.config.default_layout = BFWM_DEFAULT_LAYOUT;
-   ctx->shared.config.disabled_monitor_count =
-       BFWM_DEFAULT_DISABLED_MONITOR_COUNT;
+void ConfigLoadDefaults(SharedState *shared) {
+   shared->config.gap_between = BFWM_DEFAULT_GAP_BETWEEN;
+   shared->config.gap_edge = BFWM_DEFAULT_GAP_EDGE;
+   shared->config.gaps_enabled = BFWM_DEFAULT_GAPS_ENABLED;
+   shared->config.bar_height = BFWM_DEFAULT_BAR_HEIGHT;
+   shared->config.border_color = BFWM_DEFAULT_BORDER_COLOR;
+   shared->config.inactive_border = BFWM_DEFAULT_INACTIVE_BORDER;
+   shared->config.border_width = BFWM_DEFAULT_BORDER_WIDTH;
+   shared->config.border_radius = BFWM_DEFAULT_BORDER_RADIUS;
+   shared->config.focus_follows_mouse = BFWM_DEFAULT_FOCUS_FOLLOWS_MOUSE;
+   shared->config.mouse_follows_focus = BFWM_DEFAULT_MOUSE_FOLLOWS_FOCUS;
+   shared->config.unlock_modifier = BFWM_DEFAULT_UNLOCK_MODIFIER;
+   shared->config.unlock_move_modifier = BFWM_DEFAULT_UNLOCK_MOVE_MODIFIER;
+   shared->config.default_layout = BFWM_DEFAULT_LAYOUT;
+   shared->config.disabled_monitor_count = BFWM_DEFAULT_DISABLED_MONITOR_COUNT;
 
-   BarConfigDefaults(&ctx->shared.config.bar_cfg);
+   BarConfigDefaults(&shared->config.bar_cfg);
 
    /* Snackbar */
-   ctx->shared.config.snackbar.enabled = BFWM_DEFAULT_SNACKBAR_ENABLED;
-   ctx->shared.config.snackbar.log_level = BFWM_DEFAULT_SNACKBAR_LOG_LEVEL;
-   ctx->shared.config.snackbar.display_duration_ms =
+   shared->config.snackbar.enabled = BFWM_DEFAULT_SNACKBAR_ENABLED;
+   shared->config.snackbar.log_level = BFWM_DEFAULT_SNACKBAR_LOG_LEVEL;
+   shared->config.snackbar.display_duration_ms =
        BFWM_DEFAULT_SNACKBAR_DISPLAY_DURATION;
-   ctx->shared.config.snackbar.position = BFWM_DEFAULT_SNACKBAR_POSITION;
+   shared->config.snackbar.position = BFWM_DEFAULT_SNACKBAR_POSITION;
 
-   ctx->shared.config.snackbar.margin_left = BFWM_DEFAULT_SNACKBAR_MARGIN_LEFT;
-   ctx->shared.config.snackbar.margin_right =
-       BFWM_DEFAULT_SNACKBAR_MARGIN_RIGHT;
-   ctx->shared.config.snackbar.margin_top = BFWM_DEFAULT_SNACKBAR_MARGIN_TOP;
-   ctx->shared.config.snackbar.margin_bottom =
-       BFWM_DEFAULT_SNACKBAR_MARGIN_BOTTOM;
+   shared->config.snackbar.margin_left = BFWM_DEFAULT_SNACKBAR_MARGIN_LEFT;
+   shared->config.snackbar.margin_right = BFWM_DEFAULT_SNACKBAR_MARGIN_RIGHT;
+   shared->config.snackbar.margin_top = BFWM_DEFAULT_SNACKBAR_MARGIN_TOP;
+   shared->config.snackbar.margin_bottom = BFWM_DEFAULT_SNACKBAR_MARGIN_BOTTOM;
 
-   ctx->shared.config.snackbar.min_width = BFWM_DEFAULT_SNACKBAR_MIN_WIDTH;
-   ctx->shared.config.snackbar.max_width = BFWM_DEFAULT_SNACKBAR_MAX_WIDTH;
+   shared->config.snackbar.min_width = BFWM_DEFAULT_SNACKBAR_MIN_WIDTH;
+   shared->config.snackbar.max_width = BFWM_DEFAULT_SNACKBAR_MAX_WIDTH;
 
-   ctx->shared.config.snackbar.padding_left =
-       BFWM_DEFAULT_SNACKBAR_PADDING_LEFT;
-   ctx->shared.config.snackbar.padding_right =
-       BFWM_DEFAULT_SNACKBAR_PADDING_RIGHT;
-   ctx->shared.config.snackbar.padding_top = BFWM_DEFAULT_SNACKBAR_PADDING_TOP;
-   ctx->shared.config.snackbar.padding_bottom =
+   shared->config.snackbar.padding_left = BFWM_DEFAULT_SNACKBAR_PADDING_LEFT;
+   shared->config.snackbar.padding_right = BFWM_DEFAULT_SNACKBAR_PADDING_RIGHT;
+   shared->config.snackbar.padding_top = BFWM_DEFAULT_SNACKBAR_PADDING_TOP;
+   shared->config.snackbar.padding_bottom =
        BFWM_DEFAULT_SNACKBAR_PADDING_BOTTOM;
 
-   ctx->shared.config.snackbar.background = BFWM_DEFAULT_SNACKBAR_BACKGROUND;
-   ctx->shared.config.snackbar.text = BFWM_DEFAULT_SNACKBAR_TEXT;
-   ctx->shared.config.snackbar.divider = BFWM_DEFAULT_SNACKBAR_DIVIDER;
-   ctx->shared.config.snackbar.divider_height =
+   shared->config.snackbar.background = BFWM_DEFAULT_SNACKBAR_BACKGROUND;
+   shared->config.snackbar.text = BFWM_DEFAULT_SNACKBAR_TEXT;
+   shared->config.snackbar.divider = BFWM_DEFAULT_SNACKBAR_DIVIDER;
+   shared->config.snackbar.divider_height =
        BFWM_DEFAULT_SNACKBAR_DIVIDER_HEIGHT;
 
-   ctx->shared.config.snackbar.font_size = BFWM_DEFAULT_SNACKBAR_FONT_SIZE;
-   ctx->shared.config.snackbar.font_name = BFWM_DEFAULT_SNACKBAR_FONT_NAME;
+   shared->config.snackbar.font_size = BFWM_DEFAULT_SNACKBAR_FONT_SIZE;
+   shared->config.snackbar.font_name = BFWM_DEFAULT_SNACKBAR_FONT_NAME;
 
-   ctx->shared.config.snackbar.corner_radius =
-       BFWM_DEFAULT_SNACKBAR_CORNER_RADIUS;
-   ctx->shared.config.snackbar.opacity = BFWM_DEFAULT_SNACKBAR_OPACITY;
-   ctx->shared.config.snackbar.close_on_click =
+   shared->config.snackbar.corner_radius = BFWM_DEFAULT_SNACKBAR_CORNER_RADIUS;
+   shared->config.snackbar.opacity = BFWM_DEFAULT_SNACKBAR_OPACITY;
+   shared->config.snackbar.close_on_click =
        BFWM_DEFAULT_SNACKBAR_CLOSE_ON_CLICK;
-   ctx->shared.config.snackbar.pause_on_hover =
+   shared->config.snackbar.pause_on_hover =
        BFWM_DEFAULT_SNACKBAR_PAUSE_ON_HOVER;
-   ctx->shared.config.snackbar.click_to_expand =
+   shared->config.snackbar.click_to_expand =
        BFWM_DEFAULT_SNACKBAR_CLICK_TO_EXPAND;
-   ctx->shared.config.snackbar.max_queue = BFWM_DEFAULT_SNACKBAR_MAX_QUEUE;
-   ctx->shared.config.snackbar.monitor = BFWM_DEFAULT_SNACKBAR_MONITOR;
+   shared->config.snackbar.max_queue = BFWM_DEFAULT_SNACKBAR_MAX_QUEUE;
+   shared->config.snackbar.monitor = BFWM_DEFAULT_SNACKBAR_MONITOR;
 
-   ctx->shared.config.snackbar.colors.error = BFWM_DEFAULT_SNACKBAR_COLOR_ERROR;
-   ctx->shared.config.snackbar.colors.warn = BFWM_DEFAULT_SNACKBAR_COLOR_WARN;
-   ctx->shared.config.snackbar.colors.info = BFWM_DEFAULT_SNACKBAR_COLOR_INFO;
-   ctx->shared.config.snackbar.colors.debug = BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG;
-   ctx->shared.config.snackbar.colors.normal =
-       BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL;
+   shared->config.snackbar.colors.error = BFWM_DEFAULT_SNACKBAR_COLOR_ERROR;
+   shared->config.snackbar.colors.warn = BFWM_DEFAULT_SNACKBAR_COLOR_WARN;
+   shared->config.snackbar.colors.info = BFWM_DEFAULT_SNACKBAR_COLOR_INFO;
+   shared->config.snackbar.colors.debug = BFWM_DEFAULT_SNACKBAR_COLOR_DEBUG;
+   shared->config.snackbar.colors.normal = BFWM_DEFAULT_SNACKBAR_COLOR_NORMAL;
 
    /* Reset keybinds to defaults */
-   KBDictClear(ctx->shared.keybinds);
-   ConfigLoadDefaultKeybinds(ctx);
+   KBDictClear(shared->keybinds);
+   ConfigLoadDefaultKeybinds(shared);
 }
