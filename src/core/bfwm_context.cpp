@@ -338,7 +338,7 @@ auto BFWMContextSetup(BFWMContext *ctx) -> bool {
    // first-inserted window (anchors the dwindle layout) and refocus it.
    HWND pre_focus = GetForegroundWindow();
 
-   ctx->setup_in_progress = TRUE;
+   ctx->worker.setup_in_progress = TRUE;
 
    // Enumerate existing windows
    if (EnumWindows(EnumWindowsProc, (LPARAM)ctx) == 0) {
@@ -351,7 +351,7 @@ auto BFWMContextSetup(BFWMContext *ctx) -> bool {
    // focused, which after the first pass is the most recently inserted).
    AssignWindowsToWorkspaces(ctx, pre_focus);
 
-   ctx->setup_in_progress = FALSE;
+   ctx->worker.setup_in_progress = FALSE;
 
    // Create bar windows after EnumWindows to avoid triggering
    // Windows 11 display-detection logic that can spontaneously

@@ -1155,7 +1155,7 @@ void ProcessObjectReorder(BFWMContext *ctx, HWND hwnd) {
 // ProcessCreateOrForeground — called from DrainEventQueue (main thread, in
 // transaction)
 void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
-   if (ctx->setup_in_progress == TRUE)
+   if (ctx->worker.setup_in_progress == TRUE)
       return;
 
    // ── Focus intent ──
@@ -1215,12 +1215,12 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
                                   .dwEventThread = dwEventThread,
                                   .dwmsEventTime = dwmsEventTime,
                                   .dpi = 0};
-      ctx->event_queue.Push(record);
+      ctx->worker.event_queue.Push(record);
       break;
    }
    case EVENT_OBJECT_CREATE:
    case EVENT_SYSTEM_FOREGROUND:
-      if (ctx->setup_in_progress == TRUE)
+      if (ctx->worker.setup_in_progress == TRUE)
          break;
       {
          EventRecord const record = {.event = event,
@@ -1230,7 +1230,7 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
                                      .dwEventThread = dwEventThread,
                                      .dwmsEventTime = dwmsEventTime,
                                      .dpi = 0};
-         ctx->event_queue.Push(record);
+         ctx->worker.event_queue.Push(record);
       }
       break;
    }

@@ -594,7 +594,7 @@ void DrainEventQueue(struct BFWMContext *ctx) {
    size_t count = 0;
 
    // Report dropped events (overflow counter from producer thread), then reset
-   LONG const dropped = ctx->event_queue.ConsumeDropped();
+   LONG const dropped = ctx->worker.event_queue.ConsumeDropped();
    if (dropped > 0) {
       Warn("DrainEventQueue: %ld events dropped due to SPSC queue overflow",
            dropped);
@@ -602,7 +602,7 @@ void DrainEventQueue(struct BFWMContext *ctx) {
 
    // Phase 1: Pop all pending events
    while (count < SpscQueue::kCapacity &&
-          ctx->event_queue.Pop(records[count])) {
+          ctx->worker.event_queue.Pop(records[count])) {
       count++;
    }
 

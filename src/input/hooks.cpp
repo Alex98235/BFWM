@@ -36,28 +36,28 @@ inline void UpdateModifierState(BFWMContext *context, DWORD vkCode,
       break;
    case VK_CONTROL:
    case VK_LCONTROL:
-      context->modifiers.ctrl = isPressed;
+      context->worker.modifiers.ctrl = isPressed;
       g_left_ctrl_down = isPressed;
       break;
    case VK_RCONTROL:
-      context->modifiers.ctrl = isPressed;
+      context->worker.modifiers.ctrl = isPressed;
       break;
    case VK_SHIFT:
    case VK_LSHIFT:
    case VK_RSHIFT:
-      context->modifiers.shift = isPressed;
+      context->worker.modifiers.shift = isPressed;
       break;
    case VK_MENU:
    case VK_LMENU:
-      context->modifiers.alt = isPressed;
+      context->worker.modifiers.alt = isPressed;
       break;
    case VK_RMENU:
-      context->modifiers.alt = isPressed;
+      context->worker.modifiers.alt = isPressed;
       g_right_alt_down = isPressed;
       break;
    case VK_LWIN:
    case VK_RWIN:
-      context->modifiers.super = isPressed;
+      context->worker.modifiers.super = isPressed;
       break;
    }
 }
@@ -148,13 +148,13 @@ auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 
          Keystroke queued;
          queued.key = *pKey;
-         queued.modifiers = ctx->modifiers;
+         queued.modifiers = ctx->worker.modifiers;
          queued.repeat = key_down[pKey->vkCode & KEY_INDEX_MASK];
          key_down[pKey->vkCode & KEY_INDEX_MASK] = TRUE;
 
          auto *actions = KBDFind(ctx->shared.keybinds, queued);
          if ((actions != nullptr) && (IsAltGrChord(queued.modifiers) == 0)) {
-            ctx->keystroke_queue.Enqueue(queued);
+            ctx->worker.keystroke_queue.Enqueue(queued);
             return 1;
          }
       }

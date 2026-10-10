@@ -49,7 +49,8 @@ inline auto CALLBACK DpiWatcherWndProc(HWND hwnd, UINT msg, WPARAM wParam,
              .dwmsEventTime = 0,
              .dpi = LOWORD(wParam),
          };
-         ctx->event_queue.Push(record); // ignore push failure (queue full)
+         ctx->worker.event_queue.Push(
+             record); // ignore push failure (queue full)
       }
       return 0;
    }

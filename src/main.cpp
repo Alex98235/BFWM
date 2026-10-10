@@ -67,7 +67,7 @@ inline BOOL WINAPI CtrlHandler(DWORD dwCtrlType) {
       /* Enqueue a dummy keystroke to unblock DequeueKeystroke()
          which may be waiting on the semaphore. */
       Keystroke const dummy = {};
-      ctrl_handler_ctx->keystroke_queue.Enqueue(dummy);
+      ctrl_handler_ctx->worker.keystroke_queue.Enqueue(dummy);
       return TRUE;
    }
    return FALSE; /* let the default handler deal with other events */
@@ -458,7 +458,7 @@ inline void ProcessKeystrokes(struct BFWMContext *ctx) {
    // commit at the end. Previously each key committed its own transaction,
    // which throttled key rate to 1/commit-time and let the cap-8 drop-oldest
    // queue drop distinct keys during a slow hold.
-   while (ctx->keystroke_queue.Dequeue(queued)) {
+   while (ctx->worker.keystroke_queue.Dequeue(queued)) {
       if (processed == FALSE) {
          ctx->transaction.Begin();
          processed = TRUE;

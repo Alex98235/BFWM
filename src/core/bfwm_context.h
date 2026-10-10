@@ -25,6 +25,7 @@
 
 #include "focus_intent.h"
 #include "shared_state.h"
+#include "worker_context.h"
 
 #include "../config/keybinds.h"
 #include "../config/lua/parser.h"
@@ -92,10 +93,6 @@ using BFWMContext = struct BFWMContext {
    /// Main-thread-only non-blocking child-process stdout cache
    /// (BFWM.exec_cache)
    ExecCache *exec_cache = nullptr;
-   /// Thread-safe circular keystroke buffer
-   KeystrokeQueue keystroke_queue;
-   /// Current Ctrl/Shift/Alt/Super state
-   ModifierState modifiers;
    /** @} */
 
    HWND focused_hwnd = nullptr;
@@ -103,6 +100,11 @@ using BFWMContext = struct BFWMContext {
    /** @name Shared state (worker-visible config; see shared_state.h) */
    /** @{ */
    SharedState shared;
+   /** @} */
+
+   /** @name Worker state (keystroke+event queues; see worker_context.h) */
+   /** @{ */
+   WorkerContext worker;
    /** @} */
 
    /** @name Runtime disabled monitor UIDs (derived from config at startup) */
@@ -158,8 +160,6 @@ using BFWMContext = struct BFWMContext {
    /** @{ */
    /// Pending operation batching state
    TransactionState transaction;
-   /// Lock-free SPSC event queue for WinEvent hook → main thread
-   SpscQueue event_queue;
    /** @} */
 
    /** @name Notification snackbar */
@@ -184,8 +184,6 @@ using BFWMContext = struct BFWMContext {
    enum BarUpdateKind bar_update = BAR_UPDATE_NONE;
    /// TRUE when a monitor DPI changed; main loop re-tiles + recreates bars
    BOOL dpi_update = FALSE;
-   /// TRUE during BFWMContextSetup
-   volatile BOOL setup_in_progress = FALSE;
    /// HWND being mouse-resized, or NULL
    HWND resize_hwnd = nullptr;
    /// GetTickCount64() of the last keyboard-driven resize action; suppresses

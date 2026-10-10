@@ -107,7 +107,7 @@ void BFWMTransactionCommit(struct BFWMContext *ctx);
 /**
  * @brief Drain the SPSC event queue and process all pending events.
  *
- * Pops EventRecords from ctx->event_queue. For each event:
+ * Pops EventRecords from ctx->worker.event_queue. For each event:
  *   - Applies internal-state tracking (no Win32 calls)
  *   - Begins a transaction, queues the appropriate operations, commits
  *

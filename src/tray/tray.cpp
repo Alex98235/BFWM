@@ -86,7 +86,7 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                 * ctx->running. */
                g_ctx->running = FALSE;
                Keystroke const dummy = {};
-               g_ctx->keystroke_queue.Enqueue(dummy);
+               g_ctx->worker.keystroke_queue.Enqueue(dummy);
             }
             std::wstring path;
             if (cmd_id == ID_TRAY_LOGS && g_ctx != nullptr) {
