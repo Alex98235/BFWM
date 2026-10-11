@@ -22,6 +22,7 @@ set(TEST_SOURCES
     tests/test_action_dispatcher.cpp
     tests/test_workspace_core.cpp
     tests/test_bfwm_transaction.cpp
+    tests/test_bfwm_lifecycle.cpp
     tests/test_keystroke_queue.cpp
     tests/test_spsc_queue.cpp
     tests/test_window_rule.cpp
