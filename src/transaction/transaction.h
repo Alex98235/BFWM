@@ -39,7 +39,7 @@ struct MainContext;
  */
 class TransactionState {
  public:
-   /// Reserve the same initial capacity as the old raw-array growth (32).
+   /// Reserve an initial capacity of 32.
    TransactionState() { ops_.reserve(32); }
 
    // Lifecycle

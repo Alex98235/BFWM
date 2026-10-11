@@ -44,8 +44,8 @@ mix them anyway (see [Toolchain parity](#toolchain-parity-dev-vs-ci)).
 | [MSYS2](https://www.msys2.org/) | Provides the whole toolchain | — |
 | Clang / Clang++ | C11 + C++20 compiler | `mingw-w64-ucrt-x86_64-clang` |
 | GNU binutils (`windres`, `ld`) | Resource compilation, linking | `mingw-w64-ucrt-x86_64-binutils` |
-| make | Build driver (`MSYS Makefiles`) | `make` |
-| CMake ≥ 3.15 | Build system (project minimum) | `cmake` |
+| ninja | Build driver | `mingw-w64-ucrt-x86_64-ninja` |
+| CMake ≥ 3.20 | Build system (the `ucrt64` preset needs 3.20+; `CMakeLists.txt` itself needs 3.15) | `mingw-w64-ucrt-x86_64-cmake` |
 | git | Version control, CBelt submodule | `git` |
 
 Install (from an MSYS2 **UCRT64** shell):
@@ -54,11 +54,12 @@ Install (from an MSYS2 **UCRT64** shell):
 pacman -S --needed \
   mingw-w64-ucrt-x86_64-clang \
   mingw-w64-ucrt-x86_64-binutils \
-  make cmake git
+  mingw-w64-ucrt-x86_64-ninja \
+  mingw-w64-ucrt-x86_64-cmake git
 ```
 
-Note: `cmake` and `make` are MSYS packages; `make` lives at
-`/usr/bin/make.exe`, shared across all MSYS2 environments.
+Note: `git` is an MSYS package; `clang`, `binutils`, `ninja`, and `cmake` are
+UCRT64 packages.
 
 ---
 
@@ -67,12 +68,8 @@ Note: `cmake` and `make` are MSYS packages; `make` lives at
 From the repository root, in an MSYS2 **UCRT64** shell:
 
 ```sh
-cmake -S . -B build -G "MSYS Makefiles" \
-  -DCMAKE_C_COMPILER=C:/msys64/ucrt64/bin/clang.exe \
-  -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/clang++.exe \
-  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
-
-cmake --build build
+cmake --preset ucrt64
+cmake --build --preset ucrt64
 ```
 
 This produces:
@@ -81,13 +78,13 @@ This produces:
 - `build/debug/BFWM-debug.exe` — a console-subsystem debug build.
 - `build/test/test_runner.exe` — the unit tests.
 
-> **Generator note.** `-G "MSYS Makefiles"` is the generator used with a
-> **Windows-native** `cmake`. If you use the MSYS2 `cmake` package instead, its
-> generator is `-G "Unix Makefiles"` (what CI uses). Either is fine — the
-> generator only affects the build driver, not the produced binary. The
-> compiler and runtime are what must stay consistent (below). CMake will
-> auto-detect `windres`; pin it with `-DCMAKE_RC_COMPILER=C:/msys64/ucrt64/bin/windres.exe`
-> if it ever picks `llvm-rc` instead.
+> **Build type.** The `ucrt64` preset configures `CMAKE_BUILD_TYPE=Debug`
+> (unoptimized, with debug info) — the same configuration CI ships. Add a
+> `Release` preset if you ever need an optimized artifact.
+
+> **Generator note.** The build uses **Ninja**, pinned in `CMakePresets.json`
+> (preset `ucrt64`), along with `clang`, `clang++`, and `windres` resolved from
+> `PATH`.
 
 ## Running
 
@@ -121,7 +118,8 @@ out a clone with `git submodule update --init --recursive`.
 | `BFWM_PROFILE_BUILD` | `OFF` | Emits CodeView debug info + a PDB (via `lld`) for ETW profiling. See [PROFILING.md](PROFILING.md). |
 | `BFWM_DEBUG_CRASHDUMP` | `OFF` | Compiles the `BFWM` target with the crash-dump VEH handler. |
 
-Configure with `-D<option>=ON`.
+Configure by appending `-D<option>=ON` to the preset command, e.g.
+`cmake --preset ucrt64 -D<option>=ON`.
 
 ---
 
@@ -173,25 +171,11 @@ and let the rest float**:
 - Compiler: Clang, and the C++ stdlib flavor (libstdc++).
 - Target: `x86_64`, `_WIN32_WINNT=0x0A00`.
 - Behavioral flags/definitions: C++20, `-Wall -Wpedantic -Wextra`, etc.
-- The generator, ideally, so makefile semantics don't drift.
+- The generator, ideally, so build-file semantics don't drift.
 
 **May differ safely**
 
 - CMake version, absolute paths, build directory, host tool minor versions.
-
-**Current state / follow-ups**
-
-- CI (`.github/workflows/release.yml`) still builds with the deprecated
-  **MINGW64** (`msystem: MSYS`, `mingw-w64-x86_64-*`). It should be migrated to
-  **UCRT64** to match local development and the recommendation above.
-- The robust fix is a pinned toolchain (`CMakePresets.json` and/or a toolchain
-  file setting `CMAKE_C_COMPILER`, `CMAKE_CXX_COMPILER`, `CMAKE_RC_COMPILER`),
-  so dev and CI consume identical settings and the CMake version stops
-  mattering.
-- `toolchain-msys2.cmake` hard-codes **gcc/g++** and overrides the compile/link
-  rules; it contradicts the Clang build and its stated cause ("CMake 4.4.2
-  broken compiler detection") is unverified. Re-test whether it is still needed
-  before relying on it.
 
 ### Gotchas
 

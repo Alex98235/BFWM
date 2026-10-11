@@ -166,8 +166,7 @@ struct MainContext {
    /// HWND in ToggleFullscreenForHwnd, or NULL
    HWND toggling_fullscreen_hwnd = nullptr;
    /// General focus-intent model: suppresses Windows-supplied foreground
-   /// events until the planned focus target actually lands. Replaces the
-   /// one-shot auto-focus guard.
+   /// events until the planned focus target actually lands.
    FocusIntent focus_intent;
    /** @} */
 };

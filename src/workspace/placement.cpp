@@ -334,8 +334,8 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
          } else {
             /* (c') Never reached the destination within the stall window:
              * genuinely stuck. Drop the trust and fall through — the normal
-             * gate's stall re-issues accumulate failed_landings (IssueMove no
-             * longer resets it on re-issue) and FLOAT fires at 3. */
+             * gate's stall re-issues accumulate failed_landings (IssueMove does
+             * not reset it on re-issue) and FLOAT fires at 3. */
             win->SetCrossMonitorTrusted(FALSE);
          }
       }
@@ -352,7 +352,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
       BOOL const was_in_flight = win->MoveInFlight();
       win->SetLastLanded(current_rect);
       /* A layout move has now landed: clear the in-flight flag and re-sync the
-       * border ring. The commit-end flush no longer waits for the async move,
+       * border ring. The commit-end flush does not wait for the async move,
        * so it may have synced the ring to the stale pre-move EFB. Re-mark dirty
        * unconditionally — the landed rect can equal LastLanded (a float
        * round-trip returns the window to the slot it left, and LastLanded was
@@ -398,8 +398,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
 } // namespace
 
 /* DPI-unaware window on a scaled monitor lands a few px off the issued rect
- * and must not be treated as still in flight. Formerly shared with
- * overlay.cpp's now-removed OverlayFlush landed gate (PR #5). */
+ * and must not be treated as still in flight. */
 auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
                           HWND hwnd) -> int {
    if ((shared == nullptr) || (main->dpi == nullptr))

@@ -22,8 +22,7 @@
 // These delegate straight back into Bar: their refresh, click and scroll
 // behaviour is Bar's own, and Bar owns the per-monitor layout state they
 // render. Keeping them in the registry makes type lookup total so every
-// dispatch path (refresh, hit-test, measure, click, scroll) resolves them
-// exactly as it did before the provider split.
+// dispatch path (refresh, hit-test, measure, click, scroll) resolves them.
 // ===========================================================================
 
 struct WorkspacesIndicatorProvider final : IndicatorProvider {

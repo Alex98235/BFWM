@@ -77,7 +77,7 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
       return nullptr;
 
    // Strip a trailing ".exe" (case-insensitive) so rules match on the bare
-   // process name, mirroring the old strrchr('.') + _stricmp logic.
+   // process name.
    std::string name(buf);
    size_t const dot = name.rfind('.');
    if ((dot != std::string::npos) &&

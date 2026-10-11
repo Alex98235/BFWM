@@ -666,9 +666,9 @@ auto bag_str(const IndicatorRuntime &rt, const char *name, std::string *out)
 } // namespace
 
 CBELT_TEST(registry_resolves_every_indicator_type) {
-   /* The registry must be total: every type resolves to a provider. Workspaces
-      and Title used to be missing from the registry, which silently broke
-      hit-testing, click/scroll dispatch and width measurement. */
+   /* The registry must be total: every type resolves to a provider. A missing
+      provider silently breaks hit-testing, click/scroll dispatch and width
+      measurement. */
    Bar bar(nullptr, nullptr, nullptr, nullptr);
    auto registry = IndicatorRegistry::CreateDefault(&bar);
 
@@ -785,8 +785,7 @@ CBELT_TEST(memory_mapping_gigabytes) {
    cbelt_assert(bag_num(rt, "avail_gb", &avail) == true);
    cbelt_assert(avail == 4.0);
 
-   /* The refactor had introduced an extra "load" value; the original had none.
-    */
+   /* The status bag exposes no "load" value. */
    double load = -1;
    cbelt_assert(bag_num(rt, "load", &load) == false);
    return TEST_SUCCESS;

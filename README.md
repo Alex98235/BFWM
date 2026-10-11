@@ -36,18 +36,15 @@ The file is named `BFWM-Setup-<version>.exe`.
 
 Prerequisites (MSYS2 **UCRT64** shell):
 
-- CMake 3.15+
+- CMake 3.20+
 - MSYS2 **UCRT64** clang / clang++ (C11 + C++20)
-- `make` and the `MSYS Makefiles` generator
+- `ninja`
 
 ```sh
 git clone https://github.com/Alex98235/BFWM.git
 cd BFWM
-cmake -S . -B build -G "MSYS Makefiles" \
-  -DCMAKE_C_COMPILER=C:/msys64/ucrt64/bin/clang.exe \
-  -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/clang++.exe \
-  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
-cmake --build build
+cmake --preset ucrt64
+cmake --build --preset ucrt64
 ```
 
 The output binary is `build/BFWM.exe`. See

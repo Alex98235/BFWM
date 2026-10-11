@@ -1,8 +1,8 @@
 # ProfileCapture.ps1 - elevated PerfView capture of a scripted BFWM workload.
 #
-# Replaces the old wpr/wpaexporter pipeline with a single PerfView command.
-# PerfView is a self-contained exe (no .wprp XML, no profile files, no headless
-# exporter quirks) and its GUI does all analysis: CPU flame graphs, thread-time
+# Capture runs a single PerfView command. PerfView is a self-contained exe (no
+# .wprp XML, no profile files, no headless exporter quirks) and its GUI does all
+# analysis: CPU flame graphs, thread-time
 # wait analysis, automatic symbol resolution from the PDB next to the exe.
 #
 # Usage (from a normal shell):

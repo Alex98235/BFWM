@@ -238,7 +238,7 @@ inline auto FindNextFocusTarget(MainContext *main, Workspace *current_ws,
 }
 
 // ------------------------------------------------------------------
-// Window transition detection  (formerly in HandleObjectLocationChange)
+// Window transition detection
 // ------------------------------------------------------------------
 
 /**
@@ -247,9 +247,8 @@ inline auto FindNextFocusTarget(MainContext *main, Workspace *current_ws,
  * Called from ProcessMoveSizeEnd (user drag) and ProcessCreateOrForeground
  * (focus change).  Runs inside a transaction so it may queue ops.
  *
- * This replaces the per-pixel LOCATIONCHANGE handler.  Transitions are
- * now detected only at meaningful checkpoints (end of drag, focus change)
- * instead of on every pixel change.
+ * Transitions are detected only at meaningful checkpoints (end of drag,
+ * focus change), not on every pixel change.
  */
 inline void CheckWindowTransitions(SharedState *shared, MainContext *main,
                                    HWND hwnd) {
@@ -577,10 +576,9 @@ inline void HandleWindowReRegistered(HWND hwnd, struct SharedState *shared,
       // Focus must always shift to the workspace owning this window: cloak the
       // previously active workspace, uncloak this one, apply layout. This must
       // run before UpdateFocusTracking below (which applies layout), and it
-      // must run even inside the transaction — the guard further down only
-      // protects the orphan re-add path. Previously the shift sat after that
-      // guard and was unreachable, because DrainEventQueue always processes
-      // events inside a transaction.
+      // must run before the transaction check below — that check only protects
+      // the orphan re-add path, and DrainEventQueue always processes events
+      // inside a transaction, so a shift placed after it would never run.
       WorkspaceActivateForWindow(hwnd, shared, main);
 
       if ((main->focused_hwnd != nullptr) &&
@@ -1078,7 +1076,7 @@ void ProcessMoveSizeEnd(SharedState *shared, MainContext *main, HWND hwnd) {
       settled_win->SetMoveInFlight(FALSE);
    }
 
-   // ── Transition detection (formerly in LOCATIONCHANGE) ──
+   // ── Transition detection ──
    CheckWindowTransitions(shared, main, hwnd);
 
    // ── Main relayout ──

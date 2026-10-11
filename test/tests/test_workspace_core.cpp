@@ -32,7 +32,7 @@ inline auto make_win(std::vector<std::unique_ptr<Window>> &owned, HWND hwnd)
 inline void release_ws_windows(Workspace *ws) { ws->ClearWindows(); }
 
 /* The stack-declared MainContext used by these tests only needs a heap
- * monitor registry (ctx->monitors is now a unique_ptr member). */
+ * monitor registry (ctx->monitors is a unique_ptr member). */
 inline void init_test_monitors(MainContext *ctx) {
    ctx->monitors = std::make_unique<MonitorRegistry>();
 }

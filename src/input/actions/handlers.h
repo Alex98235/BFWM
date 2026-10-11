@@ -54,9 +54,6 @@ auto HandleMoveWorkspaceToMonitor(SharedState *shared, MainContext *main,
 
 /**
  * @brief Toggle fullscreen for an arbitrary HWND (not just the focused one).
- *
- * Extracted so that both HandleFullscreen (keybind) and the maximize-button
- * intercept in window_events.c can share the same logic.
  */
 void ToggleFullscreenForHwnd(HWND hwnd, SharedState *shared, MainContext *main);
 

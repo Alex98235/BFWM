@@ -6,8 +6,6 @@ A clang-tidy / clang-format driver for this project, exposed two ways:
 - as a **stdio MCP server**, registered in `opencode.json`, so an agent can run
   analysis and apply fixes directly.
 
-It supersedes the old `scripts/FixAndFormat.ps1`.
-
 ## Why it exists
 
 Running clang-tidy over the whole tree serially takes tens of minutes, and

@@ -963,7 +963,7 @@ auto Overlay::overlay_paint_strip_surface(OverlaySurface *surf) const
     * round-join pen drawn in DIB-local coordinates. DIB-local coordinates: the
     * ring frame offset by the strip origin. Single mode feeds GDI+ small
     * non-negative DIB coords; screen-space coords (negative for edge-flush
-    * windows, ~4k-8k on multi-monitor) made the old GdipDrawPath fail with
+    * windows, ~4k-8k on multi-monitor) make GdipDrawPath fail with
     * status 2 (InvalidParameter). The offset is an exact integer translation of
     * the same float geometry, so every strip rasterizes identical coverage —
     * the seam invariant holds. */
@@ -980,10 +980,10 @@ auto Overlay::overlay_paint_strip_surface(OverlaySurface *surf) const
 
    Gdiplus::Pen pen(Gdiplus::Color(argb), this->paint_stroke);
    /* The mingw/w32api Gdiplus::Pen wrapper hardcodes UnitWorld (no Unit ctor
-    * parameter, no SetUnit). This is pixel-equivalent to the old UnitPixel
-    * pen here: the Graphics is created straight from the DIB memory DC with an
-    * identity world transform and the default UnitDisplay page unit, so world
-    * units map 1:1 to device pixels. A UnitWorld pen could only scale under a
+    * parameter, no SetUnit). This is pixel-equivalent to a UnitPixel pen here:
+    * the Graphics is created straight from the DIB memory DC with an identity
+    * world transform and the default UnitDisplay page unit, so world units map
+    * 1:1 to device pixels. A UnitWorld pen could only scale under a
     * non-identity world/page transform, which this paint path never sets. */
    pen.SetLineJoin(Gdiplus::LineJoinRound);
    graphics.DrawPath(&pen, &path);
@@ -1202,10 +1202,10 @@ void Overlay::overlay_sync_strips(const RECT *efb, const OverlayInsets *insets,
 }
 
 /* Sync the ring to the target's live geometry through the change-gate. The
- * target is NOT guaranteed to be at rest — the landed gate was removed in
- * PR #5, so the EFB may be stale during an in-flight async move. The ring
- * converges to the correct position when the placement landed path re-marks
- * it dirty after the move lands (see MaybeIssueMove in placement.cpp). */
+ * target is NOT guaranteed to be at rest — the EFB may be stale during an
+ * in-flight async move. The ring converges to the correct position when the
+ * placement landed path re-marks it dirty after the move lands (see
+ * MaybeIssueMove in placement.cpp). */
 void Overlay::overlay_sync_position(BOOL suppress) {
    for (int index = 0; index < OVERLAY_STRIP_COUNT; index++) {
       if (IsWindow(this->surfaces[index].hwnd) == 0) {

@@ -100,17 +100,15 @@ class Monitor {
    void DecrementFullscreenCount() { --fullscreen_count_; }
 
    // Per-monitor operations
-   void Init(struct SharedState *shared,
-             struct MainContext *main); // was InitNewMonitor
+   void Init(struct SharedState *shared, struct MainContext *main);
    [[nodiscard]] auto CreateWorkspace(struct SharedState *shared,
                                       struct MainContext *main,
                                       size_t identifier) -> Workspace *;
    [[nodiscard]] auto SetupNewWorkspaces(struct SharedState *shared,
-                                         struct MainContext *main)
-       -> BOOL; // was SetupNewMonitorWorkspaces
+                                         struct MainContext *main) -> BOOL;
    [[nodiscard]] auto IsDisabled(struct SharedState *shared,
-                                 struct MainContext *main) const
-       -> BOOL; // was IsMonitorDisabled
+                                 struct MainContext *main) const -> BOOL;
+
  private:
    auto TryPinnedWorkspaces(struct SharedState *shared,
                             struct MainContext *main) -> BOOL;

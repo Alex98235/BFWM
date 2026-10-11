@@ -6,7 +6,7 @@
 CBELT_GROUP("placement_classify")
 
 // clang-format off
-/* Decision table after refactor (no self-healing float):
+/* Decision table (no self-healing float):
  *   landed = TRUE                               -> Issue
  *   landed = FALSE, stalled = FALSE             -> Defer  (move still in flight)
  *   landed = FALSE, stalled = TRUE              -> Issue  (re-issue) */

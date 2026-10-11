@@ -465,9 +465,9 @@ inline void ProcessKeystrokes(SharedState *shared, WorkerContext *worker,
    BOOL processed = FALSE;
    // Drain the queue fully: every key still applies (repeats and distinct keys
    // alike), each through the same dispatch path, but only ONE transaction
-   // commit at the end. Previously each key committed its own transaction,
-   // which throttled key rate to 1/commit-time and let the cap-8 drop-oldest
-   // queue drop distinct keys during a slow hold.
+   // commit at the end. A per-key commit would throttle key rate to
+   // 1/commit-time and let the cap-8 drop-oldest queue drop distinct keys
+   // during a slow hold.
    while (worker->keystroke_queue.Dequeue(queued)) {
       if (processed == FALSE) {
          main->transaction.Begin();

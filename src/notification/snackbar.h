@@ -281,7 +281,7 @@ class Snackbar {
    };
 
    // ============================================================
-   // MEMBER STATE (was a zeroed C struct; now member-initialised)
+   // MEMBER STATE (member-initialised)
    // ============================================================
 
    struct SharedState *shared = nullptr;

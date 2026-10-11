@@ -42,8 +42,8 @@ CBELT_TEST(center_deep_inside_dest) {
 }
 
 /* Pinned forward: unaware window dragged from the 125% monitor onto the 100%
- * monitor, center pinned exactly on the boundary. Windows caps the overhang so
- * the old content classifier could not migrate; geometry resolves it. */
+ * monitor, center pinned exactly on the boundary. Windows caps the overhang,
+ * so the migration must be resolved from geometry rather than content. */
 CBELT_TEST(pinned_forward_mixed_dpi) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
@@ -54,7 +54,7 @@ CBELT_TEST(pinned_forward_mixed_dpi) {
 }
 
 /* Pinned reverse: unaware window dragged from the 100% monitor onto the 125%
- * monitor — the reverse case that was previously impossible. */
+ * monitor. */
 CBELT_TEST(pinned_reverse_mixed_dpi) {
    FloatDragMonitor mons[2] = {Mon(0, 0, 2560, 1440, 96),
                                Mon(-1080, 0, 0, 1920, 120)};

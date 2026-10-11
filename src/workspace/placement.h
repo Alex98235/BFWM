@@ -141,9 +141,7 @@ void AdoptStuckLayouts(struct SharedState *shared, struct MainContext *main);
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
 /// a scaled monitor (the physical<->logical round-trip can leave the landed
-/// rect a few px off the issued rect). Formerly shared with overlay.cpp's
-/// now-removed OverlayFlush landed gate (PR #5); now only used within the
-/// placement pass.
+/// rect a few px off the issued rect). Used only within the placement pass.
 auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
                           HWND hwnd) -> int;
 

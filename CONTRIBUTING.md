@@ -9,11 +9,8 @@ BFWM builds with the MSYS2 **UCRT64** environment and Clang. Install the
 toolchain and build:
 
 ```sh
-cmake -S . -B build -G "MSYS Makefiles" \
-  -DCMAKE_C_COMPILER=C:/msys64/ucrt64/bin/clang.exe \
-  -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/clang++.exe \
-  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
-cmake --build build
+cmake --preset ucrt64
+cmake --build --preset ucrt64
 ```
 
 Then run the tests:

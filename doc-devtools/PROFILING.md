@@ -10,11 +10,8 @@ opt-in profiling build, which emits CodeView debug info and a PDB (via `lld`)
 so PerfView can resolve symbols:
 
 ```sh
-cmake -S . -B build-profile -G "MSYS Makefiles" \
-  -DCMAKE_C_COMPILER=C:/msys64/ucrt64/bin/clang.exe \
-  -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/clang++.exe \
-  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe \
-  -DBFWM_PROFILE_BUILD=ON
+# -B directory override needs CMake 3.21+ (the ucrt64 preset itself needs 3.20)
+cmake --preset ucrt64 -B build-profile -DBFWM_PROFILE_BUILD=ON
 cmake --build build-profile --target BFWM
 ```
 

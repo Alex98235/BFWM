@@ -134,7 +134,7 @@ inline void ApplyOperation(struct SharedState *shared, struct MainContext *main,
 
    case OP_BORDER_COLOR:
       if (IsWindowVisible(operation->hwnd) != 0) {
-         // OP_OVERLAY_PAINT: the ring replaces the DWM border color path.
+         // Border colour is painted by the overlay ring.
          Window *win = main->windows->FindByHwnd(operation->hwnd);
          if (win != nullptr) {
             win->SetOverlayColor(operation->op_types.border.color);
