@@ -1,9 +1,14 @@
 name: CI
 
+# Docs-only changes (the website, markdown, LICENSE) skip CI. Do not make this
+# workflow a required status check: a path-skipped PR never reports a result,
+# so it would stall on "Expected".
 on:
   push:
     branches: ['main']
+    paths-ignore: ['website/**', '**.md', 'LICENSE']
   pull_request:
+    paths-ignore: ['website/**', '**.md', 'LICENSE']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
