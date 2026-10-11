@@ -38,6 +38,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'advanced/custom-lua-actions',
+        'advanced/custom-indicators',
         'advanced/command-line',
       ],
     },

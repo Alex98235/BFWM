@@ -120,8 +120,13 @@ Bar.indicators = {
 If the named global is missing, is not a function, or raises an error, the
 event is dropped and the problem is logged once per function name at the Warn
 level. When no `on_click`/`on_scroll` is configured, the indicator falls back to
-its built-in default: **workspaces** activate the clicked tab and cycle on
-scroll; all other indicators have no default action.
+its built-in default.
+
+:::important
+**workspaces** activate the clicked workspace tab and cycle on scroll;
+all other indicators have no default action. You are free to override these, but I do not recommend you do so.
+BFWM does not (currently) expose any way to control workspace activation or focus management externally.
+:::
 
 The bar consumes `WM_MOUSEWHEEL` while the pointer is hovering it, so wheel
 events over the bar are handled by the indicators (and do not fall through to
@@ -227,22 +232,8 @@ Behavior:
   the app it tracks isn't running), letting the bar reclaim the space.
 - `output` is ignored on every non-`custom` type.
 
-External data (a media player, a status CLI, ...) can be read without blocking
-the UI via `BFWM.exec_cache`:
-
-```lua
-function media_status(id)
-  -- argv-only (no shell); returns the last cached stdout, or nil until ready
-  local out = BFWM.exec_cache({ "my-media-cli", "status" }, "media", 1500)
-  if not out then return nil end
-  -- e.g. parse "Artist - Title" or a JSON blob here
-  return { text = out, icon = "" }
-end
-
-Bar.indicators = {
-  { type = "custom", align = "right", id = "media", output = "media_status" },
-}
-```
+For reading external data (a media player, a status CLI, ...) without blocking
+the UI, see [Custom Indicators](/advanced/custom-indicators).
 
 ## Format Specifiers
 
