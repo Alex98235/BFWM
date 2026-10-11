@@ -3,18 +3,20 @@
 # Compiles the BFWM installer with Inno Setup 6+ (iscc).
 # Requires the built executable (build\BFWM.exe) and the icon
 # (icons\BFWM.ico, produced by scripts\build_icon.ps1).
-# The version is read from the VERSION file at the repo root and passed to
-# iscc as /DMyAppVersion=<version>.
+# The version is passed to iscc as /DMyAppVersion=<version>; it defaults to a
+# dev marker when -Version is omitted.
 #
 # Usage:
 #   scripts\build_installer.ps1
+#   scripts\build_installer.ps1 -Version 1.2.3
 #   scripts\build_installer.ps1 -Iscc "C:\Program Files\Inno Setup 7\ISCC.exe"
 #
 # iscc is auto-detected from the standard install locations, then PATH.
 # Output: installer\output\BFWM-Setup-<version>.exe
 
 param(
-    [string]$Iscc = ''
+    [string]$Iscc = '',
+    [string]$Version = '0.0.0-dev'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,10 +60,7 @@ if ([string]::IsNullOrWhiteSpace($Iscc) -or -not (Test-Path -LiteralPath $Iscc -
     throw "iscc not found. Install Inno Setup 6+ (winget install --id JRSoftware.InnoSetup.7) or pass -Iscc <path>."
 }
 
-# 3. Read the version from the VERSION file (single source of truth) ------------
-
-$VersionPath = Join-Path $RepoRoot 'VERSION'
-$Version = (Get-Content -LiteralPath $VersionPath -Raw).Trim()
+# 3. Version (passed with -Version; defaults to a dev marker) -------------------
 
 # 4. Compile the installer ------------------------------------------------------
 
