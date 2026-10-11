@@ -2353,6 +2353,11 @@ inline auto ParseIndicatorOutput(lua_State *lua_state, int idx,
    }
    lua_pop(lua_state, 1);
 
+   RawGetField(lua_state, abs_idx, "clear");
+   if (lua_toboolean(lua_state, -1) != 0)
+      out->clear = true;
+   lua_pop(lua_state, 1);
+
    ReadLuaValues(lua_state, abs_idx, out);
    out->valid = true;
    return true;

@@ -198,12 +198,13 @@ inline auto FormatNumber(double value, int precision) -> std::string {
            std::min<size_t>(static_cast<size_t>(len), buf.size() - 1)};
 }
 
-/// Log an unknown `{name}` specifier once (at Warn).
+/// Log a `{name}` specifier with no value once (at Warn).
 
-inline void LogUnknownSpecifier(const std::string &name) {
+inline void LogMissingSpecifier(const std::string &name) {
    static std::set<std::string> logged;
    if (logged.insert(name).second) {
-      Warn("Indicator format: unknown specifier '{%s}' (emitted literally)",
+      Warn("Indicator format: no value for specifier '{%s}' (rendered empty; "
+           "logged once per run)",
            name.c_str());
    }
 }
@@ -260,9 +261,9 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
       } else {
          const IndicatorValue *value = FindValue(runtime, name);
          if (value == nullptr) {
-            // Unknown name: emit the token literally, log once.
-            out += fmt.substr(cursor, close - cursor + 1);
-            LogUnknownSpecifier(name);
+            // No value this poll: render nothing (log once), rather than
+            // leaking `{name}` into the bar.
+            LogMissingSpecifier(name);
          } else if (value->is_num) {
             int const precision = (explicit_precision >= 0) ? explicit_precision
                                                             : value->precision;
@@ -888,9 +889,17 @@ auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
 
 auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
                            IndicatorRuntime &runtime) -> bool {
-   if (per_frame || runtime.valid)
+   if (per_frame || runtime.valid || runtime.clear_requested)
       return false;
    runtime = previous;
+   return true;
+}
+
+auto IndicatorDropClearedOutput(IndicatorRuntime &runtime) -> bool {
+   if (!runtime.clear_requested)
+      return false;
+   runtime.text.clear();
+   runtime.valid = false;
    return true;
 }
 
@@ -914,6 +923,7 @@ auto IndicatorResolveEffects(const BarIndicatorConfig &cfg,
 
 void ApplyIndicatorOutput(const LuaIndicatorOutput &out,
                           IndicatorRuntime &runtime) {
+   runtime.clear_requested = out.clear;
    runtime.values.clear();
    runtime.state.clear();
    runtime.icon.clear();
@@ -1022,6 +1032,12 @@ void Bar::ComposeIndicator(int slot) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime &runtime = runtimes[slot];
 
+   // A custom callback that returned { clear = true } drops its output: don't
+   // re-compose the format from the (now empty) values, or the raw template
+   // (e.g. "{icon} {text}") would be drawn.
+   if (IndicatorDropClearedOutput(runtime))
+      return;
+
    const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)
       return;
@@ -1127,6 +1143,7 @@ void Bar::RefreshIndicator(int slot) {
    runtime.icon.clear();
    runtime.color = Clay_Color{};
    runtime.color_set = false;
+   runtime.clear_requested = false;
    runtime.polled = true;
    runtime.last_poll_ms = now;
 

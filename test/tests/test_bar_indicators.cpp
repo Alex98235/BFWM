@@ -118,7 +118,7 @@ CBELT_TEST(format_icon_and_state_tokens) {
    return TEST_SUCCESS;
 }
 
-CBELT_TEST(format_unknown_specifier_is_literal) {
+CBELT_TEST(format_missing_specifier_renders_empty) {
    BarIndicatorConfig cfg = {};
    cfg.type = BAR_INDICATOR_CPU;
    cfg.format = "x{nope}y";
@@ -126,8 +126,28 @@ CBELT_TEST(format_unknown_specifier_is_literal) {
    IndicatorRuntime rt;
    rt.values.push_back(num_value("value", 1.0, 0));
 
+   /* An absent specifier renders nothing (surrounding literals survive). */
    std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
-   cbelt_assert(strcmp(out.c_str(), "x{nope}y") == 0);
+   cbelt_assert(strcmp(out.c_str(), "xy") == 0);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(format_missing_specifier_with_others_fills_present) {
+   BarIndicatorConfig cfg = {};
+   cfg.type = BAR_INDICATOR_CPU;
+
+   IndicatorRuntime rt;
+   rt.values.push_back(num_value("value", 42.0, 0));
+
+   /* No icon/text present: the absent tokens contribute nothing at all. */
+   cfg.format = "{icon}{text}";
+   std::string const empty = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(empty.empty());
+
+   /* A present value still fills in while an absent one stays empty. */
+   cfg.format = "{value}{text}";
+   std::string const mixed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(strcmp(mixed.c_str(), "42") == 0);
    return TEST_SUCCESS;
 }
 
@@ -500,6 +520,83 @@ CBELT_TEST(apply_custom_output_empty_is_invalid) {
    return TEST_SUCCESS;
 }
 
+CBELT_TEST(apply_custom_output_clear_drops_runtime) {
+   LuaIndicatorOutput out;
+   out.valid = true; /* a `{ clear = true }` table carries no drawable fields */
+   out.clear = true;
+
+   IndicatorRuntime rt;
+   rt.text = "stale";
+   rt.state = "old";
+   rt.icon = "old";
+   rt.color_set = true;
+   rt.values.push_back(num_value("old", 9.0, 0));
+   rt.valid = true;
+
+   ApplyIndicatorOutput(out, rt);
+
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+   cbelt_assert(rt.state.empty());
+   cbelt_assert(rt.icon.empty());
+   cbelt_assert(rt.color_set == false);
+   cbelt_assert(rt.values.empty());
+   cbelt_assert(rt.clear_requested == true);
+
+   /* A non-clear output resets the flag so it never persists across polls. */
+   LuaIndicatorOutput plain;
+   plain.valid = true;
+   plain.has_text = true;
+   plain.text = "again";
+   ApplyIndicatorOutput(plain, rt);
+   cbelt_assert(rt.clear_requested == false);
+   cbelt_assert(rt.valid == true);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(clear_requested_drops_before_format_compose) {
+   /* `{ clear = true }` maps to an invalid, empty runtime with the flag set. */
+   LuaIndicatorOutput out;
+   out.valid = true;
+   out.clear = true;
+   IndicatorRuntime rt;
+   rt.text = "old";
+   ApplyIndicatorOutput(out, rt);
+   cbelt_assert(rt.clear_requested == true);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+
+   /* With a non-empty format the absent specifiers no longer leak, but the
+    * literal separator between them would remain, so the runtime would still
+    * be non-empty (and thus drawable) without the short-circuit. */
+   BarIndicatorConfig cfg = {};
+   cfg.type = BAR_INDICATOR_CUSTOM;
+   cfg.format = "{icon} {text}";
+   std::string const residue =
+       IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(residue.find('{') == std::string::npos);
+   cbelt_assert(!residue.empty());
+
+   /* The compose short-circuit drops the cleared output instead: not drawn. */
+   cbelt_assert(IndicatorDropClearedOutput(rt) == true);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+
+   /* A subsequent normal output clears the flag and composes again. */
+   LuaIndicatorOutput again;
+   again.valid = true;
+   again.has_text = true;
+   again.text = "back";
+   ApplyIndicatorOutput(again, rt);
+   cbelt_assert(rt.clear_requested == false);
+   cbelt_assert(IndicatorDropClearedOutput(rt) == false);
+   std::string const composed =
+       IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(strcmp(composed.c_str(), " back") == 0);
+   cbelt_assert(rt.valid == true);
+   return TEST_SUCCESS;
+}
+
 CBELT_TEST(indicator_resolve_effects_output_color_precedence) {
    Clay_Color const bar_default = {
        .r = 9.0F, .g = 9.0F, .b = 9.0F, .a = 255.0F};
@@ -626,6 +723,35 @@ CBELT_TEST(keep_previous_restores_whole_runtime_on_polled_failure) {
    cbelt_assert(IndicatorKeepPrevious(false, no_previous, fresh) == true);
    cbelt_assert(fresh.valid == false);
    cbelt_assert(fresh.text.empty());
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(keep_previous_ignored_when_clear_requested) {
+   /* A last-good runtime that must NOT be revived after an explicit clear. */
+   IndicatorRuntime previous;
+   previous.text = "GOOD";
+   previous.valid = true;
+   previous.values.push_back(num_value("value", 42.0, 0));
+
+   /* Poll returned `{ clear = true }`: ApplyIndicatorOutput made it invalid but
+    * flagged clear_requested, which suppresses the keep-previous restore. */
+   IndicatorRuntime rt;
+   rt.clear_requested = true;
+   rt.valid = false;
+   bool const restored = IndicatorKeepPrevious(false, previous, rt);
+   cbelt_assert(restored == false);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+   cbelt_assert(rt.values.empty());
+
+   /* A plain nil/invalid poll still restores the last good snapshot. */
+   IndicatorRuntime plain;
+   plain.valid = false;
+   plain.clear_requested = false;
+   cbelt_assert(IndicatorKeepPrevious(false, previous, plain) == true);
+   cbelt_assert(strcmp(plain.text.c_str(), "GOOD") == 0);
+   cbelt_assert(plain.valid == true);
+   cbelt_assert(plain.values.size() == 1);
    return TEST_SUCCESS;
 }
 

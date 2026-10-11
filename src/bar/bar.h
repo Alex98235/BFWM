@@ -57,9 +57,10 @@ struct IndicatorRuntime {
    std::vector<std::string> item_text; // workspaces: per-tab text
    std::vector<int> item_width;        // workspaces: per-tab measured width
    ULONGLONG last_poll_ms = 0;
-   bool polled = false;    // true once a provider refresh has run
-   bool valid = false;     // false => nothing to draw
-   bool color_set = false; // runtime.color came from the provider output
+   bool polled = false;          // true once a provider refresh has run
+   bool valid = false;           // false => nothing to draw
+   bool color_set = false;       // runtime.color came from the provider output
+   bool clear_requested = false; // per-poll: the callback asked to drop output
 };
 
 /**
@@ -91,6 +92,15 @@ auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
 /// reviving stale state. Exposed for unit testing.
 auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
                            IndicatorRuntime &runtime) -> bool;
+
+/// Drop a custom callback's cleared output before compose.
+///
+/// When the callback returned `{ clear = true }`, `runtime.clear_requested` is
+/// set and the runtime must not be re-composed — otherwise the raw format
+/// template (e.g. `"{icon} {text}"`) would be drawn from the now-empty value
+/// bag. Clears `text` and marks the runtime invalid. Returns true when it
+/// dropped. Exposed for unit testing.
+auto IndicatorDropClearedOutput(IndicatorRuntime &runtime) -> bool;
 
 /// Resolve the matched rule's icon/color effects into `icon_out`/`color_out`.
 ///

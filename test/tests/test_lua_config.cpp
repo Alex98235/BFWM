@@ -902,6 +902,37 @@ CBELT_TEST(call_output_table_return) {
    return TEST_SUCCESS;
 }
 
+CBELT_TEST(call_output_clear_table) {
+   const char *lua = "function cl(id) return { clear = true } end\n"
+                     "function pl(id) return { text = \"x\" } end\n";
+   std::string path = write_temp_config(lua);
+   cbelt_assert_false(path.empty());
+   TestCtx *ctx = create_test_ctx();
+   LuaConfig config = {};
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
+
+   int const before = lua_gettop(config.L);
+   LuaIndicatorOutput out;
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "cl",
+                                    "s", &out) == TRUE);
+   cbelt_assert(out.valid == true);
+   cbelt_assert(out.clear == true);
+   cbelt_assert(out.has_text == false && out.values.empty());
+
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "pl",
+                                    "s", &out) == TRUE);
+   cbelt_assert(out.valid == true);
+   cbelt_assert(out.clear == false);
+   cbelt_assert(out.has_text == true);
+   cbelt_assert(lua_gettop(config.L) == before);
+
+   LuaConfigFree(&config);
+   destroy_test_ctx(ctx);
+   remove(path.c_str());
+   return TEST_SUCCESS;
+}
+
 CBELT_TEST(call_output_nil_or_missing_returns_false) {
    const char *lua = "function out(id) return nil end\n";
    std::string path = write_temp_config(lua);

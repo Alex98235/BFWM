@@ -223,6 +223,8 @@ Behavior:
 - Returning `nil`/`false`, a missing `output` function, or an error hides the
   indicator; on a later failure the **last good** value is retained (no
   flicker).
+- Return `{ clear = true }` to drop the indicator's output entirely (e.g. when
+  the app it tracks isn't running), letting the bar reclaim the space.
 - `output` is ignored on every non-`custom` type.
 
 External data (a media player, a status CLI, ...) can be read without blocking
@@ -258,8 +260,8 @@ are always available; the rest are provided by the indicator type.
 | `{title}` | Focused window title | Title |
 
 Without a `.Nf` suffix, numeric values use the indicator's default precision
-(volume/network/cpu `0`, memory `1`). Unknown specifiers are emitted literally
-and logged once at the Warn level. For `"custom"`, every name returned in
+(volume/network/cpu `0`, memory `1`). A specifier with no value renders empty
+and is logged once at the Warn level. For `"custom"`, every name returned in
 `values` is addressable and `{value}` aliases the returned `value`.
 
 ## Example
