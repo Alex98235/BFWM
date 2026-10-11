@@ -13,8 +13,6 @@
 #define BFWM_PLACEMENT_H
 
 #include <windows.h>
-
-struct BFWMContext;
 class Window;
 class Workspace;
 
@@ -100,7 +98,8 @@ void ClampRectWithInsets(RECT *rect, RECT const *bounds,
  * @param workspace The workspace to place
  * @param ctx The BFWM context (moves_in_flight is recomputed each pass)
  */
-void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
+void PlacementApply(Workspace *workspace, struct SharedState *shared,
+                    struct MainContext *main);
 
 /**
  * @brief Ungated single-shot move issue (no backpressure gate).
@@ -109,13 +108,14 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
  * without touching moves_in_flight (single-shot paths such as
  * OP_MOVE_WINDOW / floating-center moves must not trigger the convergence
  * pass while a window is mid-move). The border ring is marked dirty here,
- * preserving the ring-on-landed-rect invariant.
+ * marking the ring dirty; the commit-end flush syncs to the latest geometry.
  *
  * @param win  The window to move
  * @param rect The desired frame rect
  * @param ctx  The BFWM context (unused except for API symmetry)
  */
-void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
+void PlacementIssueMove(Window *win, const RECT *rect,
+                        struct SharedState *shared, struct MainContext *main);
 
 /**
  * @brief Check the focused workspace for windows that persistently refuse
@@ -136,14 +136,14 @@ void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
  *
  * @param ctx The BFWM context
  */
-void AdoptStuckLayouts(struct BFWMContext *ctx);
+void AdoptStuckLayouts(struct SharedState *shared, struct MainContext *main);
 
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
 /// a scaled monitor (the physical<->logical round-trip can leave the landed
-/// rect a few px off the issued rect). Shared by the placement move pass and
-/// OverlayFlush so both detect "landed" identically.
-auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int;
+/// rect a few px off the issued rect). Used only within the placement pass.
+auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
+                          HWND hwnd) -> int;
 
 /// Compare two RECTs for equality within a per-field pixel tolerance (0 =
 /// exact).

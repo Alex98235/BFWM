@@ -7,8 +7,6 @@
 #define BFWM_WINDOW_CLEANUP_H
 
 #include <windows.h>
-
-struct BFWMContext;
 class Window;
 
 /**
@@ -21,6 +19,7 @@ class Window;
  * @param ctx   The BFWM context
  * @param hWnd  HWND of the terminated window
  */
-void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd);
+void CleanupTerminatedWindow(struct SharedState *shared,
+                             struct MainContext *main, HWND hWnd);
 
 #endif /* BFWM_WINDOW_CLEANUP_H */

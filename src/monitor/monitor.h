@@ -100,17 +100,22 @@ class Monitor {
    void DecrementFullscreenCount() { --fullscreen_count_; }
 
    // Per-monitor operations
-   void Init(struct BFWMContext *ctx); // was InitNewMonitor
-   [[nodiscard]] auto CreateWorkspace(struct BFWMContext *ctx,
+   void Init(struct SharedState *shared, struct MainContext *main);
+   [[nodiscard]] auto CreateWorkspace(struct SharedState *shared,
+                                      struct MainContext *main,
                                       size_t identifier) -> Workspace *;
-   [[nodiscard]] auto SetupNewWorkspaces(struct BFWMContext *ctx)
-       -> BOOL; // was SetupNewMonitorWorkspaces
-   [[nodiscard]] auto IsDisabled(struct BFWMContext *ctx) const
-       -> BOOL; // was IsMonitorDisabled
+   [[nodiscard]] auto SetupNewWorkspaces(struct SharedState *shared,
+                                         struct MainContext *main) -> BOOL;
+   [[nodiscard]] auto IsDisabled(struct SharedState *shared,
+                                 struct MainContext *main) const -> BOOL;
+
  private:
-   auto TryPinnedWorkspaces(struct BFWMContext *ctx) -> BOOL;
-   auto TryOriginWorkspaces(struct BFWMContext *ctx) -> BOOL;
-   auto TryFreshWorkspace(struct BFWMContext *ctx) -> BOOL;
+   auto TryPinnedWorkspaces(struct SharedState *shared,
+                            struct MainContext *main) -> BOOL;
+   auto TryOriginWorkspaces(struct SharedState *shared,
+                            struct MainContext *main) -> BOOL;
+   auto TryFreshWorkspace(struct SharedState *shared, struct MainContext *main)
+       -> BOOL;
 
    HMONITOR handle_ = nullptr;
    RECT rect_ = {};
@@ -176,12 +181,13 @@ auto SortMonitorByPosition(Monitor const *a, Monitor const *b) -> bool;
 /**
  * @brief EnumDisplayMonitors callback payload: target registry + context.
  *
- * MonitorEnumProc needs both the registry to fill and the BFWMContext so it
- * can register each monitor's effective DPI with ctx->dpi.
+ * MonitorEnumProc needs both the registry to fill and SharedState/MainContext
+ * so it can register each monitor's effective DPI with main->dpi.
  */
 using MonitorEnumData = struct {
    MonitorRegistry *reg;
-   struct BFWMContext *ctx;
+   struct SharedState *shared;
+   struct MainContext *main;
 };
 
 /**
@@ -208,8 +214,9 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
  * (DirLeft/DirRight/DirUp/Down/DirNext/DirPrev)
  * @return Workspace* Pointer to the neighbouring workspace, or NULL
  */
-auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
-    -> Workspace *;
+auto FindNeighbouringWorkspace(struct SharedState *shared,
+                               struct MainContext *main,
+                               BFWMDirection direction) -> Workspace *;
 
 /**
  * @brief Find the monitor for a given HWND.
@@ -221,14 +228,17 @@ auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
  * @return Monitor* Pointer to the monitor, or NULL if the window
  *         is not managed or not found on any workspace.
  */
-auto FindMonitorForHwnd(struct BFWMContext *ctx, HWND hwnd) -> Monitor *;
+auto FindMonitorForHwnd(struct SharedState *shared, struct MainContext *main,
+                        HWND hwnd) -> Monitor *;
 
-auto FindNeighbouringMonitor(struct BFWMContext *ctx, Monitor *src,
+auto FindNeighbouringMonitor(struct SharedState *shared,
+                             struct MainContext *main, Monitor *src,
                              BFWMDirection direction) -> Monitor *;
 
-auto FindMonitorByDisplayNumber(struct BFWMContext *ctx, UINT display_number)
+auto FindMonitorByDisplayNumber(struct SharedState *shared,
+                                struct MainContext *main, UINT display_number)
     -> Monitor *;
 
-void ReconcileMonitors(struct BFWMContext *ctx);
+void ReconcileMonitors(struct SharedState *shared, struct MainContext *main);
 
 #endif

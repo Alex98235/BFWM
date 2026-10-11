@@ -92,11 +92,10 @@ class GdiplusRuntime {
 /* The ctor keeps its never-fails contract: the fallible work lives in Init,
  * so a failure just leaves the object inert (no strip surfaces, every method a
  * no-op) and the caller can retry with a later Init() call. */
-Overlay::Overlay(struct BFWMContext *ctx, Window *owner, COLORREF color,
-                 int width, int radius)
-    : ctx(ctx), owner_(owner),
-      target((owner != nullptr) ? owner->GetHwnd() : nullptr), color(color),
-      width(width), radius(radius) {
+Overlay::Overlay(struct SharedState *shared, struct MainContext *main,
+                 HWND target, COLORREF color, int width, int radius)
+    : shared(shared), main(main), target(target), color(color), width(width),
+      radius(radius) {
    /* Never-fails contract: the result is intentionally discarded — on failure
     * the object is left inert (all methods no-op) and the caller can retry
     * with a later Init() call. */
@@ -172,16 +171,17 @@ auto Overlay::Init() -> bool {
          DWORD own_windows = 0;
          EnumWindows(CountOwnWindowProc,
                      reinterpret_cast<LPARAM>(&own_windows));
-         const size_t registry_size = (this->ctx->windows != nullptr)
-                                          ? this->ctx->windows->Windows().size()
-                                          : 0;
+         const size_t registry_size =
+             (this->main->windows != nullptr)
+                 ? this->main->windows->Windows().size()
+                 : 0;
 
          ErrorW(L"Overlay: construction failed — USER objects %lu / GDI "
                 L"objects %lu / own windows %lu / registry %zu / suspended "
                 L"%d / resize_hwnd %p",
                 (unsigned long)user_objects, (unsigned long)gdi_objects,
                 (unsigned long)own_windows, registry_size,
-                (int)this->ctx->suspended, (void *)this->ctx->resize_hwnd);
+                (int)this->main->suspended, (void *)this->main->resize_hwnd);
       }
 
       /* Partial construction: tear down the strips created so far and leave
@@ -334,23 +334,18 @@ void Overlay::OverlayMarkDirty() {
    this->reconcile_needed = TRUE;
 }
 
-auto Overlay::OverlayFlush() -> BOOL {
+auto Overlay::OverlayFlush(BOOL suppress) -> BOOL {
    if ((IsWindow(this->surfaces[0].hwnd) == FALSE) ||
        (IsWindow(this->target) == FALSE)) {
       return FALSE;
    }
 
-   /* Fullscreen windows keep their ring suppressed. */
-   Window *win = this->owner_;
-   BOOL const suppress = static_cast<BOOL>(
-       (win != nullptr) && ((win->IsFullscreen() != FALSE) ||
-                            (win->IsUnmanagedFullscreen() != FALSE)));
-
-   if ((this->dirty == FALSE) || (IsWindow(this->surfaces[0].hwnd) == FALSE) ||
-       (IsWindow(this->target) == FALSE)) {
+   if (this->dirty == FALSE) {
       return FALSE;
    }
 
+   /* The caller owns the fullscreen-suppress decision (it holds the owning
+    * window's fullscreen flags); the flush only converges the dirty ring. */
    overlay_sync_position(suppress);
    return TRUE;
 }
@@ -471,28 +466,28 @@ void Overlay::OverlayReconcile(BOOL suppress, BOOL force) {
  * flag would otherwise hide the ring forever. Also catches undetected
  * fullscreen enters. Flushes + commits once when anything changed; no idle
  * churn. */
-void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
-   ReclaimStaleWindows(ctx);
+void Overlay::OverlayReconcileAll(struct SharedState *shared,
+                                  struct MainContext *main) {
+   ReclaimStaleWindows(shared, main);
 
    BOOL any_dirty = FALSE;
 
-   for (const auto &window : ctx->windows->Windows()) {
+   for (const auto &window : main->windows->Windows()) {
       Window *win = window.get();
-      if ((win == nullptr) || (win->GetOverlay() == nullptr))
+      if ((win == nullptr) || (win->overlay_ == nullptr))
          continue;
 
       BOOL suppress = static_cast<BOOL>((win->IsFullscreen() == TRUE) ||
                                         (win->IsUnmanagedFullscreen() == TRUE));
       BOOL ring_visible = TRUE;
       for (int index = 0; index < OVERLAY_STRIP_COUNT; index++) {
-         if (IsWindowVisible(win->GetOverlay()->surfaces[index].hwnd) ==
-             FALSE) {
+         if (IsWindowVisible(win->overlay_->surfaces[index].hwnd) == FALSE) {
             ring_visible = FALSE;
             break;
          }
       }
-      BOOL const target_visible = IsWindowVisible(win->GetOverlay()->target);
-      BOOL const target_iconic = IsIconic(win->GetOverlay()->target);
+      BOOL const target_visible = IsWindowVisible(win->overlay_->target);
+      BOOL const target_iconic = IsIconic(win->overlay_->target);
 
       /* Live re-derivation of fullscreen state — do NOT trust the flags alone.
        */
@@ -502,7 +497,7 @@ void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
           * live. Re-derive; if it is not actually fullscreen, clear the flags.
           */
          FullscreenType const live =
-             DetectFullscreenWindow(win->GetOverlay()->target);
+             DetectFullscreenWindow(win->overlay_->target);
          if (live != FS_EXCLUSIVE_FULLSCREEN && live != FS_BORDERLESS_WINDOW) {
             win->SetFullscreen(FALSE);
             win->SetUnmanagedFullscreen(FALSE);
@@ -513,25 +508,28 @@ void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
          /* Undetected fullscreen enter: ring is up but the window became
           * fullscreen without the checkpoint noticing — suppress it. */
          FullscreenType const live =
-             DetectFullscreenWindow(win->GetOverlay()->target);
+             DetectFullscreenWindow(win->overlay_->target);
          if (live == FS_EXCLUSIVE_FULLSCREEN || live == FS_BORDERLESS_WINDOW) {
             win->SetFullscreen(TRUE);
             suppress = TRUE;
          }
       }
 
-      win->GetOverlay()->OverlayReconcile(suppress, TRUE);
+      win->overlay_->OverlayReconcile(suppress, TRUE);
 
-      if (win->GetOverlay()->dirty == TRUE)
+      if (win->overlay_->dirty == TRUE)
          any_dirty = TRUE;
    }
 
    /* Flush + commit only when something changed (no idle churn). */
    if (any_dirty == TRUE) {
-      for (const auto &window : ctx->windows->Windows()) {
+      for (const auto &window : main->windows->Windows()) {
          Window *win = window.get();
-         if ((win != nullptr) && (win->GetOverlay() != nullptr))
-            win->GetOverlay()->OverlayFlush();
+         if ((win != nullptr) && (win->overlay_ != nullptr)) {
+            win->overlay_->OverlayFlush(
+                static_cast<BOOL>((win->IsFullscreen() == TRUE) ||
+                                  (win->IsUnmanagedFullscreen() == TRUE)));
+         }
       }
    }
 }
@@ -684,11 +682,11 @@ void Overlay::overlay_measure_insets(HWND target, const RECT *efb,
 auto Overlay::overlay_dpi() const -> UINT {
    HMONITOR hmon = MonitorFromWindow(this->target, MONITOR_DEFAULTTONEAREST);
    UINT dpi = DpiSystem::BaseDpi();
-   if ((this->ctx != nullptr) && (this->ctx->dpi != nullptr)) {
+   if ((this->shared != nullptr) && (this->main->dpi != nullptr)) {
       /* GetDpi returns 0 on a registry miss under the upcoming sentinel
        * semantics; under the current semantics it returns 96. Either way a 0
        * result must fall back to the base DPI. */
-      UINT const queried = this->ctx->dpi->GetDpi(hmon);
+      UINT const queried = this->main->dpi->GetDpi(hmon);
       if (queried != 0) {
          dpi = queried;
       }
@@ -965,7 +963,7 @@ auto Overlay::overlay_paint_strip_surface(OverlaySurface *surf) const
     * round-join pen drawn in DIB-local coordinates. DIB-local coordinates: the
     * ring frame offset by the strip origin. Single mode feeds GDI+ small
     * non-negative DIB coords; screen-space coords (negative for edge-flush
-    * windows, ~4k-8k on multi-monitor) made the old GdipDrawPath fail with
+    * windows, ~4k-8k on multi-monitor) make GdipDrawPath fail with
     * status 2 (InvalidParameter). The offset is an exact integer translation of
     * the same float geometry, so every strip rasterizes identical coverage —
     * the seam invariant holds. */
@@ -982,10 +980,10 @@ auto Overlay::overlay_paint_strip_surface(OverlaySurface *surf) const
 
    Gdiplus::Pen pen(Gdiplus::Color(argb), this->paint_stroke);
    /* The mingw/w32api Gdiplus::Pen wrapper hardcodes UnitWorld (no Unit ctor
-    * parameter, no SetUnit). This is pixel-equivalent to the old UnitPixel
-    * pen here: the Graphics is created straight from the DIB memory DC with an
-    * identity world transform and the default UnitDisplay page unit, so world
-    * units map 1:1 to device pixels. A UnitWorld pen could only scale under a
+    * parameter, no SetUnit). This is pixel-equivalent to a UnitPixel pen here:
+    * the Graphics is created straight from the DIB memory DC with an identity
+    * world transform and the default UnitDisplay page unit, so world units map
+    * 1:1 to device pixels. A UnitWorld pen could only scale under a
     * non-identity world/page transform, which this paint path never sets. */
    pen.SetLineJoin(Gdiplus::LineJoinRound);
    graphics.DrawPath(&pen, &path);
@@ -1204,8 +1202,10 @@ void Overlay::overlay_sync_strips(const RECT *efb, const OverlayInsets *insets,
 }
 
 /* Sync the ring to the target's live geometry through the change-gate. The
- * caller (OverlayFlush) guarantees the target is at rest — a landed rect —
- * so the EFB read and the inset measurement are in the same space. */
+ * target is NOT guaranteed to be at rest — the EFB may be stale during an
+ * in-flight async move. The ring converges to the correct position when the
+ * placement landed path re-marks it dirty after the move lands (see
+ * MaybeIssueMove in placement.cpp). */
 void Overlay::overlay_sync_position(BOOL suppress) {
    for (int index = 0; index < OVERLAY_STRIP_COUNT; index++) {
       if (IsWindow(this->surfaces[index].hwnd) == 0) {
@@ -1270,9 +1270,10 @@ void Overlay::overlay_sync_position(BOOL suppress) {
       return; /* border dies, WM survives */
    }
 
-   /* The target is at rest (landed gate in OverlayFlush), so the EFB and the
-    * inset measurement are in the same space: the deltas are the true
-    * chrome/frame widths, never a move displacement. */
+   /* The EFB and the inset measurement come from the same live Win32 call, so
+    * the chrome deltas are correct regardless of whether the window is
+    * mid-move. The ring frame itself may be stale; it converges after the
+    * placement landed path re-marks dirty (see MaybeIssueMove). */
    OverlayInsets insets = {.left = 0, .top = 0, .right = 0, .bottom = 0};
    overlay_measure_insets(this->target, &efb, &insets);
    overlay_sync_strips(&efb, &insets, gate_cloaked, was_visible);
@@ -1288,9 +1289,10 @@ void Overlay::overlay_sync_position(BOOL suppress) {
  * quota (error 1158). Reuses the kill-path teardown (CleanupTerminatedWindow)
  * so workspace removal, fullscreen accounting, focus fallback and layout stay
  * consistent. Backward iteration: removal shifts the registry array. */
-void Overlay::ReclaimStaleWindows(struct BFWMContext *ctx) {
-   for (size_t index = ctx->windows->Windows().size(); index > 0; index--) {
-      Window *win = ctx->windows->Windows()[index - 1].get();
+void Overlay::ReclaimStaleWindows(struct SharedState *shared,
+                                  struct MainContext *main) {
+   for (size_t index = main->windows->Windows().size(); index > 0; index--) {
+      Window *win = main->windows->Windows()[index - 1].get();
       if (win == nullptr)
          continue;
       HWND h = win->GetHwnd();
@@ -1312,7 +1314,7 @@ void Overlay::ReclaimStaleWindows(struct BFWMContext *ctx) {
       }
       if (reclaim == TRUE) {
          WarnW(L"Reclaimed stale window (target gone or reused): %p", h);
-         CleanupTerminatedWindow(ctx, h);
+         CleanupTerminatedWindow(shared, main, h);
       }
    }
 }

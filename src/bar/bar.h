@@ -11,20 +11,15 @@
 #define BFWM_BAR_H
 
 #include "../config/lua/parser.h"
+#include "indicator_provider.h"
 #include "renderer/clay_gdi.h"
 #include <array>
 #include <string>
 #include <vector>
 #include <windows.h>
-
-struct BFWMContext;
 class Monitor;
 struct Clay_Context;
 struct IndicatorProvider;
-
-/// Accessor for the static provider descriptor table. Declared as a friend of
-/// Bar so the table can reference the private provider refresh methods.
-auto BarProviderTable() -> const IndicatorProvider *;
 
 /** @brief Maximum number of workspace labels that can be displayed. */
 enum { BAR_MAX_WS_LABELS = 32 };
@@ -79,17 +74,6 @@ auto IndicatorFindStateRule(const BarIndicatorConfig &cfg,
                             const IndicatorRuntime &runtime)
     -> const IndicatorStateRule *;
 
-/**
- * @brief Compose an indicator's text from its effective format dialect.
- *
- * Uses `{name}` / `{name:.Nf}` substitution, with the special `{icon}` and
- * `{state}` tokens. Unknown names are emitted literally and logged once at
- * Debug. Exposed (rather than private) so the format engine can be unit
- * tested without a live bar.
- */
-auto IndicatorComposeFormat(const BarIndicatorConfig &cfg,
-                            const IndicatorRuntime &runtime) -> std::string;
-
 /// Whether an indicator is due to be (re)polled.
 ///
 /// Exposed for unit testing. `per_frame` providers always return true; polled
@@ -126,9 +110,6 @@ auto IndicatorResolveEffects(const BarIndicatorConfig &cfg,
  */
 void ApplyIndicatorOutput(const LuaIndicatorOutput &out,
                           IndicatorRuntime &runtime);
-
-/// Provider descriptor for an indicator type, or nullptr when out of range.
-auto ProviderFor(BarIndicatorType type) -> const struct IndicatorProvider *;
 
 /**
  * @brief Result of a bar pointer hit-test.
@@ -178,7 +159,7 @@ class Bar {
     * call Init() afterwards.
     */
    Bar(class Monitor *mon, const struct BarConfig *cfg,
-       struct BFWMContext *ctx);
+       struct SharedState *shared, struct MainContext *main);
 
    /// Release owned resources: destroys the window (if any), frees the Clay
    /// arena, and destroys the GDI renderer.
@@ -197,13 +178,14 @@ class Bar {
     * @brief Request a redraw of every bar across all monitors.
     * @param ctx The BFWM context
     */
-   static void UpdateAll(struct BFWMContext *ctx);
+   static void UpdateAll(struct SharedState *shared, struct MainContext *main);
 
    /**
     * @brief Reset all system-status poll timers (e.g. after resume).
     * @param ctx The BFWM context
     */
-   static void ResetPollTimers(struct BFWMContext *ctx);
+   static void ResetPollTimers(struct SharedState *shared,
+                               struct MainContext *main);
 
    /**
     * @brief Create the bar window and Clay state.
@@ -254,12 +236,13 @@ class Bar {
    /// The monitor this bar belongs to (public access for the window proc).
    [[nodiscard]] auto monitor() const -> class Monitor * { return mon; }
 
-   /// The owning BFWM context (public access for the window proc).
-   [[nodiscard]] auto context() const -> struct BFWMContext * { return ctx; }
+   /// The owning main context (public access for the window proc).
+   [[nodiscard]] auto context() const -> struct MainContext * { return main; }
 
  private:
-   /// Access the process-wide provider descriptor table (defined in bar.cpp).
-   friend auto BarProviderTable() -> const IndicatorProvider *;
+   /// Bar-backed registry providers delegate refresh/click/scroll into Bar.
+   friend struct WorkspacesIndicatorProvider;
+   friend struct TitleIndicatorProvider;
 
    /// Reset this bar's poll timers and cached indicator runtimes.
    void ResetPollTimers();
@@ -310,18 +293,11 @@ class Bar {
    /// Resolve state/icon/color/format and compose the runtime text.
    void ComposeIndicator(int slot);
 
-   // -- Provider refresh callbacks --
+   // -- Provider refresh callbacks (workspaces/title stay in Bar) --
    // NOLINTBEGIN(readability-convert-member-functions-to-static)
    void RefreshWorkspaces(const BarIndicatorConfig &cfg,
                           IndicatorRuntime &runtime);
    void RefreshTitle(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
-   void RefreshClock(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
-   void RefreshVolume(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
-   void RefreshNetwork(const BarIndicatorConfig &cfg,
-                       IndicatorRuntime &runtime);
-   void RefreshCpu(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
-   void RefreshMemory(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
-   void RefreshCustom(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime);
    // NOLINTEND(readability-convert-member-functions-to-static)
 
    /// Render one indicator slot (collections render their items).
@@ -350,7 +326,9 @@ class Bar {
                          BOOL use_abs_center, float spacerL_w);
 
    /// Back-reference to the app context
-   struct BFWMContext *ctx = nullptr;
+   struct SharedState *shared = nullptr;
+   /// Main-thread-only context
+   struct MainContext *main = nullptr;
    /// The monitor this bar belongs to
    Monitor *mon = nullptr;
    /// Configuration pointer captured at construction (consumed by Init)
@@ -359,6 +337,8 @@ class Bar {
    BarConfig config = {};
    /// Per-slot indicator runtime state
    std::array<IndicatorRuntime, BAR_MAX_INDICATORS> runtimes;
+   /// Provider registry (owns all indicator providers)
+   std::unique_ptr<IndicatorRegistry> provider_registry;
    /// Clay layout context
    Clay_Context *clay_context = nullptr;
    /// GDI renderer configuration

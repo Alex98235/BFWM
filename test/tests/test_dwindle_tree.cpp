@@ -140,7 +140,8 @@ CBELT_TEST(find_node_deep_tree) {
 }
 
 CBELT_TEST(find_node_null_root) {
-   cbelt_assert(FindNodeByWindow(nullptr, reinterpret_cast<HWND>(1)) == nullptr);
+   cbelt_assert(FindNodeByWindow(nullptr, reinterpret_cast<HWND>(1)) ==
+                nullptr);
    return TEST_SUCCESS;
 }
 
@@ -149,14 +150,18 @@ CBELT_TEST(find_node_null_root) {
  * ========================================================================= */
 
 CBELT_TEST(find_parent_null_root) {
-   DwindleNode *child = CreateLeafNode(reinterpret_cast<HWND>(1), RECT{0});
+   DwindleNode *child =
+       CreateLeafNode(reinterpret_cast<HWND>(1),
+                      RECT{.left = 0, .top = 0, .right = 0, .bottom = 0});
    cbelt_assert(FindParent(nullptr, child) == nullptr);
    FreeTree(child);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(find_parent_single_leaf) {
-   DwindleNode *root = CreateLeafNode(reinterpret_cast<HWND>(1), RECT{0});
+   DwindleNode *root =
+       CreateLeafNode(reinterpret_cast<HWND>(1),
+                      RECT{.left = 0, .top = 0, .right = 0, .bottom = 0});
    /* No parent for a single-node tree */
    cbelt_assert(FindParent(root, root) == nullptr);
    FreeTree(root);

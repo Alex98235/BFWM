@@ -25,9 +25,8 @@ inline auto test_hwnd(int i) -> HWND {
  * Window construction / registry lifetime
  * ========================================================================= */
 
-/* The old WindowDestroy(nullptr) safety test is obsolete: destruction is now
- * scope-based. Construction/destruction of an empty registry must be safe
- * (the registry owns its CRITICAL_SECTION). */
+/* Construction/destruction of an empty registry must be safe (the registry
+ * owns its CRITICAL_SECTION). */
 CBELT_TEST(empty_registry_construct_destroy) {
    WindowRegistry reg;
    cbelt_assert(reg.Windows().empty());

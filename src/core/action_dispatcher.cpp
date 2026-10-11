@@ -10,7 +10,8 @@
 
 #include "../config/action.h"
 #include "../logging/logger.h"
-#include "bfwm_context.h"
+#include "main_context.h"
+#include "shared_state.h"
 #include <cstddef>
 
 /**
@@ -36,7 +37,8 @@ void ActionDispatcherRegister(BFWMActionType type, ActionHandler handler) {
    handlers[idx] = handler;
 }
 
-auto ActionDispatcherDispatch(BFWMContext *ctx, BFWMAction *action) -> int {
+auto ActionDispatcherDispatch(SharedState *shared, MainContext *main,
+                              BFWMAction *action) -> int {
    auto idx = (size_t)action->type;
 
    if (idx >= ACTION_TYPE_COUNT) {
@@ -51,5 +53,5 @@ auto ActionDispatcherDispatch(BFWMContext *ctx, BFWMAction *action) -> int {
       return -1;
    }
 
-   return handler(ctx, action);
+   return handler(shared, main, action);
 }

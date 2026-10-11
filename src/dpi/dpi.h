@@ -22,7 +22,7 @@ const float DPI_DEFAULT_SCALING_F = 96.0F;
  *
  * Owns the per-monitor DPI registry (populated from GetDpiForMonitor during
  * monitor enumeration), provides pure scaling math, and declares the process
- * DPI awareness context. Instance state is heap-owned by BFWMContext.
+ * DPI awareness context. Instance state is heap-owned by MainContext.
  */
 class DpiSystem {
  public:

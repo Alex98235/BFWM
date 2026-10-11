@@ -1,5 +1,6 @@
 #include "filter.h"
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 #include "../window/rules/rules.h"
 #include <array>
 #include <cstring>
@@ -149,15 +150,16 @@ auto IsElevatedWindow(HWND hwnd) -> bool {
    return (own_level != 0U) && (win_level > own_level);
 }
 
-auto IsExcludedByRules(struct BFWMContext *ctx, const char *class_name,
+auto IsExcludedByRules(struct SharedState * /*shared*/,
+                       struct MainContext *main, const char *class_name,
                        const char *title, const char *process) -> bool {
    for (const auto &blacklist_entry : default_blacklist) {
       if (strcmp(class_name, blacklist_entry.data()) == 0) {
          return true;
       }
    }
-   for (size_t i = 0; i < ctx->window_rule_count; i++) {
-      WindowRule *rule = ctx->window_rules[i];
+   for (size_t i = 0; i < main->window_rule_count; i++) {
+      WindowRule *rule = main->window_rules[i];
       if (rule->action.type != RULE_IGNORE)
          continue;
       if (WindowRuleMatch(rule, process, class_name, title))
@@ -166,9 +168,10 @@ auto IsExcludedByRules(struct BFWMContext *ctx, const char *class_name,
    return false;
 }
 
-auto IsManageableWindow(struct BFWMContext *ctx, HWND hwnd,
-                        BOOL skip_cloak_check) -> bool {
-   (void)ctx;
+auto IsManageableWindow(struct SharedState *shared, struct MainContext *main,
+                        HWND hwnd, BOOL skip_cloak_check) -> bool {
+   (void)shared;
+   (void)main;
    // Hidden windows are never registered: they register on
    // EVENT_OBJECT_SHOW / EVENT_SYSTEM_MINIMIZEEND once they actually
    // become visible.  Minimized windows pass IsWindowVisible (minimize

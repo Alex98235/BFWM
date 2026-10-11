@@ -10,36 +10,37 @@ namespace {
 
 int g_last_handler_called = -1;
 BFWMAction *g_last_handler_action = nullptr;
-BFWMContext *g_last_handler_ctx = nullptr;
+SharedState *g_last_handler_shared = nullptr;
 int g_mock_return_value = 0;
 
 inline void reset_trace() {
    g_last_handler_called = -1;
    g_last_handler_action = nullptr;
-   g_last_handler_ctx = nullptr;
+   g_last_handler_shared = nullptr;
    g_mock_return_value = 0;
 }
 
-inline auto mock_handler_kill(BFWMContext *ctx, BFWMAction *action) -> int {
+inline auto mock_handler_kill(SharedState *shared, MainContext * /*main*/,
+                              BFWMAction *action) -> int {
    g_last_handler_called = ActionKillActive;
    g_last_handler_action = action;
-   g_last_handler_ctx = ctx;
+   g_last_handler_shared = shared;
    return g_mock_return_value;
 }
 
-inline auto mock_handler_spawn(BFWMContext *ctx, BFWMAction *action)
-    -> int {
+inline auto mock_handler_spawn(SharedState *shared, MainContext * /*main*/,
+                               BFWMAction *action) -> int {
    g_last_handler_called = ActionSpawn;
    g_last_handler_action = action;
-   g_last_handler_ctx = ctx;
+   g_last_handler_shared = shared;
    return g_mock_return_value;
 }
 
-inline auto mock_handler_custom(BFWMContext *ctx, BFWMAction *action)
-    -> int {
+inline auto mock_handler_custom(SharedState *shared, MainContext * /*main*/,
+                                BFWMAction *action) -> int {
    g_last_handler_called = ActionCustom;
    g_last_handler_action = action;
-   g_last_handler_ctx = ctx;
+   g_last_handler_shared = shared;
    return g_mock_return_value;
 }
 } // namespace
@@ -53,8 +54,9 @@ CBELT_TEST(register_and_dispatch_kill_active) {
    BFWMAction *saved_act = act;
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
-   int result = ActionDispatcherDispatch(fake_ctx, act);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
+   int result = ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
 
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionKillActive, nullptr);
@@ -62,7 +64,7 @@ CBELT_TEST(register_and_dispatch_kill_active) {
    cbelt_assert(result == 0);
    cbelt_assert(g_last_handler_called == ActionKillActive);
    cbelt_assert(g_last_handler_action == saved_act);
-   cbelt_assert(g_last_handler_ctx == fake_ctx);
+   cbelt_assert(g_last_handler_shared == fake_ctx);
 
    return TEST_SUCCESS;
 }
@@ -76,8 +78,9 @@ CBELT_TEST(register_and_dispatch_spawn) {
    BFWMAction *saved_act = act;
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
-   int result = ActionDispatcherDispatch(fake_ctx, act);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
+   int result = ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
 
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionSpawn, nullptr);
@@ -85,7 +88,7 @@ CBELT_TEST(register_and_dispatch_spawn) {
    cbelt_assert(result == 0);
    cbelt_assert(g_last_handler_called == ActionSpawn);
    cbelt_assert(g_last_handler_action == saved_act);
-   cbelt_assert(g_last_handler_ctx == fake_ctx);
+   cbelt_assert(g_last_handler_shared == fake_ctx);
 
    return TEST_SUCCESS;
 }
@@ -94,17 +97,18 @@ CBELT_TEST(handler_receives_context) {
    reset_trace();
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
 
    ActionDispatcherRegister(ActionKillActive, mock_handler_kill);
 
    BFWMAction *act = BFWMActionCreateKillActive();
-   ActionDispatcherDispatch(fake_ctx, act);
+   ActionDispatcherDispatch(fake_ctx,
+                            reinterpret_cast<MainContext *>(&dummy_ctx), act);
 
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionKillActive, nullptr);
 
-   cbelt_assert(g_last_handler_ctx == fake_ctx);
+   cbelt_assert(g_last_handler_shared == fake_ctx);
 
    return TEST_SUCCESS;
 }
@@ -117,13 +121,15 @@ CBELT_TEST(handler_return_value_propagated) {
    BFWMAction *act = BFWMActionCreateKillActive();
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
    g_mock_return_value = 42;
-   int result = ActionDispatcherDispatch(fake_ctx, act);
+   int result = ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
    cbelt_assert(result == 42);
 
    g_mock_return_value = -7;
-   result = ActionDispatcherDispatch(fake_ctx, act);
+   result = ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
    cbelt_assert(result == -7);
 
    BFWMActionDestroy(act);
@@ -135,7 +141,7 @@ CBELT_TEST(handler_return_value_propagated) {
 CBELT_TEST(dispatch_with_no_handler_returns_minus_one) {
    BFWMAction *act = BFWMActionCreateSplit();
 
-   int result = ActionDispatcherDispatch(nullptr, act);
+   int result = ActionDispatcherDispatch(nullptr, nullptr, act);
 
    BFWMActionDestroy(act);
 
@@ -149,12 +155,12 @@ CBELT_TEST(dispatch_after_unregister_returns_minus_one) {
 
    BFWMAction *act = BFWMActionCreateFullscreen();
 
-   int result = ActionDispatcherDispatch(nullptr, act);
+   int result = ActionDispatcherDispatch(nullptr, nullptr, act);
    cbelt_assert(result == 0);
 
    ActionDispatcherRegister(ActionFullscreen, nullptr);
 
-   result = ActionDispatcherDispatch(nullptr, act);
+   result = ActionDispatcherDispatch(nullptr, nullptr, act);
    BFWMActionDestroy(act);
 
    cbelt_assert(result == -1);
@@ -170,13 +176,15 @@ CBELT_TEST(re_register_overwrites_previous_handler) {
    BFWMAction *act = BFWMActionCreateSpawn("test.exe");
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
-   ActionDispatcherDispatch(fake_ctx, act);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
+   ActionDispatcherDispatch(fake_ctx,
+                            reinterpret_cast<MainContext *>(&dummy_ctx), act);
    cbelt_assert(g_last_handler_called == ActionKillActive);
 
    ActionDispatcherRegister(ActionSpawn, mock_handler_spawn);
 
-   ActionDispatcherDispatch(fake_ctx, act);
+   ActionDispatcherDispatch(fake_ctx,
+                            reinterpret_cast<MainContext *>(&dummy_ctx), act);
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionSpawn, nullptr);
 
@@ -195,11 +203,13 @@ CBELT_TEST(multiple_handlers_independent) {
    BFWMAction *act_custom = BFWMActionCreateCustom("fn");
 
    int dummy_ctx = 42;
-   auto *fake_ctx = reinterpret_cast<BFWMContext *>(&dummy_ctx);
-   ActionDispatcherDispatch(fake_ctx, act_kill);
+   auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
+   ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act_kill);
    cbelt_assert(g_last_handler_called == ActionKillActive);
 
-   ActionDispatcherDispatch(fake_ctx, act_custom);
+   ActionDispatcherDispatch(
+       fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act_custom);
    cbelt_assert(g_last_handler_called == ActionCustom);
 
    BFWMActionDestroy(act_kill);
@@ -212,10 +222,12 @@ CBELT_TEST(multiple_handlers_independent) {
 
 CBELT_TEST(dispatch_out_of_range_type_returns_minus_one) {
    BFWMAction bad_action;
+   // Deliberately tests an out-of-range value.
+   // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
    bad_action.type = static_cast<BFWMActionType>(99);
    bad_action.args = std::monostate{};
 
-   int result = ActionDispatcherDispatch(nullptr, &bad_action);
+   int result = ActionDispatcherDispatch(nullptr, nullptr, &bad_action);
    cbelt_assert(result == -1);
 
    return TEST_SUCCESS;

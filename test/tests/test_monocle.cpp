@@ -57,7 +57,7 @@ CBELT_TEST(create_free) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    MonocleLayout *ml = MonocleLayoutCreate(workspace);
    cbelt_assert(ml != nullptr);
-   cbelt_assert(ml->windows.size() == 0);
+   cbelt_assert(ml->windows.empty());
    cbelt_assert(ml->workspace_rect.left == 0);
    cbelt_assert(ml->workspace_rect.top == 0);
    cbelt_assert(ml->workspace_rect.right == 1920);
@@ -78,7 +78,7 @@ CBELT_TEST(create_after_free) {
    MonocleLayoutFree(ml);
    ml = MonocleLayoutCreate(workspace);
    cbelt_assert(ml != nullptr);
-   cbelt_assert(ml->windows.size() == 0);
+   cbelt_assert(ml->windows.empty());
    MonocleLayoutFree(ml);
    return TEST_SUCCESS;
 }
@@ -174,7 +174,7 @@ CBELT_TEST(insert_duplicate_window_keeps_single_entry) {
 
    /* A single remove takes it out entirely */
    cbelt_assert(MonocleRemoveWindow(ml, win1) == true);
-   cbelt_assert(ml->windows.size() == 0);
+   cbelt_assert(ml->windows.empty());
 
    MonocleLayoutFree(ml);
    return TEST_SUCCESS;
@@ -187,9 +187,10 @@ CBELT_TEST(insert_duplicate_window_keeps_single_entry) {
 namespace {
 
 inline void insert_n(MonocleLayout *ml, int n) {
-   for (int i = 1; i <= n; i++)
+   for (int i = 1; i <= n; i++) {
       MonocleInsertWindow(ml, reinterpret_cast<HWND>(static_cast<uintptr_t>(i)),
                           reinterpret_cast<HWND>(0));
+   }
 }
 } // namespace
 
@@ -199,7 +200,7 @@ CBELT_TEST(remove_only_window) {
    insert_n(ml, 1);
 
    cbelt_assert(MonocleRemoveWindow(ml, reinterpret_cast<HWND>(1)) == true);
-   cbelt_assert(ml->windows.size() == 0);
+   cbelt_assert(ml->windows.empty());
 
    MonocleLayoutFree(ml);
    return TEST_SUCCESS;
@@ -365,10 +366,10 @@ CBELT_TEST(get_neighbor_single_window) {
    MonocleInsertWindow(ml, reinterpret_cast<HWND>(1),
                        reinterpret_cast<HWND>(0));
 
-    cbelt_assert(MonocleGetNeighbor(ml, reinterpret_cast<HWND>(1), DirNext) ==
-                 nullptr);
-    cbelt_assert(MonocleGetNeighbor(ml, reinterpret_cast<HWND>(1), DirPrev) ==
-                 nullptr);
+   cbelt_assert(MonocleGetNeighbor(ml, reinterpret_cast<HWND>(1), DirNext) ==
+                nullptr);
+   cbelt_assert(MonocleGetNeighbor(ml, reinterpret_cast<HWND>(1), DirPrev) ==
+                nullptr);
 
    MonocleLayoutFree(ml);
    return TEST_SUCCESS;
@@ -737,10 +738,10 @@ CBELT_TEST(vtable_get_neighbor) {
                 reinterpret_cast<HWND>(10));
    cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirNext) ==
                 reinterpret_cast<HWND>(20));
-    cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(20), DirNext) ==
-                 nullptr);
-    cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirPrev) ==
-                 nullptr);
+   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(20), DirNext) ==
+                nullptr);
+   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirPrev) ==
+                nullptr);
    cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirLeft) ==
                 nullptr);
 

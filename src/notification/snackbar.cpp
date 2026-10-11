@@ -16,7 +16,8 @@
 #include "../bar/renderer/clay_gdi.h"
 #include "../config/defaults.h"
 #include "../config/lua/parser.h"
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 #include "../dpi/dpi.h"
 #include "../logging/logger.h"
 #include "../monitor/monitor.h"
@@ -93,7 +94,8 @@ int preinit_count;
 // SNACKBAR LIFECYCLE
 // ============================================================
 
-Snackbar::Snackbar(struct BFWMContext *ctx) : ctx(ctx) {}
+Snackbar::Snackbar(struct SharedState *shared, struct MainContext *main)
+    : shared(shared), main(main) {}
 
 Snackbar::~Snackbar() {
    if (notify_hwnd != nullptr) {
@@ -145,9 +147,9 @@ auto Snackbar::Init() -> bool {
    notify_hwnd = CreateWindowExW(0, SNACKBAR_NOTIFY_CLASS, L"", WS_POPUP, 0, 0,
                                  0, 0, HWND_MESSAGE, nullptr, hInst, nullptr);
    if (notify_hwnd != nullptr)
-      BFWMSetWindowData(notify_hwnd, ctx);
+      BFWMSetWindowData(notify_hwnd, this);
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    uint64_t const arena_size = Clay_MinMemorySize();
    clay_arena = calloc(1, (size_t)arena_size);
    if (clay_arena == nullptr) {
@@ -213,23 +215,24 @@ auto Snackbar::IsInitialized() const -> bool { return hwnd != nullptr; }
 // PUBLIC STATIC API
 // ============================================================
 
-void Snackbar::Tick(struct BFWMContext *ctx) {
-   if ((ctx == nullptr) || ctx->snackbar == nullptr ||
-       !ctx->snackbar->IsInitialized())
+void Snackbar::Tick(struct SharedState *shared, struct MainContext *main) {
+   if ((shared == nullptr) || main->snackbar == nullptr ||
+       !main->snackbar->IsInitialized())
       return;
-   ctx->snackbar->TickNotifications();
+   main->snackbar->TickNotifications();
 }
 
-void Snackbar::Show(struct BFWMContext *ctx, LogLevel level,
-                    std::wstring *message, BOOL force) {
-   Snackbar::Show(ctx, SnackbarLevelFromLogLevel(level), message, force);
+void Snackbar::Show(struct SharedState *shared, struct MainContext *main,
+                    LogLevel level, std::wstring *message, BOOL force) {
+   Snackbar::Show(shared, main, SnackbarLevelFromLogLevel(level), message,
+                  force);
 }
 
-void Snackbar::Show(struct BFWMContext *ctx, SnackbarLogLevel level,
-                    std::wstring *message, BOOL force) {
-   if (ctx == nullptr)
+void Snackbar::Show(struct SharedState *shared, struct MainContext *main,
+                    SnackbarLogLevel level, std::wstring *message, BOOL force) {
+   if (shared == nullptr)
       return;
-   if (ctx->snackbar == nullptr) {
+   if (main->snackbar == nullptr) {
       if (preinit_count < SNACKBAR_PREINIT_MAX) {
          preinit_buf[preinit_count].level = level;
          preinit_buf[preinit_count].message = *message;
@@ -238,15 +241,15 @@ void Snackbar::Show(struct BFWMContext *ctx, SnackbarLogLevel level,
       }
       return;
    }
-   if (!ctx->snackbar->IsInitialized())
+   if (!main->snackbar->IsInitialized())
       return;
-   ctx->snackbar->ShowMessage(level, message, force);
+   main->snackbar->ShowMessage(level, message, force);
 }
 
 void Snackbar::ShowMessage(SnackbarLogLevel level, std::wstring *message,
                            BOOL force) {
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    if (cfg->enabled == 0)
       return;
    if ((force == 0) && level > cfg->log_level)
@@ -279,7 +282,7 @@ void Snackbar::TickNotifications() {
    if (hwnd == nullptr)
       return;
 
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    if (cfg->enabled == 0) {
       if (window_visible != 0) {
          ShowWindow(hwnd, SW_HIDE);
@@ -314,7 +317,8 @@ void Snackbar::TickNotifications() {
 // CONVENIENCE WRAPPERS
 // ============================================================
 
-void Snackbar::Error(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
+void Snackbar::Error(struct SharedState *shared, struct MainContext *main,
+                     const wchar_t *fmt, ...) {
    va_list args;
    va_start(args, fmt);
    std::wstring buf(TEXT_BUF_SIZE, L'\0');
@@ -324,10 +328,11 @@ void Snackbar::Error(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
    std::string narrow(MISC_BUF_SIZE, '\0');
    WCharToChar(&buf, &narrow);
    ::Error("%s", narrow.data());
-   Snackbar::Show(ctx, SNACKBAR_LOG_ERROR, &buf, FALSE);
+   Snackbar::Show(shared, main, SNACKBAR_LOG_ERROR, &buf, FALSE);
 }
 
-void Snackbar::Warn(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
+void Snackbar::Warn(struct SharedState *shared, struct MainContext *main,
+                    const wchar_t *fmt, ...) {
    va_list args;
    va_start(args, fmt);
    std::wstring buf(TEXT_BUF_SIZE, L'\0');
@@ -337,10 +342,11 @@ void Snackbar::Warn(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
    std::string narrow(MISC_BUF_SIZE, '\0');
    WCharToChar(&buf, &narrow);
    ::Warn("%s", narrow.data());
-   Snackbar::Show(ctx, SNACKBAR_LOG_WARN, &buf, FALSE);
+   Snackbar::Show(shared, main, SNACKBAR_LOG_WARN, &buf, FALSE);
 }
 
-void Snackbar::Info(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
+void Snackbar::Info(struct SharedState *shared, struct MainContext *main,
+                    const wchar_t *fmt, ...) {
    va_list args;
    va_start(args, fmt);
    std::wstring buf(TEXT_BUF_SIZE, L'\0');
@@ -350,10 +356,11 @@ void Snackbar::Info(struct BFWMContext *ctx, const wchar_t *fmt, ...) {
    std::string narrow(MISC_BUF_SIZE, '\0');
    WCharToChar(&buf, &narrow);
    ::Info("%s", narrow.data());
-   Snackbar::Show(ctx, SNACKBAR_LOG_INFO, &buf, FALSE);
+   Snackbar::Show(shared, main, SNACKBAR_LOG_INFO, &buf, FALSE);
 }
 
-void Snackbar::LogLastError(struct BFWMContext *ctx, const char *prefix) {
+void Snackbar::LogLastError(struct SharedState *shared,
+                            struct MainContext *main, const char *prefix) {
    DWORD const error = GetLastError();
    LPSTR messageBuffer = nullptr;
 
@@ -384,7 +391,7 @@ void Snackbar::LogLastError(struct BFWMContext *ctx, const char *prefix) {
    int const conv_len = MultiByteToWideChar(CP_UTF8, 0, buf.data(), actual_len,
                                             wbuf.data(), (int)wbuf.size());
    wbuf.resize(conv_len > 0 ? (size_t)conv_len : 0);
-   Snackbar::Show(ctx, SNACKBAR_LOG_ERROR, &wbuf, FALSE);
+   Snackbar::Show(shared, main, SNACKBAR_LOG_ERROR, &wbuf, FALSE);
 }
 
 // ============================================================
@@ -448,7 +455,7 @@ auto Snackbar::OnPaint() -> LRESULT {
 
    RECT client_rect;
    GetClientRect(hwnd, &client_rect);
-   COLORREF const background = ctx->config.snackbar.background;
+   COLORREF const background = shared->config.snackbar.background;
    HBRUSH bg_brush = CreateSolidBrush(background);
    FillRect(hdc, &client_rect, bg_brush);
    DeleteObject(bg_brush);
@@ -462,7 +469,7 @@ auto Snackbar::OnPaint() -> LRESULT {
    Clay_SetLayoutDimensions(dimensions);
    Clay_SetPointerState(position, FALSE);
    Clay_BeginLayout();
-   BuildLayout(&ctx->config.snackbar, true);
+   BuildLayout(&shared->config.snackbar, true);
    Clay_RenderCommandArray cmds = Clay_EndLayout(0);
    if (cmds.length > 0)
       ClayGdiRender(hdc, &cmds, &clay_cfg);
@@ -473,7 +480,7 @@ auto Snackbar::OnPaint() -> LRESULT {
 }
 
 auto Snackbar::OnLButtonDown(LPARAM l_param) -> LRESULT {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    int const mouse_y = GET_Y_LPARAM(l_param);
    int top = 0;
    for (int i = 0; i < active_count; i++) {
@@ -494,7 +501,7 @@ auto Snackbar::OnLButtonDown(LPARAM l_param) -> LRESULT {
 }
 
 auto Snackbar::OnMouseMove() -> LRESULT {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    if (cfg->pause_on_hover == 0)
       return 0;
    if (hovered == 0) {
@@ -526,9 +533,9 @@ auto Snackbar::OnDpiChanged(WPARAM w_param, LPARAM l_param) -> LRESULT {
    HMONITOR hmon = (target_monitor_ != nullptr)
                        ? target_monitor_->GetHandle()
                        : MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-   ctx->dpi->RegisterMonitor(hmon, new_dpi);
+   main->dpi->RegisterMonitor(hmon, new_dpi);
    if (active_count > 0)
-      RebuildLayout(&ctx->config.snackbar);
+      RebuildLayout(&shared->config.snackbar);
    return 0;
 }
 
@@ -539,13 +546,14 @@ auto Snackbar::OnDpiChanged(WPARAM w_param, LPARAM l_param) -> LRESULT {
 auto CALLBACK Snackbar::NotifyWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                       LPARAM lParam) -> LRESULT {
    if (msg == WM_COPYDATA) {
-      auto *ctx = (struct BFWMContext *)BFWMGetWindowData(hwnd);
+      auto *snackbar = (Snackbar *)BFWMGetWindowData(hwnd);
       auto *cds = (COPYDATASTRUCT *)lParam;
-      if ((ctx != nullptr) && (cds != nullptr) && (cds->lpData != nullptr) &&
-          cds->cbData > 0) {
+      if ((snackbar != nullptr) && (cds != nullptr) &&
+          (cds->lpData != nullptr) && cds->cbData > 0) {
          size_t const len = cds->cbData / sizeof(wchar_t);
          std::wstring buf((const wchar_t *)cds->lpData, len);
-         Snackbar::Show(ctx, SNACKBAR_LOG_INFO, &buf, TRUE);
+         Snackbar::Show(snackbar->shared, snackbar->main, SNACKBAR_LOG_INFO,
+                        &buf, TRUE);
       }
       return TRUE;
    }
@@ -557,20 +565,20 @@ auto CALLBACK Snackbar::NotifyWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 // ============================================================
 
 auto Snackbar::FindMonitor() -> const Monitor * {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    if (cfg->monitor == 0) {
       POINT const zero = {.x = 0, .y = 0};
       HMONITOR primary = MonitorFromPoint(zero, MONITOR_DEFAULTTOPRIMARY);
-      for (const auto &monitor : ctx->monitors->Monitors()) {
+      for (const auto &monitor : main->monitors->Monitors()) {
          if (monitor->GetHandle() == primary)
             return monitor;
       }
-   } else if (cfg->monitor == -1 && (ctx->focused_workspace != nullptr)) {
-      return FindMonitorByWorkspace(ctx, ctx->focused_workspace);
+   } else if (cfg->monitor == -1 && (main->focused_workspace != nullptr)) {
+      return FindMonitorByWorkspace(shared, main, main->focused_workspace);
    } else if (cfg->monitor > 0) {
-      return FindMonitorByDisplayNumber(ctx, (UINT)cfg->monitor);
+      return FindMonitorByDisplayNumber(shared, main, (UINT)cfg->monitor);
    }
-   return ctx->monitors->Empty() ? nullptr : ctx->monitors->At(0);
+   return main->monitors->Empty() ? nullptr : main->monitors->At(0);
 }
 
 auto Snackbar::CurrentDpi() const -> UINT {
@@ -798,7 +806,7 @@ void Snackbar::BuildLayout(const SnackbarConfig *cfg, bool fill_width) {
 // ============================================================
 
 void Snackbar::UpdateWindow() {
-   const SnackbarConfig *cfg = &ctx->config.snackbar;
+   const SnackbarConfig *cfg = &shared->config.snackbar;
    if (active_count == 0) {
       if (window_visible != 0) {
          ShowWindow(hwnd, SW_HIDE);
@@ -927,7 +935,7 @@ auto Snackbar::DrainQueue(const SnackbarConfig *cfg) -> BOOL {
 void Snackbar::RebuildLayout(const SnackbarConfig *cfg) {
    target_monitor_ = FindMonitor();
    target_dpi_ = (target_monitor_ != nullptr)
-                     ? ctx->dpi->GetDpi(target_monitor_->GetHandle())
+                     ? main->dpi->GetDpi(target_monitor_->GetHandle())
                      : GetDpiForSystem();
    UINT const dpi = target_dpi_;
    effective_max_width = EffectiveWidth(cfg, target_monitor_, dpi);

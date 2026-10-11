@@ -1,0 +1,38 @@
+# Test code is macro-heavy: CBelt's TEST(...) macros expand to `static`
+# functions at global scope, and tests use literal values and terse Win32/C
+# idioms as test data. This inherits the root config and subtracts the checks
+# that are noise or c-isms here, leaving the bug finders and checks that catch
+# real problems.
+#
+# NOTE: do NOT auto-apply clang-tidy fixes to tests. clang-tidy rewrites tokens
+# inside CBelt's function-like macros and breaks the build. Fix findings by
+# hand (or NOLINT them). clang-format is safe.
+InheritParentConfig: true
+
+Checks: >
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-named-parameter,
+  -readability-implicit-bool-conversion,
+  -readability-simplify-boolean-expr,
+  -readability-function-cognitive-complexity,
+  -misc-use-anonymous-namespace,
+  -misc-const-correctness,
+  -misc-definitions-in-headers,
+  -misc-misplaced-const,
+  -modernize-use-trailing-return-type,
+  -modernize-use-auto,
+  -modernize-avoid-c-arrays,
+  -modernize-use-designated-initializers,
+  -modernize-use-using,
+  -modernize-use-nodiscard,
+  -modernize-type-traits,
+  -modernize-use-std-numbers,
+  -modernize-macro-to-enum,
+  -modernize-raw-string-literal,
+  -modernize-redundant-void-arg,
+  -modernize-use-nullptr,
+  -modernize-use-integer-sign-comparison,
+  -modernize-use-emplace,
+  -bugprone-macro-parentheses

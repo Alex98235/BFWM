@@ -5,10 +5,12 @@
 
 CBELT_GROUP("placement_classify")
 
-/* Decision table after refactor (no self-healing float):
+// clang-format off
+/* Decision table (no self-healing float):
  *   landed = TRUE                               -> Issue
  *   landed = FALSE, stalled = FALSE             -> Defer  (move still in flight)
  *   landed = FALSE, stalled = TRUE              -> Issue  (re-issue) */
+// clang-format on
 
 static auto reference(BOOL landed, BOOL stalled) -> PlacementMoveDecision {
    if (landed != 0)
@@ -22,8 +24,7 @@ static auto reference(BOOL landed, BOOL stalled) -> PlacementMoveDecision {
 CBELT_TEST(full_sweep) {
    cbelt_assert_equal(reference(TRUE, FALSE),
                       ClassifyPlacementMove(TRUE, FALSE));
-   cbelt_assert_equal(reference(TRUE, TRUE),
-                      ClassifyPlacementMove(TRUE, TRUE));
+   cbelt_assert_equal(reference(TRUE, TRUE), ClassifyPlacementMove(TRUE, TRUE));
    cbelt_assert_equal(reference(FALSE, FALSE),
                       ClassifyPlacementMove(FALSE, FALSE));
    cbelt_assert_equal(reference(FALSE, TRUE),
@@ -40,7 +41,8 @@ CBELT_TEST(landed_always_issues) {
 
 /* Defer happens only while a move is in flight (not landed, not stalled). */
 CBELT_TEST(defer_only_while_in_flight) {
-   cbelt_assert_equal(PLACEMENT_MOVE_DEFER, ClassifyPlacementMove(FALSE, FALSE));
+   cbelt_assert_equal(PLACEMENT_MOVE_DEFER,
+                      ClassifyPlacementMove(FALSE, FALSE));
    return TEST_SUCCESS;
 }
 

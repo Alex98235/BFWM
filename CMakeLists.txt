@@ -96,6 +96,7 @@ set(DPI_SOURCES
 # Bar
 set(BAR_SOURCES
     src/bar/bar.cpp
+    src/bar/indicator_provider.cpp
     src/bar/renderer/clay_gdi.cpp
 )
 
@@ -220,7 +221,7 @@ set(BFWM_VERSION_MINOR "${CMAKE_MATCH_2}")
 set(BFWM_VERSION_PATCH "${CMAKE_MATCH_3}")
 # Compute a relative path to the icon for the RC compiler (native windres
 # doesn't understand MSYS-style absolute paths).
-set(BFWM_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/icons/bfwm.ico")
+set(BFWM_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/icons/BFWM.ico")
 file(RELATIVE_PATH BFWM_ICON "${CMAKE_CURRENT_BINARY_DIR}" "${BFWM_ICON_PATH}")
 configure_file(src/app.rc.in ${CMAKE_CURRENT_BINARY_DIR}/app.rc @ONLY)
 # Re-run configure when VERSION changes so the version resource stays in sync.

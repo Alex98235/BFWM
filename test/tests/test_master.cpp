@@ -14,14 +14,19 @@ CBELT_GROUP("master")
  * ========================================================================= */
 
 CBELT_TEST(null_safety) {
-   cbelt_assert(MasterInsertWindow(nullptr, reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)) == false);
-   cbelt_assert(MasterRemoveWindow(nullptr, reinterpret_cast<HWND>(1)) == false);
+   cbelt_assert(MasterInsertWindow(nullptr, reinterpret_cast<HWND>(1),
+                                   reinterpret_cast<HWND>(0)) == false);
+   cbelt_assert(MasterRemoveWindow(nullptr, reinterpret_cast<HWND>(1)) ==
+                false);
 
    RECT out;
-   cbelt_assert(MasterGetWindowRect(nullptr, reinterpret_cast<HWND>(1), &out) == false);
-   cbelt_assert(MasterGetWindowRect(nullptr, reinterpret_cast<HWND>(1), nullptr) == false);
+   cbelt_assert(MasterGetWindowRect(nullptr, reinterpret_cast<HWND>(1), &out) ==
+                false);
+   cbelt_assert(MasterGetWindowRect(nullptr, reinterpret_cast<HWND>(1),
+                                    nullptr) == false);
 
-   cbelt_assert(MasterGetNeighbor(nullptr, reinterpret_cast<HWND>(1), DirNext) == nullptr);
+   cbelt_assert(MasterGetNeighbor(nullptr, reinterpret_cast<HWND>(1),
+                                  DirNext) == nullptr);
    cbelt_assert(MasterGetClosestWindow(nullptr, nullptr) == nullptr);
 
    MasterRecalculate(nullptr);
@@ -40,7 +45,8 @@ CBELT_TEST(single_window_fills_area) {
    MasterLayout *ml = MasterLayoutCreate(workspace);
 
    HWND win1 = reinterpret_cast<HWND>(1);
-   cbelt_assert(MasterInsertWindow(ml, win1, reinterpret_cast<HWND>(0)) == true);
+   cbelt_assert(MasterInsertWindow(ml, win1, reinterpret_cast<HWND>(0)) ==
+                true);
 
    RECT out;
    cbelt_assert(MasterGetWindowRect(ml, win1, &out) == true);
@@ -60,9 +66,12 @@ CBELT_TEST(master_and_stack_geometry) {
    HWND win1 = reinterpret_cast<HWND>(1);
    HWND win2 = reinterpret_cast<HWND>(2);
    HWND win3 = reinterpret_cast<HWND>(3);
-   cbelt_assert(MasterInsertWindow(ml, win1, reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(MasterInsertWindow(ml, win2, reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(MasterInsertWindow(ml, win3, reinterpret_cast<HWND>(0)) == true);
+   cbelt_assert(MasterInsertWindow(ml, win1, reinterpret_cast<HWND>(0)) ==
+                true);
+   cbelt_assert(MasterInsertWindow(ml, win2, reinterpret_cast<HWND>(0)) ==
+                true);
+   cbelt_assert(MasterInsertWindow(ml, win3, reinterpret_cast<HWND>(0)) ==
+                true);
 
    RECT r1;
    RECT r2;
@@ -98,9 +107,10 @@ CBELT_TEST(master_and_stack_geometry) {
 namespace {
 
 inline void insert_n(MasterLayout *ml, int n) {
-   for (int i = 1; i <= n; i++)
+   for (int i = 1; i <= n; i++) {
       MasterInsertWindow(ml, reinterpret_cast<HWND>(static_cast<uintptr_t>(i)),
                          reinterpret_cast<HWND>(0));
+   }
 }
 } // namespace
 
@@ -159,7 +169,8 @@ CBELT_TEST(closest_window_returns_selected) {
 
 CBELT_TEST(vtable_type_is_master) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
-   std::unique_ptr<LayoutEngine> engine = MasterLayoutEngineCreate(workspace, 0, 0, 0);
+   std::unique_ptr<LayoutEngine> engine =
+       MasterLayoutEngineCreate(workspace, 0, 0, 0);
    cbelt_assert(engine != nullptr);
    cbelt_assert(engine->type() == MASTER);
    return TEST_SUCCESS;
@@ -167,7 +178,8 @@ CBELT_TEST(vtable_type_is_master) {
 
 CBELT_TEST(vtable_insert_and_focus) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
-   std::unique_ptr<LayoutEngine> engine = MasterLayoutEngineCreate(workspace, 0, 0, 0);
+   std::unique_ptr<LayoutEngine> engine =
+       MasterLayoutEngineCreate(workspace, 0, 0, 0);
    cbelt_assert(engine != nullptr);
 
    HWND const win10 = reinterpret_cast<HWND>(10);

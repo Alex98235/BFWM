@@ -8,7 +8,7 @@
  * polls it without ever blocking, and caches the last complete stdout per
  * caller-supplied key.
  *
- * Threading: the cache is owned by BFWMContext and used only from the main
+ * Threading: the cache is owned by MainContext and used only from the main
  * thread. It deliberately touches no Lua state.
  */
 

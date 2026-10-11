@@ -9,21 +9,28 @@
 
 #include "border_manager.h"
 
-#include "../../core/bfwm_context.h"
+#include "../../core/main_context.h"
+
+#include "../../core/shared_state.h"
 #include "../../transaction/transaction.h"
 
-void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color) {
-   ctx->transaction.QueueBorderColor(hwnd, color);
+void BorderManagerSetColor(struct SharedState * /*shared*/,
+                           struct MainContext *main, HWND hwnd,
+                           COLORREF color) {
+   main->transaction.QueueBorderColor(hwnd, color);
 }
 
-void BorderManagerSetActive(struct BFWMContext *ctx, HWND hwnd) {
-   BorderManagerSetColor(ctx, hwnd, ctx->config.border_color);
+void BorderManagerSetActive(struct SharedState *shared,
+                            struct MainContext *main, HWND hwnd) {
+   BorderManagerSetColor(shared, main, hwnd, shared->config.border_color);
 }
 
-void BorderManagerSetInactive(struct BFWMContext *ctx, HWND hwnd) {
-   BorderManagerSetColor(ctx, hwnd, ctx->config.inactive_border);
+void BorderManagerSetInactive(struct SharedState *shared,
+                              struct MainContext *main, HWND hwnd) {
+   BorderManagerSetColor(shared, main, hwnd, shared->config.inactive_border);
 }
 
-void BorderManagerRedraw(struct BFWMContext *ctx, HWND hwnd) {
-   ctx->transaction.QueueRedrawBorder(hwnd);
+void BorderManagerRedraw(struct SharedState * /*shared*/,
+                         struct MainContext *main, HWND hwnd) {
+   main->transaction.QueueRedrawBorder(hwnd);
 }

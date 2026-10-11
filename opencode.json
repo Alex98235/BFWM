@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "bfwm-tidy": {
+      "type": "local",
+      "command": ["uv", "run", "scripts/bfwm_tidy.py", "mcp"],
+      "enabled": true
+    }
+  }
+}

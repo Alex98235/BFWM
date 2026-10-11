@@ -19,9 +19,10 @@ CBELT_TEST(scale_at_100_percent) {
 
 CBELT_TEST(scale_at_150_percent) {
    /* (v * 144 + 48) / 96 with integer division */
-   cbelt_assert_equal(2, DpiSystem::Scale(1, 144));   /* 1.5   -> 2 */
-   cbelt_assert_equal(3, DpiSystem::Scale(2, 144));   /* 3.0   -> 3 */
-   cbelt_assert_equal(5, DpiSystem::Scale(3, 144));   /* 4.5   -> 5 (round-half-up) */
+   cbelt_assert_equal(2, DpiSystem::Scale(1, 144)); /* 1.5   -> 2 */
+   cbelt_assert_equal(3, DpiSystem::Scale(2, 144)); /* 3.0   -> 3 */
+   cbelt_assert_equal(
+       5, DpiSystem::Scale(3, 144)); /* 4.5   -> 5 (round-half-up) */
    cbelt_assert_equal(6, DpiSystem::Scale(4, 144));   /* 6.0   -> 6 */
    cbelt_assert_equal(15, DpiSystem::Scale(10, 144)); /* 15.0  -> 15 */
    return TEST_SUCCESS;
@@ -40,13 +41,14 @@ CBELT_TEST(scale_at_125_percent) {
    /* (v * 120 + 48) / 96 with integer division. 120/96 = 1.25x, so the
     * exact products are quarter-step values; the +48 offset rounds
     * half-up (e.g. 7 * 1.25 = 8.75 -> 9). */
-   cbelt_assert_equal(1, DpiSystem::Scale(1, 120));  /* 1.25  -> 1 */
-   cbelt_assert_equal(3, DpiSystem::Scale(2, 120));  /* 2.5   -> 3 */
-   cbelt_assert_equal(4, DpiSystem::Scale(3, 120));  /* 3.75  -> 4 */
-   cbelt_assert_equal(5, DpiSystem::Scale(4, 120));  /* 5.0   -> 5 */
-   cbelt_assert_equal(8, DpiSystem::Scale(6, 120));  /* 7.5   -> 8 */
-   cbelt_assert_equal(9, DpiSystem::Scale(7, 120));  /* 8.75  -> 9 (round-half-up) */
-   cbelt_assert_equal(10, DpiSystem::Scale(8, 120)); /* 10.0  -> 10 */
+   cbelt_assert_equal(1, DpiSystem::Scale(1, 120)); /* 1.25  -> 1 */
+   cbelt_assert_equal(3, DpiSystem::Scale(2, 120)); /* 2.5   -> 3 */
+   cbelt_assert_equal(4, DpiSystem::Scale(3, 120)); /* 3.75  -> 4 */
+   cbelt_assert_equal(5, DpiSystem::Scale(4, 120)); /* 5.0   -> 5 */
+   cbelt_assert_equal(8, DpiSystem::Scale(6, 120)); /* 7.5   -> 8 */
+   cbelt_assert_equal(
+       9, DpiSystem::Scale(7, 120)); /* 8.75  -> 9 (round-half-up) */
+   cbelt_assert_equal(10, DpiSystem::Scale(8, 120));  /* 10.0  -> 10 */
    cbelt_assert_equal(13, DpiSystem::Scale(10, 120)); /* 12.5 -> 13 */
    /* Sign-symmetric negatives */
    cbelt_assert_equal(-9, DpiSystem::Scale(-7, 120));

@@ -3,9 +3,11 @@
 #include <memory>
 #include <windows.h>
 
-#include "../../src/core/bfwm_context.h"
-#include "../../src/window/window.h"
+#include "../../src/core/main_context.h"
+
+#include "../../src/core/shared_state.h"
 #include "../../src/window/rules/rules.h"
+#include "../../src/window/window.h"
 
 CBELT_GROUP("window_rule")
 
@@ -31,11 +33,12 @@ CBELT_TEST(force_floating_sets_flags) {
    rule.entries.push_back(make_match_all_entry());
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceFloating() == TRUE);
    cbelt_assert(win->ForceTiled() == FALSE);
@@ -58,11 +61,12 @@ CBELT_TEST(force_floating_clears_conflicting) {
    rule.entries.push_back(make_match_all_entry());
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceFloating() == TRUE);
    cbelt_assert(win->ForceTiled() == FALSE);
@@ -84,11 +88,12 @@ CBELT_TEST(force_tiled_sets_flags) {
    rule.entries.push_back(make_match_all_entry());
    rule.action.type = RULE_FORCE_TILED;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceTiled() == TRUE);
    cbelt_assert(win->ForceFloating() == FALSE);
@@ -112,11 +117,12 @@ CBELT_TEST(force_tiled_clears_conflicting) {
    rule.entries.push_back(make_match_all_entry());
    rule.action.type = RULE_FORCE_TILED;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceTiled() == TRUE);
    cbelt_assert(win->ForceFloating() == FALSE);
@@ -141,11 +147,12 @@ CBELT_TEST(set_floating_does_not_force) {
    rule.entries.push_back(make_match_all_entry());
    rule.action.type = RULE_SET_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceFloating() == FALSE);
    cbelt_assert(win->ForceTiled() == FALSE);
@@ -170,11 +177,12 @@ CBELT_TEST(no_match_skips_rule) {
    rule.entries.push_back(entry);
    rule.action.type = RULE_FORCE_FLOATING;
    std::array<WindowRule *, 1> rules = {&rule};
-   BFWMContext ctx = {};
-   ctx.window_rules.assign(rules.begin(), rules.end());
-   ctx.window_rule_count = 1;
+   SharedState shared = {};
+   MainContext main = {};
+   main.window_rules.assign(rules.begin(), rules.end());
+   main.window_rule_count = 1;
 
-   WindowRulesApply(&ctx, win.get(), "test.exe", "TestClass", "test");
+   WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
    cbelt_assert(win->ForceFloating() == FALSE);
    cbelt_assert(win->IsFloating() == FALSE);

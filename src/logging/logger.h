@@ -2,11 +2,15 @@
  * @file logger.h
  * @brief Object-oriented logging subsystem.
  *
- * A process-wide Logger singleton: lazily constructed on first use and
- * destroyed at program exit (any owned log file is flushed and closed by the
- * destructor). Logging entry points are exposed both as member functions
- * (`Logger::Instance().Error(...)`) and as namespace-level free functions
- * (`Error(...)`) so call sites never need to name the singleton.
+ * A process-wide Logger instance: constructed in main() and destroyed at
+ * program exit (any owned log file is flushed and closed by the destructor).
+ * Logging entry points are exposed both as member functions
+ * (`Logger::Error(...)`) and as namespace-level free functions
+ * (`Error(...)`) so call sites never need to name the instance.
+ *
+ * For testing and DI, an `ILogger` abstract interface is provided. New code
+ * can opt into DI by accepting an `ILogger*` (defaulting to the global
+ * instance via `GetGlobalLogger()`).
  */
 
 #ifndef BFWM_LOGGER_H
@@ -31,12 +35,35 @@
 enum class LogLevel { Debug, Info, Warn, Error, Fatal, None };
 
 /**
- * @brief Process-wide logger singleton.
- *
- * Configure it through `Logger::Instance()`, or log through the free
- * `Debug()` / `Info()` / ... functions declared below.
+ * @brief Abstract logger interface for DI and testing.
  */
-class Logger {
+class ILogger {
+ public:
+   virtual ~ILogger() = default;
+   virtual void VLog(LogLevel level, const char *format, va_list args) = 0;
+   virtual void VLogW(LogLevel level, const wchar_t *format, va_list args) = 0;
+   virtual void SetLevel(LogLevel level) = 0;
+   virtual void UseTimestamps(bool enable,
+                              const char *format = TIMESTAMP_FORMAT) = 0;
+   virtual void UseColor(bool enable) = 0;
+   virtual void SetLogToStdout(bool enable) = 0;
+   virtual void SetLogToFile(bool enable) = 0;
+   virtual void SetLogFile(std::FILE *file) = 0;
+   virtual auto OpenLogFile(const char *path, const char *mode = "a")
+       -> bool = 0;
+   virtual void SetLogFormatter(
+       std::function<std::string(LogLevel, std::string_view, std::string_view)>
+           formatter) = 0;
+   virtual void Reset() = 0;
+};
+
+/**
+ * @brief Concrete logger implementation.
+ *
+ * Not a singleton — construct directly. Use `SetGlobalLogger()` to publish
+ * it for the free-function API (`Debug()`, `Info()`, etc.).
+ */
+class Logger : public ILogger {
  public:
    /// Custom log-line builder. Receives the level, the timestamp (empty when
    /// disabled or unavailable) and the formatted message, and must return the
@@ -44,53 +71,52 @@ class Logger {
    using LogFormatter = std::function<std::string(
        LogLevel level, std::string_view timestamp, std::string_view message)>;
 
-   /// Access the process-wide logger.
-   static auto Instance() noexcept -> Logger &;
+   Logger();
+   ~Logger() override;
 
-   /// The logger is a singleton; copying is disabled. Kept public so that
-   /// misuse produces a clear "use of deleted function" diagnostic instead
-   /// of a confusing access-control error.
    Logger(const Logger &) = delete;
    auto operator=(const Logger &) -> Logger & = delete;
 
    // ---- Configuration ----------------------------------------------------
 
    /// Set the minimum level that is actually emitted.
-   void SetLevel(LogLevel level);
+   void SetLevel(LogLevel level) override;
 
    /// Enable/disable timestamps. `format` is a strftime-style format string
    /// (nullptr or omitted = default).
-   void UseTimestamps(bool enable, const char *format = TIMESTAMP_FORMAT);
+   void UseTimestamps(bool enable,
+                      const char *format = TIMESTAMP_FORMAT) override;
 
    /// Enable/disable ANSI color output (terminal only).
-   void UseColor(bool enable);
+   void UseColor(bool enable) override;
 
    /// Enable/disable logging to stdout.
-   void SetLogToStdout(bool enable);
+   void SetLogToStdout(bool enable) override;
 
    /// Enable/disable logging to the configured file.
-   void SetLogToFile(bool enable);
+   void SetLogToFile(bool enable) override;
 
    /// Attach an externally-owned output stream. The logger does not close it.
-   void SetLogFile(std::FILE *file);
+   void SetLogFile(std::FILE *file) override;
 
    /// Open `path` and take ownership. The logger closes it on replacement,
    /// on Reset() and on destruction. Returns false if the file cannot be
    /// opened.
-   auto OpenLogFile(const char *path, const char *mode = "a") -> bool;
+   auto OpenLogFile(const char *path, const char *mode = "a") -> bool override;
 
    /// Replace the default line formatter (pass {} or nullptr to restore it).
-   void SetLogFormatter(LogFormatter formatter);
+   void SetLogFormatter(LogFormatter formatter) override;
 
    /// Restore default settings and close any owned log file.
-   void Reset();
+   void Reset() override;
 
    // ---- Narrow (char) logging -------------------------------------------
 
+   /// Variadic logging entry point (calls VLog).
    void Log(LogLevel level, const char *format, ...);
 
-   /// va_list variant of Log().
-   void VLog(LogLevel level, const char *format, va_list args);
+   /// va_list variant of Log() - implements ILogger.
+   void VLog(LogLevel level, const char *format, va_list args) override;
 
    void Debug(const char *format, ...);
    void Info(const char *format, ...);
@@ -102,10 +128,11 @@ class Logger {
 
    // ---- Wide (wchar_t) logging ------------------------------------------
 
+   /// Variadic logging entry point (calls VLogW).
    void LogW(LogLevel level, const wchar_t *format, ...);
 
-   /// va_list variant of LogW().
-   void VLogW(LogLevel level, const wchar_t *format, va_list args);
+   /// va_list variant of LogW() - implements ILogger.
+   void VLogW(LogLevel level, const wchar_t *format, va_list args) override;
 
    void DebugW(const wchar_t *format, ...);
    void InfoW(const wchar_t *format, ...);
@@ -116,9 +143,6 @@ class Logger {
    [[noreturn]] void FatalW(const wchar_t *format, ...);
 
  private:
-   Logger();
-   ~Logger();
-
    void Emit(LogLevel level, std::string timestamp, std::string message,
              const LogFormatter &formatter, bool use_color);
    static auto BuildDefaultLine(LogLevel level, std::string_view timestamp,
@@ -139,48 +163,65 @@ class Logger {
 };
 
 // ===========================================================================
-// Namespace-level convenience wrappers
+// Global logger access (for free-function API and opt-in DI)
+// ===========================================================================
+
+/// Set the global logger used by free functions (Debug, Info, Warn, ...).
+/// Call once at startup with the address of your Logger instance.
+void SetGlobalLogger(ILogger *logger);
+
+/// Get the current global logger (never null after SetGlobalLogger called).
+auto GetGlobalLogger() -> ILogger *;
+
+// ===========================================================================
+// Namespace-level convenience wrappers (use global logger)
 // ===========================================================================
 
 inline void Log(LogLevel level, const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(level, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(level, format, args);
    va_end(args);
 }
 
 inline void Debug(const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(LogLevel::Debug, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(LogLevel::Debug, format, args);
    va_end(args);
 }
 
 inline void Info(const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(LogLevel::Info, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(LogLevel::Info, format, args);
    va_end(args);
 }
 
 inline void Warn(const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(LogLevel::Warn, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(LogLevel::Warn, format, args);
    va_end(args);
 }
 
 inline void Error(const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(LogLevel::Error, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(LogLevel::Error, format, args);
    va_end(args);
 }
 
 [[noreturn]] inline void Fatal(const char *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLog(LogLevel::Fatal, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLog(LogLevel::Fatal, format, args);
    va_end(args);
    std::exit(EXIT_FAILURE);
 }
@@ -188,42 +229,48 @@ inline void Error(const char *format, ...) {
 inline void LogW(LogLevel level, const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(level, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(level, format, args);
    va_end(args);
 }
 
 inline void DebugW(const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(LogLevel::Debug, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(LogLevel::Debug, format, args);
    va_end(args);
 }
 
 inline void InfoW(const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(LogLevel::Info, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(LogLevel::Info, format, args);
    va_end(args);
 }
 
 inline void WarnW(const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(LogLevel::Warn, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(LogLevel::Warn, format, args);
    va_end(args);
 }
 
 inline void ErrorW(const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(LogLevel::Error, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(LogLevel::Error, format, args);
    va_end(args);
 }
 
 [[noreturn]] inline void FatalW(const wchar_t *format, ...) {
    va_list args;
    va_start(args, format);
-   Logger::Instance().VLogW(LogLevel::Fatal, format, args);
+   if (auto *log = GetGlobalLogger())
+      log->VLogW(LogLevel::Fatal, format, args);
    va_end(args);
    std::exit(EXIT_FAILURE);
 }

@@ -3,8 +3,6 @@
 
 #include <windows.h>
 
-struct BFWMContext;
-
 /**
  * @brief Add the system-tray icon (hidden window + Shell_NotifyIcon).
  *
@@ -14,7 +12,7 @@ struct BFWMContext;
  * @param ctx The BFWM context (used to signal shutdown from the tray menu)
  * @return TRUE if the icon was added, FALSE on any failure
  */
-auto TrayInit(struct BFWMContext *ctx) -> BOOL;
+auto TrayInit(struct SharedState *shared, struct MainContext *main) -> BOOL;
 
 /**
  * @brief Remove the tray icon and free its resources.

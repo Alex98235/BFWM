@@ -15,7 +15,7 @@
  *
  *    // Dispatch when a keystroke is received
  *    for (size_t i = 0; actions[i] != NULL; i++) {
- *        ActionDispatcherDispatch(ctx, actions[i]);
+ *        ActionDispatcherDispatch(shared, main, actions[i]);
  *    }
  * @endcode
  */
@@ -24,7 +24,8 @@
 #define BFWM_ACTION_DISPATCHER_H
 
 #include "../config/action.h"
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 
 /**
  * @brief Handler function pointer.
@@ -36,7 +37,8 @@
  * @param action The action to handle (never NULL).
  * @return 0 on success, non-zero on failure.
  */
-using ActionHandler = int (*)(BFWMContext *ctx, BFWMAction *action);
+using ActionHandler = int (*)(SharedState *shared, MainContext *main,
+                              BFWMAction *action);
 
 /**
  * @brief Register a handler for a specific action type.
@@ -57,6 +59,7 @@ void ActionDispatcherRegister(BFWMActionType type, ActionHandler handler);
  * @return 0 on success, non-zero if no handler was registered or the handler
  *         returned an error.
  */
-auto ActionDispatcherDispatch(BFWMContext *ctx, BFWMAction *action) -> int;
+auto ActionDispatcherDispatch(SharedState *shared, MainContext *main,
+                              BFWMAction *action) -> int;
 
 #endif /* BFWM_ACTION_DISPATCHER_H */

@@ -182,7 +182,8 @@ CBELT_TEST(dwindle_two_window_split_insets_150_percent) {
    cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &r1));
    cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(2), &r2));
 
-   /* split at 960; boundary edges border 3, the shared seam gap/2 4 + border 3 */
+   /* split at 960; boundary edges border 3, the shared seam gap/2 4 + border 3
+    */
    cbelt_assert_equal((LONG)3, r1.left);
    cbelt_assert_equal((LONG)3, r1.top);
    cbelt_assert_equal((LONG)953, r1.right);
@@ -193,7 +194,8 @@ CBELT_TEST(dwindle_two_window_split_insets_150_percent) {
    cbelt_assert_equal((LONG)1917, r2.right);
    cbelt_assert_equal((LONG)1077, r2.bottom);
 
-   /* visual gap = 2 * (gap/2 + border) = scaled gap (8) + 2 * scaled border (6) */
+   /* visual gap = 2 * (gap/2 + border) = scaled gap (8) + 2 * scaled border (6)
+    */
    cbelt_assert_equal((LONG)14, r2.left - r1.right);
 
    DwindleLayoutFree(dl);
@@ -214,7 +216,8 @@ CBELT_TEST(dwindle_two_window_split_insets_200_percent) {
    cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &r1));
    cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(2), &r2));
 
-   /* split at 960; boundary edges border 4, the shared seam gap/2 6 + border 4 */
+   /* split at 960; boundary edges border 4, the shared seam gap/2 6 + border 4
+    */
    cbelt_assert_equal((LONG)4, r1.left);
    cbelt_assert_equal((LONG)4, r1.top);
    cbelt_assert_equal((LONG)950, r1.right);
@@ -225,7 +228,8 @@ CBELT_TEST(dwindle_two_window_split_insets_200_percent) {
    cbelt_assert_equal((LONG)1916, r2.right);
    cbelt_assert_equal((LONG)1076, r2.bottom);
 
-   /* visual gap = 2 * (gap/2 + border) = scaled gap (12) + 2 * scaled border (8) */
+   /* visual gap = 2 * (gap/2 + border) = scaled gap (12) + 2 * scaled border
+    * (8) */
    cbelt_assert_equal((LONG)20, r2.left - r1.right);
 
    DwindleLayoutFree(dl);

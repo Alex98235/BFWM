@@ -14,23 +14,24 @@ The installer file is called `BFWM-Setup-<version>.exe`
 ### Prerequisites
 
 - **CMake** 3.20+
-- **C11 compiler**: MSYS2 clang (**do not use MSVC**, it's not tested or supported)
-- **C++20 compiler**: MSYS2 clang++
-- **MSYS Makefiles** generator
+- **C11 compiler**: MSYS2 **UCRT64** clang (**do not use MSVC**, it's not tested or supported)
+- **C++20 compiler**: MSYS2 **UCRT64** clang++
+- **Ninja** build driver
 
 > Lua 5.4.7 is vendored as a part of the project files.
 
-Using the MSYS Makefiles generator (as in the project README):
+Using the `ucrt64` preset (as in the project README):
 
 ```sh
 git clone https://github.com/Alex98235/BFWM.git
 cd BFWM
-cmake -S . -B build -G "MSYS Makefiles" \
-  -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/clang.exe \
-  -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/clang++.exe \
-  -DCMAKE_MAKE_PROGRAM=C:/msys64/usr/bin/make.exe
-cmake --build build
+cmake --preset ucrt64
+cmake --build --preset ucrt64
 ```
+
+For contributor setup, build options, and optional tooling (bfwm-tidy, graphify,
+profiling, clangd), see the
+[developer toolchain docs](https://github.com/Alex98235/BFWM/blob/main/doc-devtools/README.md).
 
 The output binary is `build/BFWM.exe`.
 

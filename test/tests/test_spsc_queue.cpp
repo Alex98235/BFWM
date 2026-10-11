@@ -38,7 +38,8 @@ CBELT_TEST(init_is_empty) {
 CBELT_TEST(push_pop_one_preserves_data) {
    SpscQueue q;
 
-   cbelt_assert(q.Push(make_record(42, reinterpret_cast<HWND>(0x1234))) == true);
+   cbelt_assert(q.Push(make_record(42, reinterpret_cast<HWND>(0x1234))) ==
+                true);
    cbelt_assert(q.Size() == 1);
 
    EventRecord out;
@@ -136,16 +137,17 @@ CBELT_TEST(consume_dropped_reset_does_not_recur_spuriously) {
    // Normal operation after reset must not report phantom drops, and a
    // pushed value must still round-trip through the FIFO in order.
    EventRecord discard;
-   cbelt_assert(q.Pop(discard) == true);           // free one slot
-   cbelt_assert(q.Push(make_record(7)) == true);   // enqueue after the reset
-   cbelt_assert(q.ConsumeDropped() == 0);          // no phantom drops
+   cbelt_assert(q.Pop(discard) == true);         // free one slot
+   cbelt_assert(q.Push(make_record(7)) == true); // enqueue after the reset
+   cbelt_assert(q.ConsumeDropped() == 0);        // no phantom drops
 
    bool found_seven = false;
    EventRecord cur;
    while (q.Pop(cur)) {
-      if (cur.event == 7) found_seven = true;
+      if (cur.event == 7)
+         found_seven = true;
    }
-   cbelt_assert(found_seven == true);              // 7 was enqueued and drained
+   cbelt_assert(found_seven == true); // 7 was enqueued and drained
 
    return TEST_SUCCESS;
 }

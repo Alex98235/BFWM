@@ -1,5 +1,6 @@
 #include "rules.h"
-#include "../../core/bfwm_context.h"
+#include "../../core/main_context.h"
+#include "../../core/shared_state.h"
 #include "../../logging/logger.h"
 #include "../window.h"
 
@@ -76,7 +77,7 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
       return nullptr;
 
    // Strip a trailing ".exe" (case-insensitive) so rules match on the bare
-   // process name, mirroring the old strrchr('.') + _stricmp logic.
+   // process name.
    std::string name(buf);
    size_t const dot = name.rfind('.');
    if ((dot != std::string::npos) &&
@@ -87,14 +88,14 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
    return buf;
 }
 
-auto WindowRulesApply(struct BFWMContext *ctx, Window *window,
-                      const char *class_name, const char *title,
+auto WindowRulesApply(struct SharedState * /*shared*/, struct MainContext *main,
+                      Window *window, const char *class_name, const char *title,
                       const char *process) -> WindowRuleResult {
-   if (ctx->window_rule_count == 0)
+   if (main->window_rule_count == 0)
       return RULE_RESULT_CONTINUE;
 
-   for (size_t i = 0; i < ctx->window_rule_count; i++) {
-      WindowRule *rule = ctx->window_rules[i];
+   for (size_t i = 0; i < main->window_rule_count; i++) {
+      WindowRule *rule = main->window_rules[i];
       if (rule->action.type == RULE_IGNORE)
          continue;
       if (!WindowRuleMatch(rule, process, class_name, title))

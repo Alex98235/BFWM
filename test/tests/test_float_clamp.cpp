@@ -146,10 +146,10 @@ CBELT_TEST(clamp_insets_left_edge_visible_flush) {
 }
 
 /* (c) Top-edge bug repro: dragging a window flush puts the outer rect 7px
- * above the work-area top (its visible frame at 0). The old plain
- * outer-rect clamp would snap the outer rect to top = 0, leaving a visible
- * 7px gap below the edge; the inset clamp keeps the visible frame flush at 0
- * and lets the outer rect sit off-screen by the inset. */
+ * above the work-area top (its visible frame at 0). A plain outer-rect clamp
+ * would snap the outer rect to top = 0, leaving a visible 7px gap below the
+ * edge; the inset clamp keeps the visible frame flush at 0 and lets the outer
+ * rect sit off-screen by the inset. */
 CBELT_TEST(clamp_insets_top_edge_no_gap) {
    RECT const bounds = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    FrameInsets const insets = {.left = 7, .top = 7, .right = 7, .bottom = 7};
@@ -159,7 +159,7 @@ CBELT_TEST(clamp_insets_top_edge_no_gap) {
    TestResult const flush_result = ExpectRect(100, -7, 400, 300, flush);
    /* Overhanging: the visible frame (top = -10 + 7 = -3) is pulled back to
     * flush at 0, landing the outer rect at -7 (bottom rides along from 300 to
-    * 303, the height preserved) — never the old gap-at-0 result. */
+    * 303, the height preserved) — never the gap-at-0 result. */
    RECT over = {.left = 100, .top = -10, .right = 400, .bottom = 300};
    ClampRectWithInsets(&over, &bounds, insets);
    TestResult const over_result = ExpectRect(100, -7, 400, 303, over);

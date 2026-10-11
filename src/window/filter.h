@@ -12,10 +12,9 @@
 
 #include <windef.h>
 
-struct BFWMContext;
-
-auto IsExcludedByRules(struct BFWMContext *ctx, const char *class_name,
-                       const char *title, const char *process) -> bool;
+auto IsExcludedByRules(struct SharedState *shared, struct MainContext *main,
+                       const char *class_name, const char *title,
+                       const char *process) -> bool;
 
 /**
  * @brief Check whether the given window is a manageable window.
@@ -30,8 +29,8 @@ auto IsExcludedByRules(struct BFWMContext *ctx, const char *class_name,
  *                         windows (DWM-cloaked but visible) still register.
  * @return true if the window is manageable, else false
  */
-auto IsManageableWindow(struct BFWMContext *ctx, HWND hwnd,
-                        BOOL skip_cloak_check) -> bool;
+auto IsManageableWindow(struct SharedState *shared, struct MainContext *main,
+                        HWND hwnd, BOOL skip_cloak_check) -> bool;
 
 /**
  * @brief Check whether a window is a shell surface (desktop or taskbar).

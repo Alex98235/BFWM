@@ -111,14 +111,12 @@ class Window {
 
    /** @name Border overlay
     * @{ */
-   /// Per-window border overlay ring, null until created
-   [[nodiscard]] auto GetOverlay() const -> Overlay * { return overlay_.get(); }
    /* Out-of-line in window.cpp where Overlay is complete (the unique_ptr
     * move-assignment in the body requires a complete type). */
    void SetOverlay(std::unique_ptr<Overlay> overlay);
 
    /* Facade over the Overlay's public API. Each method null-guards overlay_
-    * internally, so callers need no GetOverlay() != nullptr ceremony; on a
+    * internally, so callers need no null checks; on a
     * null/inert overlay they are no-ops (FlushOverlay returns FALSE). The
     * overlay keeps self-measuring its own EFB-client insets — none of these
     * take or pass insets. Deliberately NOT auto-dirtying: callers decide
@@ -202,6 +200,10 @@ class Window {
    /** @} */
 
  private:
+   /* The reconcile sweep (Overlay::OverlayReconcileAll) walks the registry and
+    * reaches each ring directly. Granting Overlay that access avoids a public
+    * GetOverlay() accessor that would leak the ring pointer to every caller. */
+   friend class Overlay;
    HWND hwnd_;
    std::wstring title_;
    /// Owning process at registration (see GetOwnerPid).
@@ -280,9 +282,9 @@ static inline auto IsWindowManagedByLayout(const Window *win) -> BOOL {
  *        "No node with window handle" diagnostics. Mirrors the PlacementApply
  *        guard.
  *
- * @tparam Context The BFWM context type (deduced as BFWMContext at call
- *        sites; window.h cannot name the complete type because
- *        bfwm_context.h includes window.h)
+ * @tparam Context The context pointer type (deduced at the call
+ *        site; window.h cannot name the complete type because
+ *        main_context.h includes window.h)
  * @param ctx  The BFWM context, or nullptr
  * @param hwnd The window handle to look up
  * @return The managed, layout-member Window*, or nullptr

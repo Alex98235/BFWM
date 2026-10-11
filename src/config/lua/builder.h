@@ -15,7 +15,6 @@
 #include <windows.h>
 
 struct LuaConfig;
-struct BFWMContext;
 struct BFWMAction;
 
 /**
@@ -64,8 +63,8 @@ void parse_key_string(const char *key_str, ModifierState *mods,
  * @param opts_table_idx  Lua stack index for the options table
  * @return A newly allocated BFWMAction, or NULL on failure
  */
-auto build_action(struct LuaConfig *config, struct BFWMContext *ctx,
-                  const char *action_name, int opts_table_idx)
-    -> struct BFWMAction *;
+auto build_action(struct LuaConfig *config, struct SharedState *shared,
+                  struct MainContext *main, const char *action_name,
+                  int opts_table_idx) -> struct BFWMAction *;
 
 #endif

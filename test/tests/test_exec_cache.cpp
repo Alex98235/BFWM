@@ -22,9 +22,8 @@ auto WideToUtf8(const wchar_t *wide) -> std::string {
    if (len <= 0)
       return {};
    std::string out(static_cast<size_t>(len), '\0');
-   WideCharToMultiByte(CP_UTF8, 0, text.c_str(),
-                       static_cast<int>(text.size()), out.data(), len, nullptr,
-                       nullptr);
+   WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()),
+                       out.data(), len, nullptr, nullptr);
    return out;
 }
 
@@ -66,8 +65,8 @@ auto ParseEcho(const std::string &out, std::vector<std::string> *args) -> bool {
 
 /// Poll a key until it yields a value or the budget runs out.
 auto PollValue(ExecCache *cache, const std::vector<std::string> &argv,
-               const std::string &key, int iterations,
-               const std::string **out) -> bool {
+               const std::string &key, int iterations, const std::string **out)
+    -> bool {
    for (int i = 0; i < iterations; i++) {
       const std::string *value = ExecCacheGet(cache, argv, key, 60000);
       if (value != nullptr) {
@@ -187,8 +186,8 @@ CBELT_TEST(spawn_handles_space_and_empty_arg) {
 
 CBELT_TEST(timeout_terminates_hung_child) {
    ExecCache *cache = ExecCacheCreate(200);
-   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping", "-n", "10",
-                                          "127.0.0.1"};
+   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping",
+                                          "-n",      "10", "127.0.0.1"};
    const std::string *value = nullptr;
    cbelt_assert(PollValue(cache, argv, "to", 300, &value) == true);
    cbelt_assert(ExecCacheInFlightCount(cache) == 0);
@@ -234,8 +233,8 @@ CBELT_TEST(failed_start_returns_nil_and_backs_off) {
 
 CBELT_TEST(coalesces_same_key) {
    ExecCache *cache = ExecCacheCreate(60000);
-   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping", "-n", "10",
-                                          "127.0.0.1"};
+   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping",
+                                          "-n",      "10", "127.0.0.1"};
 
    cbelt_assert(ExecCacheGet(cache, argv, "co", 0) == nullptr);
    cbelt_assert(ExecCacheInFlightCount(cache) == 1);
@@ -252,8 +251,8 @@ CBELT_TEST(coalesces_same_key) {
 
 CBELT_TEST(cap_rejection_returns_nil_and_retries) {
    ExecCache *cache = ExecCacheCreate(60000);
-   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping", "-n", "10",
-                                          "127.0.0.1"};
+   std::vector<std::string> const argv = {"cmd.exe", "/c", "ping",
+                                          "-n",      "10", "127.0.0.1"};
 
    /* Fill the concurrency cap with distinct keys. */
    for (int i = 0; i < 16; i++)

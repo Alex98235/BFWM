@@ -20,7 +20,6 @@
 #include <windows.h>
 
 class Monitor;
-struct BFWMContext;
 struct WorkspaceConfig;
 
 class Workspace {
@@ -89,19 +88,23 @@ class Workspace {
    void ClearWindows() { windows_.clear(); }
 
    /// Apply label/layout from the matching WorkspaceConfig, if any
-   void ApplyConfig(struct BFWMContext *ctx, size_t identifier);
+   void ApplyConfig(struct SharedState *shared, struct MainContext *main,
+                    size_t identifier);
    /// Add a window to the workspace (layout-tree insert, tracking, focus)
-   void AddWindow(struct BFWMContext *ctx, Window *window);
+   void AddWindow(struct SharedState *shared, struct MainContext *main,
+                  Window *window);
    /// Remove a window from the workspace (tracking + layout-tree removal)
    void RemoveWindow(Window *window);
    /// Recalculate and apply the layout, then set border colours
-   void ApplyLayout(struct BFWMContext *ctx);
+   void ApplyLayout(struct SharedState *shared, struct MainContext *main);
    /// Remove every managed window from the registry and clear the list
-   void DestroyWindows(struct BFWMContext *ctx);
+   void DestroyWindows(struct SharedState *shared, struct MainContext *main);
    /// Recompute this workspace's rect from its monitor's geometry
-   void RecalculateRect(Monitor *mon, struct BFWMContext *ctx);
+   void RecalculateRect(Monitor *mon, struct SharedState *shared,
+                        struct MainContext *main);
    /// Move this workspace from its current monitor to another
-   void MoveToMonitor(Monitor *target_mon, struct BFWMContext *ctx);
+   void MoveToMonitor(Monitor *target_mon, struct SharedState *shared,
+                      struct MainContext *main);
 
    /// Factory: create a layout engine for the given type, or nullptr
    static auto CreateLayoutEngine(LayoutType type, RECT workspace_rect,
@@ -142,18 +145,19 @@ struct ScaledLayoutConfig {
    int border_width;
 };
 
-auto CreateWorkspaceForMonitor(BFWMContext *ctx, size_t target_id,
-                               const std::wstring *name, Monitor *mon)
-    -> Workspace *;
+auto CreateWorkspaceForMonitor(SharedState *shared, MainContext *main,
+                               size_t target_id, const std::wstring *name,
+                               Monitor *mon) -> Workspace *;
 
 /**
  * @brief Scale the logical gap/border config for a monitor's effective DPI.
  *
- * @param ctx  The BFWM context (ctx->dpi must be initialized)
+ * @param ctx  The BFWM context (main->dpi must be initialized)
  * @param hmon The monitor handle to scale for
  * @return Physical-pixel gap_between / gap_edge / border_width for @p hmon
  */
-auto ScaleLayoutConfigForMonitor(struct BFWMContext *ctx, HMONITOR hmon)
+auto ScaleLayoutConfigForMonitor(struct SharedState *shared,
+                                 struct MainContext *main, HMONITOR hmon)
     -> ScaledLayoutConfig;
 
 /**
@@ -167,7 +171,8 @@ auto ScaleLayoutConfigForMonitor(struct BFWMContext *ctx, HMONITOR hmon)
  * @param hwnd The window handle to look for
  * @return Workspace* Pointer to the workspace, or NULL if not found
  */
-auto FindWorkspaceByHwnd(struct BFWMContext *ctx, HWND hwnd) -> Workspace *;
+auto FindWorkspaceByHwnd(struct SharedState *shared, struct MainContext *main,
+                         HWND hwnd) -> Workspace *;
 
 /**
  * @brief Public API for focusing a window - checks transaction state.
@@ -178,7 +183,8 @@ auto FindWorkspaceByHwnd(struct BFWMContext *ctx, HWND hwnd) -> Workspace *;
  * @param hwnd The window to focus
  * @param ctx The BFWM context
  */
-void FocusWindow(HWND hwnd, struct BFWMContext *ctx);
+void FocusWindow(HWND hwnd, struct SharedState *shared,
+                 struct MainContext *main);
 
 /**
  * @brief Immediately apply focus without transaction checking.
@@ -189,7 +195,8 @@ void FocusWindow(HWND hwnd, struct BFWMContext *ctx);
  * @param hwnd The window to focus
  * @param ctx The BFWM context
  */
-auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL;
+auto FocusWindowImmediate(HWND hwnd, struct SharedState *shared,
+                          struct MainContext *main) -> BOOL;
 
 /**
  * @brief Update focus tracking, workspace, and border colours without
@@ -198,7 +205,8 @@ auto FocusWindowImmediate(HWND hwnd, struct BFWMContext *ctx) -> BOOL;
  * @param hwnd The HWND that now has foreground focus
  * @param ctx  The BFWM context (updated immediately)
  */
-void UpdateFocusTracking(HWND hwnd, struct BFWMContext *ctx);
+void UpdateFocusTracking(HWND hwnd, struct SharedState *shared,
+                         struct MainContext *main);
 
 /**
  * @brief Handle a desktop click (from the mouse hook via WM_APP_DESKTOP_CLICK).
@@ -211,7 +219,8 @@ void UpdateFocusTracking(HWND hwnd, struct BFWMContext *ctx);
  * @param ctx   The BFWM context
  * @param point The cursor position at click time
  */
-void WorkspaceHandleDesktopClick(struct BFWMContext *ctx, POINT point);
+void WorkspaceHandleDesktopClick(struct SharedState *shared,
+                                 struct MainContext *main, POINT point);
 
 /**
  * @brief Handle focus-follows-mouse hover (from the mouse hook via
@@ -223,22 +232,26 @@ void WorkspaceHandleDesktopClick(struct BFWMContext *ctx, POINT point);
  * @param ctx   The BFWM context
  * @param point The cursor position at hover time
  */
-void WorkspaceHandleMouseHover(struct BFWMContext *ctx, POINT point);
+void WorkspaceHandleMouseHover(struct SharedState *shared,
+                               struct MainContext *main, POINT point);
 
-auto FindMonitorByPoint(struct BFWMContext *ctx, POINT point) -> Monitor *;
+auto FindMonitorByPoint(struct SharedState *shared, struct MainContext *main,
+                        POINT point) -> Monitor *;
 
-auto FindMonitorByWorkspace(struct BFWMContext *ctx, Workspace *workspace)
+auto FindMonitorByWorkspace(struct SharedState *shared,
+                            struct MainContext *main, Workspace *workspace)
     -> Monitor *;
 
 auto FindWorkspaceOnMonitor(const Monitor *mon, size_t identifier)
     -> Workspace *;
 
-auto FindWorkspaceById(struct BFWMContext *ctx, size_t identifier)
-    -> Workspace *;
+auto FindWorkspaceById(struct SharedState *shared, struct MainContext *main,
+                       size_t identifier) -> Workspace *;
 
 void WorkspaceDestroyIfEmpty(Monitor *mon, Workspace *workspace);
 
-void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
+void WorkspaceActivateSimple(struct SharedState *shared,
+                             struct MainContext *main, Monitor *mon,
                              Workspace *old_workspace, Workspace *new_workspace,
                              bool destroy_empty_old_ws);
 
@@ -254,23 +267,29 @@ void WorkspaceActivateSimple(struct BFWMContext *ctx, Monitor *mon,
  * @param hwnd The HWND whose workspace should be activated
  * @param ctx  The BFWM context
  */
-void WorkspaceActivateForWindow(HWND hwnd, struct BFWMContext *ctx);
+void WorkspaceActivateForWindow(HWND hwnd, struct SharedState *shared,
+                                struct MainContext *main);
 
-auto WorkspaceActivate(struct BFWMContext *ctx, Monitor *mon, size_t target_id)
-    -> bool;
+auto WorkspaceActivate(struct SharedState *shared, struct MainContext *main,
+                       Monitor *mon, size_t target_id) -> bool;
 
-void RestoreDesktopState(struct BFWMContext *ctx);
+void RestoreDesktopState(struct SharedState *shared, struct MainContext *main);
 
-void PushGapConfigToAllWorkspaces(struct BFWMContext *ctx);
+void PushGapConfigToAllWorkspaces(struct SharedState *shared,
+                                  struct MainContext *main);
 
-void RecalculateAllWorkspaceRects(struct BFWMContext *ctx);
+void RecalculateAllWorkspaceRects(struct SharedState *shared,
+                                  struct MainContext *main);
 
-auto FindNextWorkspaceId(struct BFWMContext *ctx) -> size_t;
+auto FindNextWorkspaceId(struct SharedState *shared, struct MainContext *main)
+    -> size_t;
 
-auto FindUnassignedWorkspaceId(struct BFWMContext *ctx, Monitor *mon) -> size_t;
+auto FindUnassignedWorkspaceId(struct SharedState *shared,
+                               struct MainContext *main, Monitor *mon)
+    -> size_t;
 
-auto FindWorkspaceConfig(struct BFWMContext *ctx, size_t workspace_id) -> const
-    struct WorkspaceConfig *;
+auto FindWorkspaceConfig(struct SharedState *shared, struct MainContext *main,
+                         size_t workspace_id) -> const struct WorkspaceConfig *;
 
 /**
  * @brief Force DWM to re-composite immediately.
@@ -292,6 +311,13 @@ static inline void ForceDwmComposite() { DwmFlush(); }
  * @param hwnd The window handle to locate
  * @return Workspace* Pointer to the workspace, or NULL
  */
-auto ResolveTargetWorkspace(struct BFWMContext *ctx, HWND hwnd) -> Workspace *;
+auto ResolveTargetWorkspace(struct SharedState *shared,
+                            struct MainContext *main, HWND hwnd) -> Workspace *;
+
+/// After a focus change, promote every window in the same layer (tiled or
+/// floating) above the opposite layer. A HWND + layer cache skips when
+/// focus stays within the same layer (the common case).
+void RestackWorkspaceLayers(struct SharedState *shared,
+                            struct MainContext *main);
 
 #endif

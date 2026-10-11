@@ -201,22 +201,21 @@ struct LuaIndicatorOutput {
 };
 
 class KeybindDictionary;
-struct BFWMContext;
 
 /**
  * @brief Initialize the Lua state, load the config file, parse settings
  *        and keybinds.
  *
  * Opens a Lua VM, loads config.lua from the given path, reads runtime
- * settings into ctx->config, and populates the keybind dictionary.
+ * settings into shared->config, and populates the keybind dictionary.
  *
  * @param config      The Lua config state
  * @param ctx         The BFWM context (settings + keybinds are written here)
  * @param config_path Path to config.lua (e.g. aconfig.luaa)
  * @return true on success, false on failure
  */
-auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
-                   const char *config_path) -> bool;
+auto LuaConfigLoad(LuaConfig *config, struct SharedState *shared,
+                   struct MainContext *main, const char *config_path) -> bool;
 
 /**
  * @brief Reload the configuration (re-parse config.lua).
@@ -225,7 +224,8 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
  * @param ctx    The BFWM context (settings + keybinds are updated here)
  * @return true on success
  */
-auto LuaConfigReload(LuaConfig *config, struct BFWMContext *ctx) -> bool;
+auto LuaConfigReload(LuaConfig *config, struct SharedState *shared,
+                     struct MainContext *main) -> bool;
 
 /**
  * @brief Free the Lua state. Call on shutdown.
@@ -243,8 +243,8 @@ void LuaConfigFree(LuaConfig *config);
  * @param func_name Name of the Lua function to call
  * @return true if the function was found and called successfully
  */
-auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
-                   const char *func_name) -> bool;
+auto LuaConfigCall(LuaConfig *config, struct SharedState *shared,
+                   struct MainContext *main, const char *func_name) -> bool;
 
 /**
  * @brief Invoke a named global Lua indicator click callback.
@@ -265,10 +265,10 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
  * @param alt    Alt modifier state
  * @return true if the function was found and callable and completed
  */
-auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
-                        const char *func, const char *indicator_id,
-                        const char *button, bool ctrl, bool shift, bool alt)
-    -> bool;
+auto LuaConfigCallClick(LuaConfig *config, struct SharedState *shared,
+                        struct MainContext *main, const char *func,
+                        const char *indicator_id, const char *button, bool ctrl,
+                        bool shift, bool alt) -> bool;
 
 /**
  * @brief Invoke a named global Lua indicator scroll callback.
@@ -284,9 +284,9 @@ auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
  * @param dir    Scroll direction ("up"|"down")
  * @return true if the function was found and callable and completed
  */
-auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *indicator_id,
-                         const char *dir) -> bool;
+auto LuaConfigCallScroll(LuaConfig *config, struct SharedState *shared,
+                         struct MainContext *main, const char *func,
+                         const char *indicator_id, const char *dir) -> bool;
 
 /**
  * @brief Call a custom indicator's `output(id)` global.
@@ -308,8 +308,9 @@ auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
  * @param out    Filled on success; left `valid=false` otherwise
  * @return true when the function ran and returned a string or table
  */
-auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *indicator_id,
-                         LuaIndicatorOutput *out) -> bool;
+auto LuaConfigCallOutput(LuaConfig *config, struct SharedState *shared,
+                         struct MainContext *main, const char *func,
+                         const char *indicator_id, LuaIndicatorOutput *out)
+    -> bool;
 
 #endif

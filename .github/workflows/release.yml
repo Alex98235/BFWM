@@ -32,34 +32,27 @@ jobs:
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Building version $version"
 
-      - name: Setup MSYS2
+      - name: Setup MSYS2 (UCRT64)
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MSYS
+          msystem: UCRT64
+          path-type: strict
           update: true
           install: >-
-            make
-            cmake
-            mingw-w64-x86_64-clang
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-binutils
+            mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-binutils
 
       - name: Configure (CMake)
         shell: msys2 {0}
-        run: |
-          export PATH="/mingw64/bin:$PATH"
-          cmake -S . -B build -G "Unix Makefiles" \
-            -DCMAKE_C_COMPILER=/mingw64/bin/clang.exe \
-            -DCMAKE_CXX_COMPILER=/mingw64/bin/clang++.exe \
-            -DCMAKE_RC_COMPILER=/mingw64/bin/windres.exe
+        run: cmake --preset ucrt64
 
       # Only the production target is built: the test target depends on the
       # test/cbelt submodule, which is not part of release builds.
       - name: Build BFWM
         shell: msys2 {0}
-        run: |
-          export PATH="/mingw64/bin:$PATH"
-          cmake --build build --target BFWM
+        run: cmake --build --preset ucrt64 --target BFWM
 
       - name: Install Inno Setup
         shell: pwsh
