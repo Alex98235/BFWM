@@ -137,6 +137,32 @@ auto IndicatorWorkspaceIndex(int slot, int ws_index) -> uint32_t;
 auto IndicatorElementId(bool collection, int slot, int item_or_ws_index)
     -> Clay_ElementId;
 
+#ifdef BFWM_BUILD_TESTING
+/// One indicator's contribution to a group's measured width. `drawable` is
+/// the shared measure/render drawability predicate; non-drawable entries
+/// contribute neither width nor an inter-item gap. Exposed for unit testing.
+struct BarGroupItem {
+   bool drawable;
+   float width;
+};
+
+/// Total width of a collection's tabs: `Σ item_width + 4·(n − 1)`.
+/// Exposed for unit testing.
+auto CollectionWidth(const int *item_width, int n) -> float;
+
+/// Sum the drawable widths, add a 4px gap between each drawable pair, then
+/// add `edge_pad`. Non-drawable entries contribute nothing. Exposed for unit
+/// testing.
+auto MeasureGroupWidthFrom(const BarGroupItem *items, int n, float edge_pad)
+    -> float;
+
+/// Left spacer that centers a center group: `(bar_width − c_total)/2 −
+/// l_total`, or 0 with `*use_abs = false` when the half remainder cannot fit
+/// the wider side group. Exposed for unit testing.
+auto CenterSpacerFor(float bar_width, float c_total, float l_total,
+                     float r_total, bool *use_abs) -> float;
+#endif
+
 /**
  * @brief Per-monitor status bar window controller.
  *
