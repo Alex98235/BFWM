@@ -123,7 +123,7 @@ _RSP_RE = re.compile(r"@([^\s]+\.rsp)")
 
 
 def _transform_command(command: str, directory: str) -> str:
-    """Make a MSYS Makefiles command consumable by clang-tidy.
+    """Normalize a compile_commands.json command entry for clang-tidy.
 
     Converts POSIX drive paths (/C/...) to native (C:/...) and expands
     response files, whose contents are already native.
