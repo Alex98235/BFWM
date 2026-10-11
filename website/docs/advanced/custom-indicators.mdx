@@ -1,0 +1,135 @@
+---
+title: "Custom Indicators"
+---
+
+# Custom Indicators
+
+A `type = "custom"` indicator reads from a global Lua `output(id)` function that
+the bar calls on its poll timer. The full field and value-bag reference lives in
+[Bar → `"custom"`](/configuration/bar#custom-lua-driven-indicator).
+
+## Fetching external data
+
+`BFWM.exec_cache(argv, key[, ttl_ms])` runs a CLI without blocking the UI and
+returns its last cached stdout. `nil` until the first run completes. See the
+[`BFWM.exec_cache()`](/advanced/custom-lua-actions#non-blocking-process-data-with-bfwmexec_cache)
+section of Custom Lua Actions for the semantics (argv-only, no shell, TTL,
+coalescing, limits, and failures).
+
+An `output` function may return a bare string or a table:
+
+```lua
+function my_status(id)
+  -- argv-only — no shell. The first element is the executable.
+  local out = BFWM.exec_cache({ "my-cli", "status" }, "my-status", 1500)
+  if not out then return nil end
+  return out                                  -- bare string
+  -- or a table: { text = out, icon = "", color = "#a6d189" }
+end
+
+Bar.indicators = {
+  { type = "custom", align = "right", id = "my-status", output = "my_status" },
+}
+```
+
+## Example: Spotify
+
+
+Add the indicator to the `Bar.indicators` array:
+
+```lua
+{ -- custom Spotify indicator
+    type = "custom",
+    id = "spotify",
+    align = "left",
+    output = "spotify_status",
+    on_click = "spotify_click",
+    on_scroll = "spotify_scroll",
+    poll_rate = 1000,
+    max_width = 400,
+    -- uncomment to color the indicator green regardless of state;
+    -- otherwise it is green only while something is playing:
+    -- color      = "#a6d189",
+    format = "{icon} {text}"
+}
+```
+
+Then define the helper and callbacks:
+
+:::note
+This example uses
+[bfmediactl](https://github.com/Alex98235/bfmediactl), which must be on `PATH`.
+But any media CLI tool which outputs JSON would work. All that changes is the exact commands
+and JSON-parsing.
+:::
+
+```lua
+-- Requires bfmediactl (https://github.com/Alex98235/bfmediactl) on PATH.
+
+-- Convert a millisecond count (number or numeric string) into "M:SS".
+-- e.g. 139507 -> "2:19"; nil/garbage -> "0:00".
+local function formatMs(ms)
+    local totalS = math.floor((tonumber(ms) or 0) / 1000)
+    return string.format("%d:%02d", math.floor(totalS / 60), totalS % 60)
+end
+
+-- output/on_click/on_scroll are looked up as GLOBALS by BFWM (lua_getglobal),
+-- so these functions must stay global (no `local`).
+function spotify_status(id)
+    local rawOutput = BFWM.exec_cache(
+        {"bfmediactl.exe", "--source", "spotify"},
+        "spotify",
+        900)
+
+    if not rawOutput or rawOutput == "" then
+        return { clear = true }
+    end
+
+    local status = rawOutput:match('"status"%s*:%s*"([^"]+)"')
+    local title = rawOutput:match('"title"%s*:%s*"([^"]+)"')
+
+    if not title then return nil end
+
+    if status ~= "playing" then
+        return {
+            icon = "⏸",
+            text = title ~= "" and title or "Paused"
+        }
+    end
+
+    local artist = rawOutput:match('"artist"%s*:%s*"([^"]+)"')
+    -- positionMs/durationMs are bare JSON numbers (unquoted), so match digits.
+    local positionMs = rawOutput:match('"positionMs"%s*:%s*(%d+)')
+    local durationMs = rawOutput:match('"durationMs"%s*:%s*(%d+)')
+    local positionS = formatMs(positionMs)
+    local durationS = formatMs(durationMs)
+
+    local artistText = (artist and artist ~= "") and (artist .. " - ") or ""
+    return {
+        text = "[" .. positionS .. "/" .. durationS .. "] " .. artistText ..
+            title,
+        icon = "▶",
+        color = "#a6d189"
+    }
+end
+
+-- Play/pause
+function spotify_click(id, button, mods)
+    if button ~= "left" then return end
+    BFWM.spawn({"bfmediactl.exe", "toggle", "--source", "spotify"})
+end
+
+-- Next/prev song
+function spotify_scroll(id, dir)
+    if dir == "up" then
+        BFWM.spawn({"bfmediactl.exe", "next", "--source", "spotify"})
+    else
+        BFWM.spawn({"bfmediactl.exe", "prev", "--source", "spotify"})
+    end
+end
+```
+
+:::note
+The bar is only as fresh as the CLI's data. If the media-session position updates in
+coarse batches (~4–5 s), that is the update-limit for the position.
+:::

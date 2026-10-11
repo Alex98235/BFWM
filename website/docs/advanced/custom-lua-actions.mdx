@@ -41,6 +41,19 @@ we can do something like this:
 
 :::
 
+Custom actions work with all keybind features, including
+`repeatable`:
+
+```lua
+function volume_up()
+  -- adjust system volume logic here
+end
+
+BFWM.keybinds = {
+  { "Alt Ctrl Up", "Call", { lua = "volume_up", repeatable = true } },
+}
+```
+
 ## Starting a process with `Exec`/`Spawn`
 
 `Exec` runs a shell command without creating a visible window:
@@ -57,20 +70,9 @@ scripts, CLI tools, and commands that don't produce a window.
 Custom bar indicators can read data from an external CLI without stalling the
 UI. `BFWM.exec_cache(argv, key[, ttl_ms])` runs `argv` with its stdout captured,
 caches the result under `key`, and returns the **last cached stdout** (or `nil`
-until the first run completes):
+until the first run completes).
 
-```lua
-function media_status(id)
-  -- argv only — there is no shell. The first element is the executable.
-  local out = BFWM.exec_cache({ "my-media-cli", "status" }, "media", 1500)
-  if not out then return nil end
-  return out
-end
-
-Bar.indicators = {
-  { type = "custom", align = "right", id = "media", output = "media_status" },
-}
-```
+For a full worked example, see [Custom Indicators](/advanced/custom-indicators).
 
 - **argv only, no shell.** Pass each token as a separate string. A bare string
   is accepted as a single `argv[0]`. To use a shell, invoke it explicitly
@@ -95,18 +97,3 @@ Bar.indicators = {
   forget). It still uses argv-only semantics and is reaped by the next poll.
 - The cache is **main-thread only** and touches no Lua state; it is intended for
   custom indicator `output` functions.
-
-## Combining with Keybinds
-
-Custom actions work with all keybind features, including
-`repeatable`:
-
-```lua
-function volume_up()
-  -- adjust system volume logic here
-end
-
-BFWM.keybinds = {
-  { "Alt Ctrl Up", "Call", { lua = "volume_up", repeatable = true } },
-}
-```
