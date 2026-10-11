@@ -198,12 +198,13 @@ inline auto FormatNumber(double value, int precision) -> std::string {
            std::min<size_t>(static_cast<size_t>(len), buf.size() - 1)};
 }
 
-/// Log an unknown `{name}` specifier once (at Warn).
+/// Log a `{name}` specifier with no value once (at Warn).
 
-inline void LogUnknownSpecifier(const std::string &name) {
+inline void LogMissingSpecifier(const std::string &name) {
    static std::set<std::string> logged;
    if (logged.insert(name).second) {
-      Warn("Indicator format: unknown specifier '{%s}' (emitted literally)",
+      Warn("Indicator format: no value for specifier '{%s}' (rendered empty; "
+           "logged once per run)",
            name.c_str());
    }
 }
@@ -260,9 +261,9 @@ inline auto FormatDialect(const IndicatorRuntime &runtime,
       } else {
          const IndicatorValue *value = FindValue(runtime, name);
          if (value == nullptr) {
-            // Unknown name: emit the token literally, log once.
-            out += fmt.substr(cursor, close - cursor + 1);
-            LogUnknownSpecifier(name);
+            // No value this poll: render nothing (log once), rather than
+            // leaking `{name}` into the bar.
+            LogMissingSpecifier(name);
          } else if (value->is_num) {
             int const precision = (explicit_precision >= 0) ? explicit_precision
                                                             : value->precision;

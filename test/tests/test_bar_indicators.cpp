@@ -118,7 +118,7 @@ CBELT_TEST(format_icon_and_state_tokens) {
    return TEST_SUCCESS;
 }
 
-CBELT_TEST(format_unknown_specifier_is_literal) {
+CBELT_TEST(format_missing_specifier_renders_empty) {
    BarIndicatorConfig cfg = {};
    cfg.type = BAR_INDICATOR_CPU;
    cfg.format = "x{nope}y";
@@ -126,8 +126,28 @@ CBELT_TEST(format_unknown_specifier_is_literal) {
    IndicatorRuntime rt;
    rt.values.push_back(num_value("value", 1.0, 0));
 
+   /* An absent specifier renders nothing (surrounding literals survive). */
    std::string const out = IndicatorComposeFormat(cfg, rt, &g_test_provider);
-   cbelt_assert(strcmp(out.c_str(), "x{nope}y") == 0);
+   cbelt_assert(strcmp(out.c_str(), "xy") == 0);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(format_missing_specifier_with_others_fills_present) {
+   BarIndicatorConfig cfg = {};
+   cfg.type = BAR_INDICATOR_CPU;
+
+   IndicatorRuntime rt;
+   rt.values.push_back(num_value("value", 42.0, 0));
+
+   /* No icon/text present: the absent tokens contribute nothing at all. */
+   cfg.format = "{icon}{text}";
+   std::string const empty = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(empty.empty());
+
+   /* A present value still fills in while an absent one stays empty. */
+   cfg.format = "{value}{text}";
+   std::string const mixed = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(strcmp(mixed.c_str(), "42") == 0);
    return TEST_SUCCESS;
 }
 
@@ -546,14 +566,16 @@ CBELT_TEST(clear_requested_drops_before_format_compose) {
    cbelt_assert(rt.valid == false);
    cbelt_assert(rt.text.empty());
 
-   /* Regression: with a non-empty format, composing the format from the now
-    * empty value bag would emit the literal `{text}` and re-mark it drawable.
-    */
+   /* With a non-empty format the absent specifiers no longer leak, but the
+    * literal separator between them would remain, so the runtime would still
+    * be non-empty (and thus drawable) without the short-circuit. */
    BarIndicatorConfig cfg = {};
    cfg.type = BAR_INDICATOR_CUSTOM;
    cfg.format = "{icon} {text}";
-   std::string const raw = IndicatorComposeFormat(cfg, rt, &g_test_provider);
-   cbelt_assert(raw.find("{text}") != std::string::npos);
+   std::string const residue =
+       IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(residue.find('{') == std::string::npos);
+   cbelt_assert(!residue.empty());
 
    /* The compose short-circuit drops the cleared output instead: not drawn. */
    cbelt_assert(IndicatorDropClearedOutput(rt) == true);
