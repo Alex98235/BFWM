@@ -166,8 +166,6 @@ static inline auto SnackbarLevelFromLogLevel(LogLevel level)
       return SNACKBAR_LOG_NONE;
    }
 }
-
-struct BFWMContext;
 class Monitor;
 
 /**
@@ -176,7 +174,7 @@ class Monitor;
  * Owns the layered overlay window, the message-only IPC window and the
  * Clay layout state.  Construct the instance, then call Init() to perform
  * the fallible setup (retryable on failure); the instance itself is owned
- * by BFWMContext::snackbar_state.  Messaging is exposed through the
+ * by the Snackbar instance.  Messaging is exposed through the
  * static API below.
  */
 class Snackbar {
@@ -184,7 +182,7 @@ class Snackbar {
    /// @name Construction / initialisation
    /// @{
 
-   explicit Snackbar(struct BFWMContext *ctx);
+   explicit Snackbar(struct SharedState *shared, struct MainContext *main);
    ~Snackbar();
    Snackbar(const Snackbar &) = delete;
    auto operator=(const Snackbar &) -> Snackbar & = delete;
@@ -214,7 +212,7 @@ class Snackbar {
     *        re-lay out, and reposition the window.
     * @param ctx The BFWM context.
     */
-   static void Tick(struct BFWMContext *ctx);
+   static void Tick(struct SharedState *shared, struct MainContext *main);
 
    /**
     * @brief Enqueue a notification for display.
@@ -223,31 +221,34 @@ class Snackbar {
     * @param message Wide-character message text.
     * @param force   If TRUE, always show and use forced color for level bar.
     */
-   static void Show(struct BFWMContext *ctx, SnackbarLogLevel level,
-                    std::wstring *message, BOOL force);
+   static void Show(struct SharedState *shared, struct MainContext *main,
+                    SnackbarLogLevel level, std::wstring *message, BOOL force);
 
    /**
     * @brief Enqueue a notification for display (LogLevel convenience).
     * @param level Logger severity level; converted via
     *              SnackbarLevelFromLogLevel() before buffering.
     */
-   static void Show(struct BFWMContext *ctx, LogLevel level,
-                    std::wstring *message, BOOL force);
+   static void Show(struct SharedState *shared, struct MainContext *main,
+                    LogLevel level, std::wstring *message, BOOL force);
 
    /**
     * @brief Convenience wrapper: log at Error level and show in snackbar.
     */
-   static void Error(struct BFWMContext *ctx, const wchar_t *fmt, ...);
+   static void Error(struct SharedState *shared, struct MainContext *main,
+                     const wchar_t *fmt, ...);
 
    /**
     * @brief Convenience wrapper: log at Warn level and show in snackbar.
     */
-   static void Warn(struct BFWMContext *ctx, const wchar_t *fmt, ...);
+   static void Warn(struct SharedState *shared, struct MainContext *main,
+                    const wchar_t *fmt, ...);
 
    /**
     * @brief Convenience wrapper: log at Info level and show in snackbar.
     */
-   static void Info(struct BFWMContext *ctx, const wchar_t *fmt, ...);
+   static void Info(struct SharedState *shared, struct MainContext *main,
+                    const wchar_t *fmt, ...);
 
    /**
     * @brief Log GetLastError() to both the logger and the snackbar.
@@ -255,7 +256,8 @@ class Snackbar {
     * Formats the system error message (like BFWMLogLastError) and
     * pushes it as an error-level notification.
     */
-   static void LogLastError(struct BFWMContext *ctx, const char *prefix);
+   static void LogLastError(struct SharedState *shared,
+                            struct MainContext *main, const char *prefix);
    /// @}
 
  private:
@@ -282,7 +284,8 @@ class Snackbar {
    // MEMBER STATE (was a zeroed C struct; now member-initialised)
    // ============================================================
 
-   struct BFWMContext *ctx = nullptr;
+   struct SharedState *shared = nullptr;
+   struct MainContext *main = nullptr;
    HWND hwnd = nullptr;
    HWND notify_hwnd = nullptr;
    Clay_Context *clay_context = nullptr;

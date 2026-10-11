@@ -12,8 +12,6 @@
 
 #include <windows.h>
 
-struct BFWMContext;
-
 /**
  * @brief Queue a border color change for the given window.
  *
@@ -24,7 +22,8 @@ struct BFWMContext;
  * @param hwnd  Target window handle
  * @param color The desired COLORREF border color
  */
-void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color);
+void BorderManagerSetColor(struct SharedState *shared, struct MainContext *main,
+                           HWND hwnd, COLORREF color);
 
 /**
  * @brief Queue the active border color for the given window.
@@ -32,7 +31,8 @@ void BorderManagerSetColor(struct BFWMContext *ctx, HWND hwnd, COLORREF color);
  * @param ctx  The BFWM context
  * @param hwnd Target window handle
  */
-void BorderManagerSetActive(struct BFWMContext *ctx, HWND hwnd);
+void BorderManagerSetActive(struct SharedState *shared,
+                            struct MainContext *main, HWND hwnd);
 
 /**
  * @brief Queue the inactive border color for the given window.
@@ -40,7 +40,8 @@ void BorderManagerSetActive(struct BFWMContext *ctx, HWND hwnd);
  * @param ctx  The BFWM context
  * @param hwnd Target window handle
  */
-void BorderManagerSetInactive(struct BFWMContext *ctx, HWND hwnd);
+void BorderManagerSetInactive(struct SharedState *shared,
+                              struct MainContext *main, HWND hwnd);
 
 /**
  * @brief Queue a border redraw for the given window.
@@ -48,6 +49,7 @@ void BorderManagerSetInactive(struct BFWMContext *ctx, HWND hwnd);
  * @param ctx  The BFWM context
  * @param hwnd Target window handle
  */
-void BorderManagerRedraw(struct BFWMContext *ctx, HWND hwnd);
+void BorderManagerRedraw(struct SharedState *shared, struct MainContext *main,
+                         HWND hwnd);
 
 #endif /* BFWM_BORDER_MANAGER_H */

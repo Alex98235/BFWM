@@ -18,7 +18,7 @@
  *   - `event_queue` is SPSC: the worker (producer) calls Push; the main
  *     loop (consumer) calls Pop. The SpscQueue is lock-free and uses
  *     std::atomic for memory ordering.
- *   - `setup_in_progress` is set by the main thread during BFWMContextSetup
+ *   - `setup_in_progress` is set by the main thread during BFWMSetup
  *     and read by the worker's WinEventProc to gate CREATE/FOREGROUND events.
  */
 
@@ -30,12 +30,21 @@
 #include "../transaction/spsc_queue.h"
 #include <windows.h>
 
+struct SharedState;
+struct MainContext;
+
 /**
  * @brief Worker-thread-owned state.
  *
  * See the file header for the threading contract.
  */
 struct WorkerContext {
+   /** @name Back-pointers for worker read-only access to shared/main state */
+   /** @{ */
+   SharedState *shared = nullptr;
+   MainContext *main = nullptr;
+   /** @} */
+
    /** @name Modifier state (worker-exclusive scratch) */
    /** @{ */
    ModifierState modifiers;
@@ -51,7 +60,7 @@ struct WorkerContext {
    SpscQueue event_queue;
    /** @} */
 
-   /** @brief TRUE during BFWMContextSetup (main writes, worker reads) */
+   /** @brief TRUE during BFWMSetup (main writes, worker reads) */
    volatile BOOL setup_in_progress = FALSE;
 };
 

@@ -17,9 +17,10 @@
  *
  * Usage:
  * @code
- *    ctx->main.transaction.Begin();
- *    DispatchKeybind(ctx, &queued);     // handlers queue ops
- *    BFWMTransactionCommit(ctx);      // flush to Win32 in priority order
+ *    main->transaction.Begin();
+ *    DispatchKeybind(shared, main, &queued);     // handlers queue ops
+ *    BFWMTransactionCommit(shared, main);      // flush to Win32 in priority
+ * order
  * @endcode
  */
 
@@ -29,8 +30,9 @@
 #include "operation.h"
 #include <vector>
 #include <windows.h>
-
-struct BFWMContext;
+struct SharedState;
+struct WorkerContext;
+struct MainContext;
 
 /**
  * @brief Dynamic array of pending operations for a single transaction.
@@ -102,17 +104,19 @@ class TransactionState {
  *
  * @param ctx The BFWM context
  */
-void BFWMTransactionCommit(struct BFWMContext *ctx);
+void BFWMTransactionCommit(struct SharedState *shared,
+                           struct MainContext *main);
 
 /**
  * @brief Drain the SPSC event queue and process all pending events.
  *
- * Pops EventRecords from ctx->worker.event_queue. For each event:
+ * Pops EventRecords from worker->event_queue. For each event:
  *   - Applies internal-state tracking (no Win32 calls)
  *   - Begins a transaction, queues the appropriate operations, commits
  *
  * @param ctx The BFWM context
  */
-void DrainEventQueue(struct BFWMContext *ctx);
+void DrainEventQueue(SharedState *shared, WorkerContext *worker,
+                     MainContext *main);
 
 #endif /* BFWM_TRANSACTION_H */

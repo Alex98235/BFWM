@@ -1,6 +1,7 @@
 #include "parser.h"
-#include "../../core/bfwm_context.h"
+#include "../../core/main_context.h"
 #include "../../core/portable.h"
+#include "../../core/shared_state.h"
 #include "../../input/keystroke.h"
 #include "../../logging/logger.h"
 #include "../../monitor/monitor.h"
@@ -77,7 +78,11 @@ auto BarIndicatorTypeName(BarIndicatorType type) -> const char * {
 // ---------------------------------------------------------------------------
 namespace {
 
-inline auto parse_criterion(struct BFWMContext *ctx, lua_State *lua_state,
+SharedState *g_lua_shared = nullptr;
+MainContext *g_lua_main = nullptr;
+
+inline auto parse_criterion(struct SharedState *shared,
+                            struct MainContext *main, lua_State *lua_state,
                             int idx) -> std::optional<WindowMatchCriterion> {
    int const abs_idx = lua_absindex(lua_state, idx);
    lua_pushnil(lua_state);
@@ -108,7 +113,8 @@ inline auto parse_criterion(struct BFWMContext *ctx, lua_State *lua_state,
    } else if (strcmp(op_name, "not_regex") == 0) {
       criterion.op = MATCH_NOT_REGEX;
    } else {
-      Snackbar::Warn(ctx, L"Unknown match operator '%hs' in window rule",
+      Snackbar::Warn(shared, main,
+                     L"Unknown match operator '%hs' in window rule",
                      (op_name != nullptr) ? op_name : "(null)");
       lua_pop(lua_state, 2);
       return std::nullopt;
@@ -118,8 +124,8 @@ inline auto parse_criterion(struct BFWMContext *ctx, lua_State *lua_state,
    return criterion;
 }
 
-inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
-                         WindowRule *rule) {
+inline void parse_action(struct SharedState *shared, struct MainContext *main,
+                         lua_State *lua_state, int idx, WindowRule *rule) {
    if (lua_isstring(lua_state, idx) != 0) {
       const char *s = lua_tostring(lua_state, idx);
       if (strcmp(s, "ignore") == 0) {
@@ -131,7 +137,8 @@ inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
       } else if (strcmp(s, "force-tiled") == 0) {
          rule->action.type = RULE_FORCE_TILED;
       } else {
-         Snackbar::Warn(ctx, L"Unknown window rule action string '%hs'",
+         Snackbar::Warn(shared, main,
+                        L"Unknown window rule action string '%hs'",
                         (s != nullptr) ? s : "(null)");
       }
    } else if (lua_istable(lua_state, idx)) {
@@ -146,7 +153,8 @@ inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
                    static_cast<int>(lua_tointeger(lua_state, -1));
             }
          } else {
-            Snackbar::Warn(ctx, L"Unknown window rule action key '%hs'",
+            Snackbar::Warn(shared, main,
+                           L"Unknown window rule action key '%hs'",
                            (key != nullptr) ? key : "(null)");
          }
          lua_pop(lua_state, 2);
@@ -155,38 +163,41 @@ inline void parse_action(struct BFWMContext *ctx, lua_State *lua_state, int idx,
 }
 
 inline auto parse_match_entry(lua_State *lua_state, int entry_idx,
-                              struct BFWMContext *ctx, size_t i, size_t j)
+                              struct SharedState *shared,
+                              struct MainContext *main, size_t i, size_t j)
     -> std::optional<WindowMatchEntry> {
    WindowMatchEntry entry = {};
 
    lua_getfield(lua_state, entry_idx, "process");
    if (lua_istable(lua_state, -1)) {
-      entry.process_match = parse_criterion(ctx, lua_state, -1);
+      entry.process_match = parse_criterion(shared, main, lua_state, -1);
    }
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, entry_idx, "class");
    if (lua_istable(lua_state, -1))
-      entry.class_match = parse_criterion(ctx, lua_state, -1);
+      entry.class_match = parse_criterion(shared, main, lua_state, -1);
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, entry_idx, "title");
    if (lua_istable(lua_state, -1))
-      entry.title_match = parse_criterion(ctx, lua_state, -1);
+      entry.title_match = parse_criterion(shared, main, lua_state, -1);
    lua_pop(lua_state, 1);
 
    if (!entry.process_match.has_value() && !entry.class_match.has_value() &&
        !entry.title_match.has_value()) {
-      Snackbar::Warn(
-          ctx, L"Window rule %zu, match entry %zu: no valid criteria", i, j);
+      Snackbar::Warn(shared, main,
+                     L"Window rule %zu, match entry %zu: no valid criteria", i,
+                     j);
       return std::nullopt;
    }
 
    return entry;
 }
 
-inline auto parse_single_rule(lua_State *lua_state, struct BFWMContext *ctx,
-                              size_t i) -> WindowRule * {
+inline auto parse_single_rule(lua_State *lua_state, struct SharedState *shared,
+                              struct MainContext *main, size_t i)
+    -> WindowRule * {
    if (!lua_istable(lua_state, -1))
       return nullptr;
 
@@ -210,8 +221,8 @@ inline auto parse_single_rule(lua_State *lua_state, struct BFWMContext *ctx,
                continue;
             }
 
-            std::optional<WindowMatchEntry> entry =
-                parse_match_entry(lua_state, lua_gettop(lua_state), ctx, i, j);
+            std::optional<WindowMatchEntry> entry = parse_match_entry(
+                lua_state, lua_gettop(lua_state), shared, main, i, j);
 
             if (entry.has_value())
                rule->entries.push_back(std::move(*entry));
@@ -223,7 +234,7 @@ inline auto parse_single_rule(lua_State *lua_state, struct BFWMContext *ctx,
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, rule_idx, "action");
-   parse_action(ctx, lua_state, -1, rule);
+   parse_action(shared, main, lua_state, -1, rule);
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, rule_idx, "run_once");
@@ -237,13 +248,14 @@ inline auto parse_single_rule(lua_State *lua_state, struct BFWMContext *ctx,
    if (!rule->entries.empty())
       return rule;
 
-   Snackbar::Warn(ctx, L"Window rule %zu has no match entries, skipping", i);
+   Snackbar::Warn(shared, main,
+                  L"Window rule %zu has no match entries, skipping", i);
    delete rule;
    return nullptr;
 }
 
-inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
-    -> int {
+inline auto parse_window_rules(LuaConfig *config, struct SharedState *shared,
+                               struct MainContext *main) -> int {
    lua_State *lua_state = config->L;
    int count = 0;
 
@@ -269,15 +281,15 @@ inline auto parse_window_rules(LuaConfig *config, struct BFWMContext *ctx)
 
    for (size_t i = 1; i <= rule_count; i++) {
       lua_rawgeti(lua_state, rules_idx, static_cast<lua_Integer>(i));
-      WindowRule *rule = parse_single_rule(lua_state, ctx, i);
+      WindowRule *rule = parse_single_rule(lua_state, shared, main, i);
       if (rule != nullptr) {
-         ctx->main.window_rules.push_back(rule);
+         main->window_rules.push_back(rule);
          count++;
       }
       lua_pop(lua_state, 1);
    }
 
-   ctx->main.window_rule_count = static_cast<size_t>(count);
+   main->window_rule_count = static_cast<size_t>(count);
    lua_pop(lua_state, 2);
 
    Info("Loaded %d window rules from config.lua", count);
@@ -323,11 +335,12 @@ inline void parse_workspace_options(WorkspaceConfig *workspace_cfg,
    lua_pop(lua_state, 1);
 }
 
-inline void validate_workspace_monitor(struct BFWMContext *ctx,
+inline void validate_workspace_monitor(struct SharedState *shared,
+                                       struct MainContext *main,
                                        const WorkspaceConfig *workspace_cfg) {
-   if (workspace_cfg->assigned_monitor > 0 && !ctx->main.monitors->Empty()) {
+   if (workspace_cfg->assigned_monitor > 0 && !main->monitors->Empty()) {
       BOOL found = FALSE;
-      for (const auto &monitor : ctx->main.monitors->Monitors()) {
+      for (const auto &monitor : main->monitors->Monitors()) {
          if (std::cmp_equal(monitor->GetDisplayNumber(),
                             workspace_cfg->assigned_monitor)) {
             found = TRUE;
@@ -336,16 +349,18 @@ inline void validate_workspace_monitor(struct BFWMContext *ctx,
       }
       if (found == 0) {
          Snackbar::Warn(
-             ctx, L"Workspace %zu assigned to monitor %d, which does not exist",
+             shared, main,
+             L"Workspace %zu assigned to monitor %d, which does not exist",
              workspace_cfg->id, workspace_cfg->assigned_monitor);
       }
    }
 }
 
-inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
-    -> int {
+inline auto parse_workspace_config(LuaConfig *config,
+                                   struct SharedState *shared,
+                                   struct MainContext *main) -> int {
    lua_State *lua_state = config->L;
-   ctx->shared.config.workspace_config_count = 0;
+   shared->config.workspace_config_count = 0;
 
    lua_getglobal(lua_state, "BFWM");
    if (!lua_istable(lua_state, -1)) {
@@ -365,7 +380,8 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
    for (size_t i = 1; i <= count; i++) {
       lua_rawgeti(lua_state, ws_table_idx, static_cast<lua_Integer>(i));
       if (!lua_istable(lua_state, -1)) {
-         Snackbar::Warn(ctx, L"Skipping non-table entry in workspaces array");
+         Snackbar::Warn(shared, main,
+                        L"Skipping non-table entry in workspaces array");
          lua_pop(lua_state, 1);
          continue;
       }
@@ -402,12 +418,12 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
 
       lua_pop(lua_state, 1);
 
-      validate_workspace_monitor(ctx, &workspace_cfg);
+      validate_workspace_monitor(shared, main, &workspace_cfg);
 
       bool duplicate = false;
-      for (int j = 0; j < ctx->shared.config.workspace_config_count; j++) {
-         if (ctx->shared.config.workspace_configs[j].id == workspace_cfg.id) {
-            Snackbar::Warn(ctx,
+      for (int j = 0; j < shared->config.workspace_config_count; j++) {
+         if (shared->config.workspace_configs[j].id == workspace_cfg.id) {
+            Snackbar::Warn(shared, main,
                            L"Duplicate workspace config for ID %zu, "
                            L"keeping first definition",
                            workspace_cfg.id);
@@ -418,21 +434,21 @@ inline auto parse_workspace_config(LuaConfig *config, struct BFWMContext *ctx)
       if (duplicate)
          continue;
 
-      ctx->shared.config
-          .workspace_configs[ctx->shared.config.workspace_config_count++] =
+      shared->config
+          .workspace_configs[shared->config.workspace_config_count++] =
           workspace_cfg;
    }
 
    lua_pop(lua_state, 2);
 
-   Info("Loaded %d workspace configs",
-        ctx->shared.config.workspace_config_count);
-   return ctx->shared.config.workspace_config_count;
+   Info("Loaded %d workspace configs", shared->config.workspace_config_count);
+   return shared->config.workspace_config_count;
 }
 
 /* Parse the BFWM.keybinds table and insert into the dictionary */
-inline auto parse_keybinds(LuaConfig *config, struct BFWMContext *ctx,
-                           KeybindDictionary *dict) -> int {
+inline auto parse_keybinds(LuaConfig *config, struct SharedState *shared,
+                           struct MainContext *main, KeybindDictionary *dict)
+    -> int {
    lua_State *lua_state = config->L;
 
    lua_getglobal(lua_state, "BFWM");
@@ -469,7 +485,8 @@ inline auto parse_keybinds(LuaConfig *config, struct BFWMContext *ctx,
       /* Stack: ..., key, value  (value is a bind entry { key_str, action_str,
        * opts_table }) */
       if (!lua_istable(lua_state, -1)) {
-         Snackbar::Warn(ctx, L"Skipping non-table entry in keybinds array");
+         Snackbar::Warn(shared, main,
+                        L"Skipping non-table entry in keybinds array");
          lua_pop(lua_state, 1); /* pop value */
          continue;
       }
@@ -489,7 +506,7 @@ inline auto parse_keybinds(LuaConfig *config, struct BFWMContext *ctx,
 
       if ((key_str == nullptr) || (action_str == nullptr)) {
          Snackbar::Warn(
-             ctx,
+             shared, main,
              L"Skipping malformed keybind entry (need at least 2 elements)");
          lua_pop(lua_state, 4);
          continue;
@@ -506,14 +523,15 @@ inline auto parse_keybinds(LuaConfig *config, struct BFWMContext *ctx,
       }
 
       if (key_name.empty()) {
-         Snackbar::Warn(ctx, L"Could not parse key name from '%hs'", key_str);
+         Snackbar::Warn(shared, main, L"Could not parse key name from '%hs'",
+                        key_str);
          lua_pop(lua_state, 4);
          continue;
       }
 
       DWORD const virtual_key = key_name_to_vk(key_name.c_str());
       if (virtual_key == 0) {
-         Snackbar::Warn(ctx, L"Unknown key '%hs' in bind '%hs'",
+         Snackbar::Warn(shared, main, L"Unknown key '%hs' in bind '%hs'",
                         key_name.c_str(), key_str);
          lua_pop(lua_state, 4);
          continue;
@@ -527,7 +545,8 @@ inline auto parse_keybinds(LuaConfig *config, struct BFWMContext *ctx,
 
       /* Build the action */
       int const opts_idx = lua_gettop(lua_state); /* options table index */
-      BFWMAction *action = build_action(config, ctx, action_str, opts_idx);
+      BFWMAction *action =
+          build_action(config, shared, main, action_str, opts_idx);
 
       if (action != nullptr) {
          KBDictInsert(*dict, keystroke, std::unique_ptr<BFWMAction>(action));
@@ -580,10 +599,12 @@ const std::array<std::string, 18> known_BFWM_keys = {
 };
 
 inline auto BFWM_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"BFWM keys must be strings");
+      Snackbar::Warn(shared, main, L"BFWM keys must be strings");
       return luaL_error(lua_state, "BFWM keys must be strings");
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -593,7 +614,7 @@ inline auto BFWM_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown config option 'BFWM.%hs'",
+   Snackbar::Warn(shared, main, L"Unknown config option 'BFWM.%hs'",
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown config option 'BFWM.%s'", key);
 }
@@ -649,10 +670,12 @@ const std::array<std::string, 2> known_border_keys = {
 };
 
 inline auto colors_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Bar.colors keys must be strings");
+      Snackbar::Warn(shared, main, L"Bar.colors keys must be strings");
       return luaL_error(lua_state, "Bar.colors keys must be strings");
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -662,16 +685,18 @@ inline auto colors_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Bar.colors option '%hs'",
+   Snackbar::Warn(shared, main, L"Unknown Bar.colors option '%hs'",
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown Bar.colors option '%s'", key);
 }
 
 inline auto font_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Bar.font keys must be strings");
+      Snackbar::Warn(shared, main, L"Bar.font keys must be strings");
       return luaL_error(lua_state, "Bar.font keys must be strings");
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -681,18 +706,20 @@ inline auto font_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Bar.font option '%hs'",
+   Snackbar::Warn(shared, main, L"Unknown Bar.font option '%hs'",
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown Bar.font option '%s'", key);
 }
 
 inline auto margin_padding_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    const char *table_name = static_cast<const char *>(
        lua_touserdata(lua_state, lua_upvalueindex(2)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Bar.%hs keys must be strings", table_name);
+      Snackbar::Warn(shared, main, L"Bar.%hs keys must be strings", table_name);
       return luaL_error(lua_state, "Bar.%s keys must be strings", table_name);
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -702,18 +729,20 @@ inline auto margin_padding_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Bar.%hs option '%hs'", table_name,
+   Snackbar::Warn(shared, main, L"Unknown Bar.%hs option '%hs'", table_name,
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown Bar.%s option '%s'", table_name, key);
 }
 
 inline auto border_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    const char *table_name = static_cast<const char *>(
        lua_touserdata(lua_state, lua_upvalueindex(2)));
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Bar.%hs keys must be strings", table_name);
+      Snackbar::Warn(shared, main, L"Bar.%hs keys must be strings", table_name);
       return luaL_error(lua_state, "Bar.%s keys must be strings", table_name);
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -723,13 +752,14 @@ inline auto border_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Bar.%hs option '%hs'", table_name,
+   Snackbar::Warn(shared, main, L"Unknown Bar.%hs option '%hs'", table_name,
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown Bar.%s option '%s'", table_name, key);
 }
 
 inline auto handle_bar_colors_newindex(lua_State *lua_state,
-                                       struct BFWMContext *ctx) -> int {
+                                       struct SharedState *shared,
+                                       struct MainContext *main) -> int {
    lua_pushnil(lua_state);
    while (lua_next(lua_state, -2) != 0) {
       const char *field = lua_tostring(lua_state, -2);
@@ -742,7 +772,8 @@ inline auto handle_bar_colors_newindex(lua_State *lua_state,
             }
          }
          if (!found) {
-            Snackbar::Warn(ctx, L"Unknown Bar.colors option '%hs'", field);
+            Snackbar::Warn(shared, main, L"Unknown Bar.colors option '%hs'",
+                           field);
             return luaL_error(lua_state, "Unknown Bar.colors option '%s'",
                               field);
          }
@@ -750,7 +781,7 @@ inline auto handle_bar_colors_newindex(lua_State *lua_state,
       lua_pop(lua_state, 1);
    }
    lua_newtable(lua_state);
-   lua_pushlightuserdata(lua_state, ctx);
+   lua_pushlightuserdata(lua_state, nullptr);
    lua_pushcclosure(lua_state, colors_newindex, 1);
    lua_setfield(lua_state, -2, "__newindex");
    lua_setmetatable(lua_state, -2);
@@ -759,7 +790,8 @@ inline auto handle_bar_colors_newindex(lua_State *lua_state,
 }
 
 inline auto handle_bar_font_newindex(lua_State *lua_state,
-                                     struct BFWMContext *ctx) -> int {
+                                     struct SharedState *shared,
+                                     struct MainContext *main) -> int {
    lua_pushnil(lua_state);
    while (lua_next(lua_state, -2) != 0) {
       const char *field = lua_tostring(lua_state, -2);
@@ -772,14 +804,15 @@ inline auto handle_bar_font_newindex(lua_State *lua_state,
             }
          }
          if (!found) {
-            Snackbar::Warn(ctx, L"Unknown Bar.font option '%hs'", field);
+            Snackbar::Warn(shared, main, L"Unknown Bar.font option '%hs'",
+                           field);
             return luaL_error(lua_state, "Unknown Bar.font option '%s'", field);
          }
       }
       lua_pop(lua_state, 1);
    }
    lua_newtable(lua_state);
-   lua_pushlightuserdata(lua_state, ctx);
+   lua_pushlightuserdata(lua_state, nullptr);
    lua_pushcclosure(lua_state, font_newindex, 1);
    lua_setfield(lua_state, -2, "__newindex");
    lua_setmetatable(lua_state, -2);
@@ -788,10 +821,9 @@ inline auto handle_bar_font_newindex(lua_State *lua_state,
 }
 
 inline auto handle_bar_margin_newindex(lua_State *lua_state,
-                                       struct BFWMContext *ctx,
                                        const char *table_name) -> int {
    lua_newtable(lua_state);
-   lua_pushlightuserdata(lua_state, ctx);
+   lua_pushlightuserdata(lua_state, nullptr);
    // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, margin_padding_newindex, 2);
@@ -802,10 +834,9 @@ inline auto handle_bar_margin_newindex(lua_State *lua_state,
 }
 
 inline auto handle_bar_padding_newindex(lua_State *lua_state,
-                                        struct BFWMContext *ctx,
                                         const char *table_name) -> int {
    lua_newtable(lua_state);
-   lua_pushlightuserdata(lua_state, ctx);
+   lua_pushlightuserdata(lua_state, nullptr);
    // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, margin_padding_newindex, 2);
@@ -816,10 +847,9 @@ inline auto handle_bar_padding_newindex(lua_State *lua_state,
 }
 
 inline auto handle_bar_border_newindex(lua_State *lua_state,
-                                       struct BFWMContext *ctx,
                                        const char *table_name) -> int {
    lua_newtable(lua_state);
-   lua_pushlightuserdata(lua_state, ctx);
+   lua_pushlightuserdata(lua_state, nullptr);
    // NOLINTNEXTLINE(modernize-avoid-c-style-cast)
    lua_pushlightuserdata(lua_state, (void *)table_name);
    lua_pushcclosure(lua_state, border_newindex, 2);
@@ -830,28 +860,30 @@ inline auto handle_bar_border_newindex(lua_State *lua_state,
 }
 
 inline auto bar_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Bar keys must be strings");
+      Snackbar::Warn(shared, main, L"Bar keys must be strings");
       return luaL_error(lua_state, "Bar keys must be strings");
    }
    const char *key = lua_tostring(lua_state, -2);
 
    if (strcmp(key, "colors") == 0 && lua_istable(lua_state, -1))
-      return handle_bar_colors_newindex(lua_state, ctx);
+      return handle_bar_colors_newindex(lua_state, shared, main);
 
    if (strcmp(key, "font") == 0 && lua_istable(lua_state, -1))
-      return handle_bar_font_newindex(lua_state, ctx);
+      return handle_bar_font_newindex(lua_state, shared, main);
 
    if (strcmp(key, "margin") == 0 && lua_istable(lua_state, -1))
-      return handle_bar_margin_newindex(lua_state, ctx, "margin");
+      return handle_bar_margin_newindex(lua_state, "margin");
 
    if (strcmp(key, "padding") == 0 && lua_istable(lua_state, -1))
-      return handle_bar_padding_newindex(lua_state, ctx, "padding");
+      return handle_bar_padding_newindex(lua_state, "padding");
 
    if (strcmp(key, "border") == 0 && lua_istable(lua_state, -1))
-      return handle_bar_border_newindex(lua_state, ctx, "border");
+      return handle_bar_border_newindex(lua_state, "border");
 
    for (const auto &known_bar_key : known_bar_keys) {
       if (known_bar_key == key) {
@@ -859,7 +891,7 @@ inline auto bar_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Bar option '%hs'", key);
+   Snackbar::Warn(shared, main, L"Unknown Bar option '%hs'", key);
    return luaL_error(lua_state, "Unknown Bar option '%s'", key);
 }
 
@@ -882,10 +914,12 @@ const std::array<std::string, 28> known_snackbar_keys = {
 };
 
 inline auto snackbar_newindex(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return luaL_error(lua_state, "BFWM context unavailable");
    if (lua_type(lua_state, -2) != LUA_TSTRING) {
-      Snackbar::Warn(ctx, L"Snackbar keys must be strings");
+      Snackbar::Warn(shared, main, L"Snackbar keys must be strings");
       return luaL_error(lua_state, "Snackbar keys must be strings");
    }
    const char *key = lua_tostring(lua_state, -2);
@@ -895,49 +929,53 @@ inline auto snackbar_newindex(lua_State *lua_state) -> int {
          return 0;
       }
    }
-   Snackbar::Warn(ctx, L"Unknown Snackbar option '%hs'",
+   Snackbar::Warn(shared, main, L"Unknown Snackbar option '%hs'",
                   (key != nullptr) ? key : "(null)");
    return luaL_error(lua_state, "Unknown Snackbar option '%s'", key);
 }
 
-inline void parse_int_field(lua_State *lua_state, struct BFWMContext *ctx,
-                            const char *key, int *out) {
+inline void parse_int_field(lua_State *lua_state, struct SharedState *shared,
+                            struct MainContext *main, const char *key,
+                            int *out) {
    lua_getfield(lua_state, -1, key);
    if (lua_isinteger(lua_state, -1) != 0) {
       *out = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected '%hs' to be an integer", key);
+      Snackbar::Warn(shared, main, L"Expected '%hs' to be an integer", key);
    }
    lua_pop(lua_state, 1);
 }
 
-inline void parse_bool_field(lua_State *lua_state, struct BFWMContext *ctx,
-                             const char *key, BOOL *out) {
+inline void parse_bool_field(lua_State *lua_state, struct SharedState *shared,
+                             struct MainContext *main, const char *key,
+                             BOOL *out) {
    lua_getfield(lua_state, -1, key);
    if (lua_isboolean(lua_state, -1)) {
       *out = (lua_toboolean(lua_state, -1) != 0) ? TRUE : FALSE;
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected '%hs' to be a boolean", key);
+      Snackbar::Warn(shared, main, L"Expected '%hs' to be a boolean", key);
    }
    lua_pop(lua_state, 1);
 }
 
-inline void parse_string_field(lua_State *lua_state, struct BFWMContext *ctx,
-                               const char *key, std::string &out) {
+inline void parse_string_field(lua_State *lua_state, struct SharedState *shared,
+                               struct MainContext *main, const char *key,
+                               std::string &out) {
    lua_getfield(lua_state, -1, key);
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if (s != nullptr)
          out = s;
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected '%hs' to be a string", key);
+      Snackbar::Warn(shared, main, L"Expected '%hs' to be a string", key);
    }
    lua_pop(lua_state, 1);
 }
 
-inline void parse_color_field_opt(lua_State *lua_state, struct BFWMContext *ctx,
-                                  const char *key, COLORREF *out,
-                                  bool *has_color) {
+inline void parse_color_field_opt(lua_State *lua_state,
+                                  struct SharedState *shared,
+                                  struct MainContext *main, const char *key,
+                                  COLORREF *out, bool *has_color) {
    *has_color = false;
    lua_getfield(lua_state, -1, key);
    if (lua_isstring(lua_state, -1) != 0) {
@@ -947,19 +985,20 @@ inline void parse_color_field_opt(lua_State *lua_state, struct BFWMContext *ctx,
          *out = RGB((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
          *has_color = true;
       } else {
-         Snackbar::Warn(ctx, L"Color value for '%hs' should start with '#'",
-                        key);
+         Snackbar::Warn(shared, main,
+                        L"Color value for '%hs' should start with '#'", key);
       }
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected '%hs' to be a color string", key);
+      Snackbar::Warn(shared, main, L"Expected '%hs' to be a color string", key);
    }
    lua_pop(lua_state, 1);
 }
 
-inline void parse_color_field(lua_State *lua_state, struct BFWMContext *ctx,
-                              const char *key, COLORREF *out) {
+inline void parse_color_field(lua_State *lua_state, struct SharedState *shared,
+                              struct MainContext *main, const char *key,
+                              COLORREF *out) {
    bool ignored = false;
-   parse_color_field_opt(lua_state, ctx, key, out, &ignored);
+   parse_color_field_opt(lua_state, shared, main, key, out, &ignored);
 }
 
 inline void validate_indicator_keys(lua_State *lua_state, int i) {
@@ -1156,7 +1195,8 @@ inline void parse_states(lua_State *lua_state, int table_idx,
 }
 
 inline auto parse_single_indicator(lua_State *lua_state,
-                                   struct BFWMContext *ctx,
+                                   struct SharedState *shared,
+                                   struct MainContext *main,
                                    BarIndicatorConfig *indicator_cfg, int i)
     -> BOOL {
    *indicator_cfg = BarIndicatorConfig{};
@@ -1165,19 +1205,23 @@ inline auto parse_single_indicator(lua_State *lua_state,
    if (!parse_indicator_type(lua_state, indicator_cfg, i))
       return FALSE; // unknown/missing type: drop this indicator entry
    parse_indicator_align(lua_state, indicator_cfg);
-   parse_string_field(lua_state, ctx, "id", indicator_cfg->id);
+   parse_string_field(lua_state, shared, main, "id", indicator_cfg->id);
    bool const had_id = !indicator_cfg->id.empty();
    if (indicator_cfg->id.empty())
       indicator_cfg->id = BarIndicatorTypeName(indicator_cfg->type);
-   parse_int_field(lua_state, ctx, "max_width", &indicator_cfg->max_width);
-   parse_int_field(lua_state, ctx, "size", &indicator_cfg->font_size);
-   parse_int_field(lua_state, ctx, "poll_rate", &indicator_cfg->poll_rate_ms);
-   parse_string_field(lua_state, ctx, "format", indicator_cfg->format);
-   parse_color_field_opt(lua_state, ctx, "color", &indicator_cfg->color,
-                         &indicator_cfg->color_set);
-   parse_string_field(lua_state, ctx, "on_click", indicator_cfg->on_click);
-   parse_string_field(lua_state, ctx, "on_scroll", indicator_cfg->on_scroll);
-   parse_string_field(lua_state, ctx, "output", indicator_cfg->output);
+   parse_int_field(lua_state, shared, main, "max_width",
+                   &indicator_cfg->max_width);
+   parse_int_field(lua_state, shared, main, "size", &indicator_cfg->font_size);
+   parse_int_field(lua_state, shared, main, "poll_rate",
+                   &indicator_cfg->poll_rate_ms);
+   parse_string_field(lua_state, shared, main, "format", indicator_cfg->format);
+   parse_color_field_opt(lua_state, shared, main, "color",
+                         &indicator_cfg->color, &indicator_cfg->color_set);
+   parse_string_field(lua_state, shared, main, "on_click",
+                      indicator_cfg->on_click);
+   parse_string_field(lua_state, shared, main, "on_scroll",
+                      indicator_cfg->on_scroll);
+   parse_string_field(lua_state, shared, main, "output", indicator_cfg->output);
 
    if (indicator_cfg->type == BAR_INDICATOR_CUSTOM) {
       if (indicator_cfg->output.empty()) {
@@ -1197,7 +1241,7 @@ inline auto parse_single_indicator(lua_State *lua_state,
    if (lua_isboolean(lua_state, -1)) {
       indicator_cfg->position_bar = (lua_toboolean(lua_state, -1) != 0);
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx, L"Expected 'position_bar' to be a boolean");
+      Snackbar::Warn(shared, main, L"Expected 'position_bar' to be a boolean");
    }
    lua_pop(lua_state, 1);
 
@@ -1235,19 +1279,23 @@ inline void parse_bar_font_config(lua_State *lua_state, BarConfig *cfg) {
 }
 
 inline void parse_bar_colors_config(lua_State *lua_state,
-                                    struct BFWMContext *ctx, BarConfig *cfg) {
-   parse_color_field(lua_state, ctx, "background", &cfg->colors.background);
-   parse_color_field(lua_state, ctx, "text", &cfg->colors.text);
-   parse_color_field(lua_state, ctx, "active_workspace",
+                                    struct SharedState *shared,
+                                    struct MainContext *main, BarConfig *cfg) {
+   parse_color_field(lua_state, shared, main, "background",
+                     &cfg->colors.background);
+   parse_color_field(lua_state, shared, main, "text", &cfg->colors.text);
+   parse_color_field(lua_state, shared, main, "active_workspace",
                      &cfg->colors.active_workspace);
-   parse_color_field(lua_state, ctx, "inactive_workspace",
+   parse_color_field(lua_state, shared, main, "inactive_workspace",
                      &cfg->colors.inactive_workspace);
-   parse_color_field(lua_state, ctx, "tab_border", &cfg->colors.tab_border);
+   parse_color_field(lua_state, shared, main, "tab_border",
+                     &cfg->colors.tab_border);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
-   BarConfig *cfg = &ctx->shared.config.bar_cfg;
+inline void parse_bar_config(lua_State *lua_state, struct SharedState *shared,
+                             struct MainContext *main) {
+   BarConfig *cfg = &shared->config.bar_cfg;
 
    lua_getglobal(lua_state, "Bar");
    if (!lua_istable(lua_state, -1)) {
@@ -1260,7 +1308,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
       cfg->enabled =
           (((lua_toboolean(lua_state, -1) != 0) ? TRUE : FALSE) != 0);
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx,
+      Snackbar::Warn(shared, main,
                      L"Bar.enabled should be a boolean, using default (%s)",
                      cfg->enabled ? L"true" : L"false");
    }
@@ -1270,7 +1318,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
    if (lua_isinteger(lua_state, -1) != 0) {
       cfg->height = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
-      Snackbar::Warn(ctx,
+      Snackbar::Warn(shared, main,
                      L"Bar.height should be an integer, using default (%d)",
                      cfg->height);
    }
@@ -1283,7 +1331,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
 
    lua_getfield(lua_state, -1, "colors");
    if (lua_istable(lua_state, -1))
-      parse_bar_colors_config(lua_state, ctx, cfg);
+      parse_bar_colors_config(lua_state, shared, main, cfg);
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, -1, "corner_radius");
@@ -1291,33 +1339,34 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
       cfg->corner_radius = static_cast<int>(lua_tointeger(lua_state, -1));
    } else if (lua_type(lua_state, -1) != LUA_TNIL) {
       Snackbar::Warn(
-          ctx, L"Bar.corner_radius should be an integer, using default (%d)",
+          shared, main,
+          L"Bar.corner_radius should be an integer, using default (%d)",
           cfg->corner_radius);
    }
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, -1, "margin");
    if (lua_istable(lua_state, -1)) {
-      parse_int_field(lua_state, ctx, "top", &cfg->margin.top);
-      parse_int_field(lua_state, ctx, "right", &cfg->margin.right);
-      parse_int_field(lua_state, ctx, "bottom", &cfg->margin.bottom);
-      parse_int_field(lua_state, ctx, "left", &cfg->margin.left);
+      parse_int_field(lua_state, shared, main, "top", &cfg->margin.top);
+      parse_int_field(lua_state, shared, main, "right", &cfg->margin.right);
+      parse_int_field(lua_state, shared, main, "bottom", &cfg->margin.bottom);
+      parse_int_field(lua_state, shared, main, "left", &cfg->margin.left);
    }
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, -1, "padding");
    if (lua_istable(lua_state, -1)) {
-      parse_int_field(lua_state, ctx, "top", &cfg->padding.top);
-      parse_int_field(lua_state, ctx, "right", &cfg->padding.right);
-      parse_int_field(lua_state, ctx, "bottom", &cfg->padding.bottom);
-      parse_int_field(lua_state, ctx, "left", &cfg->padding.left);
+      parse_int_field(lua_state, shared, main, "top", &cfg->padding.top);
+      parse_int_field(lua_state, shared, main, "right", &cfg->padding.right);
+      parse_int_field(lua_state, shared, main, "bottom", &cfg->padding.bottom);
+      parse_int_field(lua_state, shared, main, "left", &cfg->padding.left);
    }
    lua_pop(lua_state, 1);
 
    lua_getfield(lua_state, -1, "border");
    if (lua_istable(lua_state, -1)) {
-      parse_int_field(lua_state, ctx, "width", &cfg->border.width);
-      parse_color_field(lua_state, ctx, "color", &cfg->border.color);
+      parse_int_field(lua_state, shared, main, "width", &cfg->border.width);
+      parse_color_field(lua_state, shared, main, "color", &cfg->border.color);
    }
    lua_pop(lua_state, 1);
 
@@ -1338,7 +1387,7 @@ inline void parse_bar_config(lua_State *lua_state, struct BFWMContext *ctx) {
             continue;
          }
 
-         if (parse_single_indicator(lua_state, ctx,
+         if (parse_single_indicator(lua_state, shared, main,
                                     &cfg->indicators[cfg->indicator_count],
                                     i) != 0) {
             cfg->indicator_count++;
@@ -1408,34 +1457,36 @@ inline auto parse_modifier_string(const char *s) -> DWORD {
    return 0;
 }
 
-inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
+inline void parse_settings(lua_State *lua_state, struct SharedState *shared,
+                           struct MainContext *main) {
    lua_getglobal(lua_state, "BFWM");
    if (!lua_istable(lua_state, -1)) {
       lua_pop(lua_state, 1);
       return;
    }
 
-   parse_int_field(lua_state, ctx, "gap_between",
-                   &ctx->shared.config.gap_between);
-   parse_int_field(lua_state, ctx, "gap_edge", &ctx->shared.config.gap_edge);
-   parse_color_field(lua_state, ctx, "border_color",
-                     &ctx->shared.config.border_color);
-   parse_color_field(lua_state, ctx, "inactive_border",
-                     &ctx->shared.config.inactive_border);
-   parse_int_field(lua_state, ctx, "border_width",
-                   &ctx->shared.config.border_width);
-   parse_int_field(lua_state, ctx, "border_radius",
-                   &ctx->shared.config.border_radius);
-   parse_bool_field(lua_state, ctx, "focus_follows_mouse",
-                    &ctx->shared.config.focus_follows_mouse);
-   parse_bool_field(lua_state, ctx, "mouse_follows_focus",
-                    &ctx->shared.config.mouse_follows_focus);
+   parse_int_field(lua_state, shared, main, "gap_between",
+                   &shared->config.gap_between);
+   parse_int_field(lua_state, shared, main, "gap_edge",
+                   &shared->config.gap_edge);
+   parse_color_field(lua_state, shared, main, "border_color",
+                     &shared->config.border_color);
+   parse_color_field(lua_state, shared, main, "inactive_border",
+                     &shared->config.inactive_border);
+   parse_int_field(lua_state, shared, main, "border_width",
+                   &shared->config.border_width);
+   parse_int_field(lua_state, shared, main, "border_radius",
+                   &shared->config.border_radius);
+   parse_bool_field(lua_state, shared, main, "focus_follows_mouse",
+                    &shared->config.focus_follows_mouse);
+   parse_bool_field(lua_state, shared, main, "mouse_follows_focus",
+                    &shared->config.mouse_follows_focus);
 
    lua_getfield(lua_state, -1, "unlock_window_resize");
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if (s[0] != '\0')
-         ctx->shared.config.unlock_modifier = parse_modifier_string(s);
+         shared->config.unlock_modifier = parse_modifier_string(s);
    } else if (!lua_isnil(lua_state, -1)) {
       Warn("'BFWM.unlock_window_resize' must be a string, got %s",
            lua_typename(lua_state, lua_type(lua_state, -1)));
@@ -1446,7 +1497,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
       if (s[0] != '\0')
-         ctx->shared.config.unlock_move_modifier = parse_modifier_string(s);
+         shared->config.unlock_move_modifier = parse_modifier_string(s);
    } else if (!lua_isnil(lua_state, -1)) {
       Warn("'BFWM.unlock_window_move' must be a string, got %s",
            lua_typename(lua_state, lua_type(lua_state, -1)));
@@ -1458,7 +1509,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
       const char *s = lua_tostring(lua_state, -1);
       LayoutType const layout_type = parse_layout_name(s);
       if (layout_type != LAYOUT_NONE) {
-         ctx->shared.config.default_layout = layout_type;
+         shared->config.default_layout = layout_type;
       } else {
          Warn("'BFWM.layout' references an unknown layout type: \"%s\"", s);
       }
@@ -1469,7 +1520,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    lua_pop(lua_state, 1);
 
    /* Parse disabled_monitors array */
-   ctx->shared.config.disabled_monitor_count = 0;
+   shared->config.disabled_monitor_count = 0;
    lua_getfield(lua_state, -1, "disabled_monitors");
    if (lua_istable(lua_state, -1)) {
       auto n = static_cast<size_t>(lua_rawlen(lua_state, -1));
@@ -1478,10 +1529,11 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
          lua_rawgeti(lua_state, -1, static_cast<lua_Integer>(di + 1));
          if (lua_isinteger(lua_state, -1) != 0) {
             int const val = static_cast<int>(lua_tointeger(lua_state, -1));
-            ctx->shared.config.disabled_monitors
-                [ctx->shared.config.disabled_monitor_count++] = val;
+            shared->config
+                .disabled_monitors[shared->config.disabled_monitor_count++] =
+                val;
          } else {
-            Snackbar::Warn(ctx,
+            Snackbar::Warn(shared, main,
                            L"disabled_monitors entry should be an integer");
          }
          lua_pop(lua_state, 1);
@@ -1492,8 +1544,7 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
    lua_pop(lua_state, 1); /* pop BFWM table */
 
    Debug("parse_settings: unlock_modifier=0x%lx unlock_move=0x%lx",
-         ctx->shared.config.unlock_modifier,
-         ctx->shared.config.unlock_move_modifier);
+         shared->config.unlock_modifier, shared->config.unlock_move_modifier);
 }
 
 // ---------------------------------------------------------------------------
@@ -1501,13 +1552,9 @@ inline void parse_settings(lua_State *lua_state, struct BFWMContext *ctx) {
 // ---------------------------------------------------------------------------
 
 inline auto lua_BFWM_notify(lua_State *lua_state) -> int {
-   struct BFWMContext *ctx = nullptr;
-   /* Retrieve the context from the Lua registry or upvalue.
-      Since we register this function after the BFWM table exists,
-      we need the context pointer.  Use a lightuserdata upvalue. */
-   ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
-   if (ctx == nullptr)
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
       return 0;
 
    const char *text = luaL_optstring(lua_state, 1, NULL);
@@ -1520,7 +1567,7 @@ inline auto lua_BFWM_notify(lua_State *lua_state) -> int {
    std::wstring wtext(wlen > 0 ? static_cast<size_t>(wlen) : 0, L'\0');
    if (wlen > 0)
       MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext.data(), wlen);
-   Snackbar::Show(ctx, LogLevel::Info, &wtext, TRUE);
+   Snackbar::Show(shared, main, LogLevel::Info, &wtext, TRUE);
    return 0;
 }
 
@@ -1564,13 +1611,17 @@ inline auto CollectArgv(lua_State *lua_state, int idx,
 }
 
 inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr)) {
+      lua_pushnil(lua_state);
+      return 1;
+   }
    std::vector<std::string> argv;
    const char *key = (lua_type(lua_state, 2) == LUA_TSTRING)
                          ? lua_tostring(lua_state, 2)
                          : nullptr;
-   if ((ctx == nullptr) || (ctx->main.exec_cache == nullptr)) {
+   if ((shared == nullptr) || (main->exec_cache == nullptr)) {
       lua_pushnil(lua_state);
       return 1;
    }
@@ -1583,7 +1634,7 @@ inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
    lua_Integer const ttl = luaL_optinteger(lua_state, 3, 1000);
    uint64_t const ttl_ms = (ttl > 0) ? static_cast<uint64_t>(ttl) : 0;
    const std::string *value =
-       ExecCacheGet(ctx->main.exec_cache, argv, std::string(key), ttl_ms);
+       ExecCacheGet(main->exec_cache, argv, std::string(key), ttl_ms);
    if (value != nullptr) {
       lua_pushlstring(lua_state, value->data(), value->size());
    } else {
@@ -1593,16 +1644,18 @@ inline auto lua_BFWM_exec_cache(lua_State *lua_state) -> int {
 }
 
 inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
-   auto *ctx = static_cast<struct BFWMContext *>(
-       lua_touserdata(lua_state, lua_upvalueindex(1)));
+   SharedState *shared = g_lua_shared;
+   MainContext *main = g_lua_main;
+   if ((shared == nullptr) || (main == nullptr))
+      return 0;
    std::vector<std::string> argv;
-   if ((ctx == nullptr) || (ctx->main.exec_cache == nullptr))
+   if ((shared == nullptr) || (main->exec_cache == nullptr))
       return 0;
    if (!CollectArgv(lua_state, 1, &argv)) {
       WarnExecArgvOnce();
       return 0;
    }
-   ExecCacheSpawn(ctx->main.exec_cache, argv);
+   ExecCacheSpawn(main->exec_cache, argv);
    return 0;
 }
 
@@ -1611,8 +1664,9 @@ inline auto lua_BFWM_spawn(lua_State *lua_state) -> int {
 // ---------------------------------------------------------------------------
 
 inline void parse_snackbar_config(lua_State *lua_state,
-                                  struct BFWMContext *ctx) {
-   SnackbarConfig *cfg = &ctx->shared.config.snackbar;
+                                  struct SharedState *shared,
+                                  struct MainContext *main) {
+   SnackbarConfig *cfg = &shared->config.snackbar;
 
    lua_getglobal(lua_state, "Snackbar");
    if (!lua_istable(lua_state, -1)) {
@@ -1620,7 +1674,7 @@ inline void parse_snackbar_config(lua_State *lua_state,
       return;
    }
 
-   parse_bool_field(lua_state, ctx, "enabled", &cfg->enabled);
+   parse_bool_field(lua_state, shared, main, "enabled", &cfg->enabled);
 
    lua_getfield(lua_state, -1, "log_level");
    if (lua_isstring(lua_state, -1) != 0) {
@@ -1636,7 +1690,7 @@ inline void parse_snackbar_config(lua_State *lua_state,
       } else if (strcmp(s, "debug") == 0) {
          cfg->log_level = SNACKBAR_LOG_DEBUG;
       } else {
-         Snackbar::Warn(ctx, L"Unknown Snackbar.log_level '%hs'",
+         Snackbar::Warn(shared, main, L"Unknown Snackbar.log_level '%hs'",
                         (s != nullptr) ? s : "(null)");
       }
    }
@@ -1654,46 +1708,54 @@ inline void parse_snackbar_config(lua_State *lua_state,
       } else if (strcmp(s, "top-left") == 0) {
          cfg->position = SNACKBAR_POSITION_TOP_LEFT;
       } else {
-         Snackbar::Warn(ctx, L"Unknown Snackbar.position '%hs'",
+         Snackbar::Warn(shared, main, L"Unknown Snackbar.position '%hs'",
                         (s != nullptr) ? s : "(null)");
       }
    }
    lua_pop(lua_state, 1);
 
-   parse_int_field(lua_state, ctx, "margin_left", &cfg->margin_left);
-   parse_int_field(lua_state, ctx, "margin_right", &cfg->margin_right);
-   parse_int_field(lua_state, ctx, "margin_top", &cfg->margin_top);
-   parse_int_field(lua_state, ctx, "margin_bottom", &cfg->margin_bottom);
-   parse_int_field(lua_state, ctx, "min_width", &cfg->min_width);
-   parse_int_field(lua_state, ctx, "max_width", &cfg->max_width);
-   parse_int_field(lua_state, ctx, "padding_left", &cfg->padding_left);
-   parse_int_field(lua_state, ctx, "padding_right", &cfg->padding_right);
-   parse_int_field(lua_state, ctx, "padding_top", &cfg->padding_top);
-   parse_int_field(lua_state, ctx, "padding_bottom", &cfg->padding_bottom);
-   parse_color_field(lua_state, ctx, "background", &cfg->background);
-   parse_color_field(lua_state, ctx, "text", &cfg->text);
-   parse_color_field(lua_state, ctx, "divider", &cfg->divider);
-   parse_int_field(lua_state, ctx, "divider_height", &cfg->divider_height);
-   parse_int_field(lua_state, ctx, "font_size", &cfg->font_size);
-   parse_string_field(lua_state, ctx, "font_name", cfg->font_name);
-   parse_int_field(lua_state, ctx, "corner_radius", &cfg->corner_radius);
-   parse_int_field(lua_state, ctx, "opacity", &cfg->opacity);
-   parse_bool_field(lua_state, ctx, "close_on_click", &cfg->close_on_click);
-   parse_bool_field(lua_state, ctx, "pause_on_hover", &cfg->pause_on_hover);
-   parse_bool_field(lua_state, ctx, "click_to_expand", &cfg->click_to_expand);
-   parse_int_field(lua_state, ctx, "max_queue", &cfg->max_queue);
-   parse_int_field(lua_state, ctx, "monitor", &cfg->monitor);
-   parse_int_field(lua_state, ctx, "display_duration_ms",
+   parse_int_field(lua_state, shared, main, "margin_left", &cfg->margin_left);
+   parse_int_field(lua_state, shared, main, "margin_right", &cfg->margin_right);
+   parse_int_field(lua_state, shared, main, "margin_top", &cfg->margin_top);
+   parse_int_field(lua_state, shared, main, "margin_bottom",
+                   &cfg->margin_bottom);
+   parse_int_field(lua_state, shared, main, "min_width", &cfg->min_width);
+   parse_int_field(lua_state, shared, main, "max_width", &cfg->max_width);
+   parse_int_field(lua_state, shared, main, "padding_left", &cfg->padding_left);
+   parse_int_field(lua_state, shared, main, "padding_right",
+                   &cfg->padding_right);
+   parse_int_field(lua_state, shared, main, "padding_top", &cfg->padding_top);
+   parse_int_field(lua_state, shared, main, "padding_bottom",
+                   &cfg->padding_bottom);
+   parse_color_field(lua_state, shared, main, "background", &cfg->background);
+   parse_color_field(lua_state, shared, main, "text", &cfg->text);
+   parse_color_field(lua_state, shared, main, "divider", &cfg->divider);
+   parse_int_field(lua_state, shared, main, "divider_height",
+                   &cfg->divider_height);
+   parse_int_field(lua_state, shared, main, "font_size", &cfg->font_size);
+   parse_string_field(lua_state, shared, main, "font_name", cfg->font_name);
+   parse_int_field(lua_state, shared, main, "corner_radius",
+                   &cfg->corner_radius);
+   parse_int_field(lua_state, shared, main, "opacity", &cfg->opacity);
+   parse_bool_field(lua_state, shared, main, "close_on_click",
+                    &cfg->close_on_click);
+   parse_bool_field(lua_state, shared, main, "pause_on_hover",
+                    &cfg->pause_on_hover);
+   parse_bool_field(lua_state, shared, main, "click_to_expand",
+                    &cfg->click_to_expand);
+   parse_int_field(lua_state, shared, main, "max_queue", &cfg->max_queue);
+   parse_int_field(lua_state, shared, main, "monitor", &cfg->monitor);
+   parse_int_field(lua_state, shared, main, "display_duration_ms",
                    &cfg->display_duration_ms);
 
    /* Parse colors sub-table */
    lua_getfield(lua_state, -1, "colors");
    if (lua_istable(lua_state, -1)) {
-      parse_color_field(lua_state, ctx, "error", &cfg->colors.error);
-      parse_color_field(lua_state, ctx, "warn", &cfg->colors.warn);
-      parse_color_field(lua_state, ctx, "info", &cfg->colors.info);
-      parse_color_field(lua_state, ctx, "debug", &cfg->colors.debug);
-      parse_color_field(lua_state, ctx, "normal", &cfg->colors.normal);
+      parse_color_field(lua_state, shared, main, "error", &cfg->colors.error);
+      parse_color_field(lua_state, shared, main, "warn", &cfg->colors.warn);
+      parse_color_field(lua_state, shared, main, "info", &cfg->colors.info);
+      parse_color_field(lua_state, shared, main, "debug", &cfg->colors.debug);
+      parse_color_field(lua_state, shared, main, "normal", &cfg->colors.normal);
    }
    lua_pop(lua_state, 1);
 
@@ -1704,7 +1766,7 @@ inline void parse_snackbar_config(lua_State *lua_state,
 
    if (cfg->min_width > 0 && cfg->max_width >= 1 &&
        cfg->min_width > cfg->max_width) {
-      Snackbar::Warn(ctx,
+      Snackbar::Warn(shared, main,
                      L"Snackbar.min_width (%d) > Snackbar.max_width (%d); "
                      L"capping min_width",
                      cfg->min_width, cfg->max_width);
@@ -1724,12 +1786,13 @@ update_workspace_label(Workspace *workspace,
    }
 }
 
-inline void activate_another_workspace(struct BFWMContext *ctx, Monitor *mon,
+inline void activate_another_workspace(struct SharedState *shared,
+                                       struct MainContext *main, Monitor *mon,
                                        Workspace *workspace) {
    for (size_t j = 0; j < mon->Workspaces().size(); j++) {
       if (mon->Workspaces()[j] != workspace) {
-         WorkspaceActivateSimple(ctx, mon, workspace, mon->Workspaces()[j],
-                                 true);
+         WorkspaceActivateSimple(shared, main, mon, workspace,
+                                 mon->Workspaces()[j], true);
          break;
       }
    }
@@ -1749,41 +1812,43 @@ inline void remove_workspace_from_source(Monitor *mon, int ws_idx) {
 
 inline void add_workspace_to_destination(Monitor *dst_mon, Workspace *workspace,
                                          BOOL was_active,
-                                         struct BFWMContext *ctx) {
+                                         struct SharedState *shared,
+                                         struct MainContext *main) {
    dst_mon->TrackWorkspace(workspace);
-   workspace->RecalculateRect(dst_mon, ctx);
+   workspace->RecalculateRect(dst_mon, shared, main);
    if (dst_mon->GetActiveWorkspace() == nullptr)
       dst_mon->SetActiveWorkspace(workspace);
    if (was_active != 0)
-      WorkspaceActivate(ctx, dst_mon, workspace->GetIdentifier());
+      WorkspaceActivate(shared, main, dst_mon, workspace->GetIdentifier());
 }
 
 inline void create_workspace_for_empty_monitor(Monitor *mon,
-                                               struct BFWMContext *ctx) {
+                                               struct SharedState *shared,
+                                               struct MainContext *main) {
    if (!mon->Workspaces().empty())
       return;
 
-   size_t const new_id = FindNextWorkspaceId(ctx);
+   size_t const new_id = FindNextWorkspaceId(shared, main);
    std::wstring const name = L"ws_" + std::to_wstring(new_id);
-   auto *new_ws = CreateWorkspaceForMonitor(ctx, new_id, &name, mon);
+   auto *new_ws = CreateWorkspaceForMonitor(shared, main, new_id, &name, mon);
    if (new_ws == nullptr)
       return;
 
-   new_ws->ApplyConfig(ctx, new_id);
+   new_ws->ApplyConfig(shared, main, new_id);
    mon->TrackWorkspace(new_ws);
    mon->SetActiveWorkspace(new_ws);
 }
 
 inline void
-move_workspace_to_monitor(struct BFWMContext *ctx, Monitor *mon,
-                          Workspace *workspace,
+move_workspace_to_monitor(struct SharedState *shared, struct MainContext *main,
+                          Monitor *mon, Workspace *workspace,
                           const struct WorkspaceConfig *workspace_cfg) {
    UINT const target_display =
        static_cast<UINT>(workspace_cfg->assigned_monitor);
    if (mon->GetDisplayNumber() == target_display)
       return;
 
-   Monitor *dst_mon = FindMonitorByDisplayNumber(ctx, target_display);
+   Monitor *dst_mon = FindMonitorByDisplayNumber(shared, main, target_display);
    if (dst_mon == nullptr) {
       Warn("Workspace %zu reassigned to monitor %d on reload, "
            "but that monitor does not exist — keeping on current "
@@ -1801,29 +1866,33 @@ move_workspace_to_monitor(struct BFWMContext *ctx, Monitor *mon,
        static_cast<BOOL>(mon->GetActiveWorkspace() == workspace);
 
    if (was_active != 0)
-      activate_another_workspace(ctx, mon, workspace);
+      activate_another_workspace(shared, main, mon, workspace);
 
    int const ws_idx = find_workspace_index(mon, workspace);
    if (ws_idx < 0)
       return;
 
    remove_workspace_from_source(mon, ws_idx);
-   add_workspace_to_destination(dst_mon, workspace, was_active, ctx);
-   create_workspace_for_empty_monitor(mon, ctx);
+   add_workspace_to_destination(dst_mon, workspace, was_active, shared, main);
+   create_workspace_for_empty_monitor(mon, shared, main);
 }
 
-inline void update_workspace_configs_on_reload(struct BFWMContext *ctx) {
-   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
-      Monitor *mon = ctx->main.monitors->At(m);
+inline void update_workspace_configs_on_reload(struct SharedState *shared,
+                                               struct MainContext *main) {
+   for (size_t m = 0; m < main->monitors->Size(); m++) {
+      Monitor *mon = main->monitors->At(m);
       for (size_t w = 0; w < mon->Workspaces().size(); w++) {
          Workspace *workspace = mon->Workspaces()[w];
          const struct WorkspaceConfig *workspace_cfg =
-             FindWorkspaceConfig(ctx, workspace->GetIdentifier());
+             FindWorkspaceConfig(shared, main, workspace->GetIdentifier());
 
          update_workspace_label(workspace, workspace_cfg);
 
-         if ((workspace_cfg != nullptr) && workspace_cfg->assigned_monitor > 0)
-            move_workspace_to_monitor(ctx, mon, workspace, workspace_cfg);
+         if ((workspace_cfg != nullptr) &&
+             workspace_cfg->assigned_monitor > 0) {
+            move_workspace_to_monitor(shared, main, mon, workspace,
+                                      workspace_cfg);
+         }
       }
    }
 }
@@ -1833,8 +1902,8 @@ inline void update_workspace_configs_on_reload(struct BFWMContext *ctx) {
 // Public API
 // ---------------------------------------------------------------------------
 
-auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
-                   const char *config_path) -> bool {
+auto LuaConfigLoad(LuaConfig *config, struct SharedState *shared,
+                   struct MainContext *main, const char *config_path) -> bool {
    if (config->L != nullptr) {
       Debug("Lua state already exists, reusing");
    } else {
@@ -1846,6 +1915,9 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
       luaL_openlibs(config->L);
    }
 
+   g_lua_shared = shared;
+   g_lua_main = main;
+
    if (config_path != nullptr) {
       config->config_path = config_path;
    }
@@ -1855,7 +1927,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
        are caught at load time instead of silently ignored. */
    lua_newtable(config->L);
    lua_newtable(config->L);
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, BFWM_newindex, 1);
    lua_setfield(config->L, -2, "__newindex");
    lua_setmetatable(config->L, -2);
@@ -1863,14 +1935,14 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
 
    lua_newtable(config->L);
    lua_newtable(config->L);
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, bar_newindex, 1);
    lua_setfield(config->L, -2, "__newindex");
    lua_setmetatable(config->L, -2);
 
    lua_newtable(config->L);
    lua_newtable(config->L);
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, colors_newindex, 1);
    lua_setfield(config->L, -2, "__newindex");
    lua_setmetatable(config->L, -2);
@@ -1879,7 +1951,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
 
    lua_newtable(config->L);
    lua_newtable(config->L);
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, font_newindex, 1);
    lua_setfield(config->L, -2, "__newindex");
    lua_setmetatable(config->L, -2);
@@ -1890,7 +1962,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
 
    lua_newtable(config->L);
    lua_newtable(config->L);
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, snackbar_newindex, 1);
    lua_setfield(config->L, -2, "__newindex");
    lua_setmetatable(config->L, -2);
@@ -1899,16 +1971,16 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
    /* Register BFWM.notify() before loading config so user code
       can call it from config.lua. */
    lua_getglobal(config->L, "BFWM");
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, lua_BFWM_notify, 1);
    lua_setfield(config->L, -2, "notify");
 
    /* BFWM.exec_cache(argv, key[, ttl_ms]) and BFWM.spawn(argv): non-blocking
       external-process data for custom indicators. */
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, lua_BFWM_exec_cache, 1);
    lua_setfield(config->L, -2, "exec_cache");
-   lua_pushlightuserdata(config->L, ctx);
+   lua_pushlightuserdata(config->L, nullptr);
    lua_pushcclosure(config->L, lua_BFWM_spawn, 1);
    lua_setfield(config->L, -2, "spawn");
    lua_pop(config->L, 1);
@@ -1917,7 +1989,7 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
       from config.lua on reload must revert to defaults instead of
       retaining stale values.  On first load this also ensures sane
       defaults even if the config file is missing or fails. */
-   ConfigLoadDefaults(&ctx->shared);
+   ConfigLoadDefaults(shared);
 
    /* No config file found (empty path): the C++ defaults loaded above are
       the whole configuration.  Do not attempt to dofile an empty path,
@@ -1930,46 +2002,47 @@ auto LuaConfigLoad(LuaConfig *config, struct BFWMContext *ctx,
 
    /* Load/run the config file */
    if (luaL_dofile(config->L, config->config_path.c_str()) != LUA_OK) {
-      Snackbar::Error(ctx, L"Error loading config: %hs",
+      Snackbar::Error(shared, main, L"Error loading config: %hs",
                       lua_tostring(config->L, -1));
       lua_pop(config->L, 1);
       return false;
    }
 
    /* Parse runtime settings (gap_between, gap_edge, colors, etc.) */
-   parse_settings(config->L, ctx);
+   parse_settings(config->L, shared, main);
 
    /* Parse bar config (Bar.height, Bar.font, Bar.colors, etc.) */
-   parse_bar_config(config->L, ctx);
+   parse_bar_config(config->L, shared, main);
 
    /* Parse snackbar config */
-   parse_snackbar_config(config->L, ctx);
+   parse_snackbar_config(config->L, shared, main);
 
    /* Parse keybinds from the loaded config and insert into the dictionary.
       If the keybinds table is missing, ConfigLoadDefaults at line 1156
       already populated the dictionary with C defaults, so they survive. */
-   parse_keybinds(config, ctx, &ctx->shared.keybinds);
+   parse_keybinds(config, shared, main, &shared->keybinds);
 
    /* Free existing window rules before (re-)parsing */
-   for (WindowRule *rule : ctx->main.window_rules)
+   for (WindowRule *rule : main->window_rules)
       WindowRuleDestroy(rule);
-   ctx->main.window_rules.clear();
-   ctx->main.window_rule_count = 0;
+   main->window_rules.clear();
+   main->window_rule_count = 0;
 
    /* Parse window rules */
-   parse_window_rules(config, ctx);
+   parse_window_rules(config, shared, main);
 
    /* Parse workspace config (must be after monitors are set up) */
-   parse_workspace_config(config, ctx);
+   parse_workspace_config(config, shared, main);
 
    /* Update existing workspaces with new config (harmless on initial load) */
-   update_workspace_configs_on_reload(ctx);
+   update_workspace_configs_on_reload(shared, main);
 
    return true;
 }
 
-auto LuaConfigReload(LuaConfig *config, struct BFWMContext *ctx) -> bool {
-   return LuaConfigLoad(config, ctx, nullptr);
+auto LuaConfigReload(LuaConfig *config, struct SharedState *shared,
+                     struct MainContext *main) -> bool {
+   return LuaConfigLoad(config, shared, main, nullptr);
 }
 
 void LuaConfigFree(LuaConfig *config) {
@@ -1977,12 +2050,18 @@ void LuaConfigFree(LuaConfig *config) {
       lua_close(config->L);
       config->L = nullptr;
    }
+   /* The Lua callbacks resolve their context through these file-static
+    * pointers; clear them so a callback that somehow outlives the contexts
+    * cannot follow a stale pointer. */
+   g_lua_shared = nullptr;
+   g_lua_main = nullptr;
 }
 
-auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
-                   const char *func_name) -> bool {
+auto LuaConfigCall(LuaConfig *config, struct SharedState *shared,
+                   struct MainContext *main, const char *func_name) -> bool {
    if (config->L == nullptr) {
-      Snackbar::Error(ctx, L"Lua state not initialized, cannot call '%hs'",
+      Snackbar::Error(shared, main,
+                      L"Lua state not initialized, cannot call '%hs'",
                       (func_name != nullptr) ? func_name : "(null)");
       return false;
    }
@@ -1991,7 +2070,7 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
    lua_getglobal(config->L, func_name);
    if (lua_isfunction(config->L, -1)) {
       if (lua_pcall(config->L, 0, 0, 0) != LUA_OK) {
-         Snackbar::Error(ctx, L"Error calling Lua function '%hs': %hs",
+         Snackbar::Error(shared, main, L"Error calling Lua function '%hs': %hs",
                          (func_name != nullptr) ? func_name : "(null)",
                          lua_tostring(config->L, -1));
          lua_pop(config->L, 1);
@@ -2003,7 +2082,7 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
 
    if (luaL_loadstring(config->L, func_name) != LUA_OK) {
       Snackbar::Warn(
-          ctx,
+          shared, main,
           L"Lua function '%hs' not found and failed to parse as inline code",
           (func_name != nullptr) ? func_name : "(null)");
       lua_pop(config->L, 1);
@@ -2011,7 +2090,7 @@ auto LuaConfigCall(LuaConfig *config, struct BFWMContext *ctx,
    }
 
    if (lua_pcall(config->L, 0, 0, 0) != LUA_OK) {
-      Snackbar::Error(ctx, L"Error running inline Lua '%hs': %hs",
+      Snackbar::Error(shared, main, L"Error running inline Lua '%hs': %hs",
                       (func_name != nullptr) ? func_name : "(null)",
                       lua_tostring(config->L, -1));
       lua_pop(config->L, 1);
@@ -2085,11 +2164,12 @@ auto CallGlobalLua(LuaConfig *config, const char *func, PushArgs push_args)
 
 } // namespace
 
-auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
-                        const char *func, const char *indicator_id,
-                        const char *button, bool ctrl, bool shift, bool alt)
-    -> bool {
-   (void)ctx; // reserved for future use (notifications)
+auto LuaConfigCallClick(LuaConfig *config, struct SharedState *shared,
+                        struct MainContext *main, const char *func,
+                        const char *indicator_id, const char *button, bool ctrl,
+                        bool shift, bool alt) -> bool {
+   (void)shared;
+   (void)main; // reserved for future use (notifications)
    return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
       lua_pushstring(lua_state, (indicator_id != nullptr) ? indicator_id : "");
       lua_pushstring(lua_state, (button != nullptr) ? button : "left");
@@ -2098,10 +2178,11 @@ auto LuaConfigCallClick(LuaConfig *config, struct BFWMContext *ctx,
    });
 }
 
-auto LuaConfigCallScroll(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *indicator_id,
-                         const char *dir) -> bool {
-   (void)ctx; // reserved for future use (notifications)
+auto LuaConfigCallScroll(LuaConfig *config, struct SharedState *shared,
+                         struct MainContext *main, const char *func,
+                         const char *indicator_id, const char *dir) -> bool {
+   (void)shared;
+   (void)main; // reserved for future use (notifications)
    return CallGlobalLua(config, func, [&](lua_State *lua_state) -> int {
       lua_pushstring(lua_state, (indicator_id != nullptr) ? indicator_id : "");
       lua_pushstring(lua_state, (dir != nullptr) ? dir : "down");
@@ -2279,10 +2360,12 @@ inline auto ParseIndicatorOutput(lua_State *lua_state, int idx,
 
 } // namespace
 
-auto LuaConfigCallOutput(LuaConfig *config, struct BFWMContext *ctx,
-                         const char *func, const char *indicator_id,
-                         LuaIndicatorOutput *out) -> bool {
-   (void)ctx; // reserved for future use (notifications)
+auto LuaConfigCallOutput(LuaConfig *config, struct SharedState *shared,
+                         struct MainContext *main, const char *func,
+                         const char *indicator_id, LuaIndicatorOutput *out)
+    -> bool {
+   (void)shared;
+   (void)main; // reserved for future use (notifications)
    if (out == nullptr)
       return false;
    *out = LuaIndicatorOutput{};

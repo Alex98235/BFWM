@@ -18,8 +18,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-
-struct BFWMContext;
 struct IndicatorRuntime;
 struct IndicatorProvider;
 class Bar;
@@ -55,24 +53,27 @@ struct IndicatorProvider {
    /// Fill `runtime` with values for this indicator type.
    /// Called by Bar::RefreshIndicator when the poll window elapses.
    virtual void Refresh(const BarIndicatorConfig &cfg,
-                        IndicatorRuntime &runtime, BFWMContext *ctx) const = 0;
+                        IndicatorRuntime &runtime, SharedState *shared,
+                        MainContext *main) const = 0;
 
    /// Optional: handle click on this indicator (or collection item).
    /// Called by Bar::DispatchIndicatorClick after Lua overrides are ruled out.
    virtual void OnClick(const BarIndicatorConfig &cfg, int item,
-                        BFWMContext *ctx) const {
+                        SharedState *shared, MainContext *main) const {
       (void)cfg;
       (void)item;
-      (void)ctx;
+      (void)shared;
+      (void)main;
    }
 
    /// Optional: handle scroll on this indicator (or collection item).
    /// Called by Bar::DispatchIndicatorScroll after Lua overrides are ruled out.
    virtual void OnScroll(const BarIndicatorConfig &cfg, int delta,
-                         BFWMContext *ctx) const {
+                         SharedState *shared, MainContext *main) const {
       (void)cfg;
       (void)delta;
-      (void)ctx;
+      (void)shared;
+      (void)main;
    }
 
    virtual ~IndicatorProvider() = default;

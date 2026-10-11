@@ -7,9 +7,11 @@
 #include "config/keybinds.h"
 #include "config/lua/parser.h"
 #include "core/action_dispatcher.h"
-#include "core/bfwm_context.h"
 #include "core/bfwm_def.h"
+#include "core/main_context.h"
+#include "core/shared_state.h"
 #include "core/sync.h"
+#include "core/worker_context.h"
 #include "dpi/dpi.h"
 #include "input/actions/handlers.h"
 #include "input/keystroke.h"
@@ -52,7 +54,8 @@ namespace {
 /*  Console control handler. Traps Ctrl+C so the main loop can      */
 /*  exit cleanly instead of the process being killed.                 */
 /* ------------------------------------------------------------------ */
-inline BFWMContext *ctrl_handler_ctx = nullptr;
+inline MainContext *g_main = nullptr;
+inline WorkerContext *g_worker = nullptr;
 
 /* Next deadline for the periodic overlay reconcile pass (OverlayReconcileAll).
  * Mirrors the monitor-reconcile deadline pattern; the pass itself lives in
@@ -63,11 +66,11 @@ inline ULONGLONG overlay_reconcile_deadline = 0;
 inline BOOL WINAPI CtrlHandler(DWORD dwCtrlType) {
    if (dwCtrlType == CTRL_C_EVENT) {
       Debug("Ctrl+C received, signalling main loop to exit");
-      ctrl_handler_ctx->main.running = FALSE;
+      g_main->running = FALSE;
       /* Enqueue a dummy keystroke to unblock DequeueKeystroke()
          which may be waiting on the semaphore. */
       Keystroke const dummy = {};
-      ctrl_handler_ctx->worker.keystroke_queue.Enqueue(dummy);
+      g_worker->keystroke_queue.Enqueue(dummy);
       return TRUE;
    }
    return FALSE; /* let the default handler deal with other events */
@@ -127,14 +130,15 @@ enum {
  * once every window has settled. ApplyLayout self-wraps a transaction
  * when not already in one, so no explicit transaction calls are needed here.
  *
- * @param ctx The BFWM context
+ * @param shared The shared state
+ * @param main   The main-thread context
  */
-inline void ConvergeAsyncMoves(BFWMContext *ctx) {
-   if ((ctx->main.moves_in_flight != 0) &&
-       GetTickCount64() >= ctx->main.move_check_deadline) {
-      ctx->main.move_check_deadline = GetTickCount64() + MOVE_CHECK_INTERVAL_MS;
-      if (ctx->main.focused_workspace != nullptr) {
-         ctx->main.focused_workspace->ApplyLayout(ctx);
+inline void ConvergeAsyncMoves(SharedState *shared, MainContext *main) {
+   if ((main->moves_in_flight != 0) &&
+       GetTickCount64() >= main->move_check_deadline) {
+      main->move_check_deadline = GetTickCount64() + MOVE_CHECK_INTERVAL_MS;
+      if (main->focused_workspace != nullptr) {
+         main->focused_workspace->ApplyLayout(shared, main);
       }
    }
 }
@@ -145,20 +149,21 @@ inline void ConvergeAsyncMoves(BFWMContext *ctx) {
  *        bar.h besides bar.c and BFWM_context.c).
  *
  * Runs when a BAR_UPDATE_RECREATE request is consumed; destroyed bars are
- * rebuilt from ctx->shared.config.bar_cfg, disabled bars are torn down. Called
+ * rebuilt from shared->config.bar_cfg, disabled bars are torn down. Called
  * before the first full render, so a RECREATE raised during init is consumed on
  * the first MainLoop iteration.
  *
- * @param ctx The BFWM context
+ * @param shared The shared state
+ * @param main   The main-thread context
  */
-inline void PresentBars(struct BFWMContext *ctx) {
-   for (size_t index = 0; index < ctx->main.monitors->Size(); index++) {
-      Monitor *mon = ctx->main.monitors->At(index);
-      if (ctx->shared.config.bar_cfg.enabled) {
+inline void PresentBars(SharedState *shared, MainContext *main) {
+   for (size_t index = 0; index < main->monitors->Size(); index++) {
+      Monitor *mon = main->monitors->At(index);
+      if (shared->config.bar_cfg.enabled) {
          if (mon->GetBar() != nullptr)
             mon->ResetBar();
          mon->SetBar(
-             std::make_unique<Bar>(mon, &ctx->shared.config.bar_cfg, ctx));
+             std::make_unique<Bar>(mon, &shared->config.bar_cfg, shared, main));
          if (!mon->GetBar()->Init()) {
             /* keep object alive for retry */
          }
@@ -170,7 +175,8 @@ inline void PresentBars(struct BFWMContext *ctx) {
    }
 }
 
-inline void DispatchKeybind(BFWMContext *ctx, Keystroke *queued) {
+inline void DispatchKeybind(SharedState *shared, MainContext *main,
+                            Keystroke *queued) {
    const KBDLLHOOKSTRUCT *key = &queued->key;
 
    if (key->vkCode == VK_CONTROL || key->vkCode == VK_SHIFT ||
@@ -178,18 +184,18 @@ inline void DispatchKeybind(BFWMContext *ctx, Keystroke *queued) {
       return; // skip bare modifiers
    }
 
-   auto *actions = KBDFind(ctx->shared.keybinds, *queued);
+   auto *actions = KBDFind(shared->keybinds, *queued);
    if (actions == nullptr)
       return;
 
    // The generation check after each dispatch catches actions becoming
    // stale when the dictionary is rebuilt mid-loop (e.g. HandleReloadConfig).
-   size_t const gen = ctx->shared.keybinds.generation;
+   size_t const gen = shared->keybinds.generation;
    for (const auto &action : *actions) {
       if ((queued->repeat == TRUE) && (action->repeatable == FALSE))
          continue;
-      ActionDispatcherDispatch(ctx, action.get());
-      if (ctx->shared.keybinds.generation != gen)
+      ActionDispatcherDispatch(shared, main, action.get());
+      if (shared->keybinds.generation != gen)
          break;
    }
 }
@@ -323,8 +329,8 @@ inline void InitLogger() {
    }
 }
 
-inline auto PopulateBFWMContext(struct BFWMContext *ctx,
-                                const BFWMCliArgs *args) -> BOOL {
+inline auto LoadConfig(SharedState *shared, WorkerContext *worker,
+                       MainContext *main, const BFWMCliArgs *args) -> BOOL {
    std::string config_path;
    if (args->custom_config_path != nullptr) {
       config_path = args->custom_config_path;
@@ -334,62 +340,63 @@ inline auto PopulateBFWMContext(struct BFWMContext *ctx,
                             config_path.size())) {
          config_path.resize(strlen(config_path.c_str()));
       } else {
-         Snackbar::Warn(ctx, L"No custom config found. Using default values");
+         Snackbar::Warn(shared, main,
+                        L"No custom config found. Using default values");
          config_path.clear();
       }
    }
-   LuaConfigLoad(&ctx->main.lua, ctx, config_path.data());
+   LuaConfigLoad(&main->lua, shared, main, config_path.data());
 
    if (args->no_bar == TRUE)
-      ctx->shared.config.bar_cfg.enabled = FALSE;
+      shared->config.bar_cfg.enabled = FALSE;
 
-   ctx->main.running = TRUE;
+   main->running = TRUE;
 
-   ctrl_handler_ctx = ctx;
+   g_main = main;
+   g_worker = worker;
    if (SetConsoleCtrlHandler(CtrlHandler, TRUE) == FALSE)
       BFWMLogLastError("SetConsoleCtrlHandler failed");
 
-   if (!WMWorkerRun(ctx)) {
+   if (!WMWorkerRun(worker, main)) {
       BFWMLogLastError("Could not start worker thread");
       return FALSE;
    }
-   BFWMContextSetup(ctx);
+   BFWMSetup(shared, worker, main);
    return TRUE;
 }
 
-inline void ProcessWindowMessages(struct BFWMContext *ctx) {
+inline void ProcessWindowMessages(SharedState *shared, MainContext *main) {
    MSG msg;
    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE) == TRUE) {
       if (msg.message == WM_APP_DISPLAYCHANGE) {
-         ctx->main.reconcile_pending = TRUE;
-         ctx->main.reconcile_deadline =
-             GetTickCount64() + RECONCILE_INTERVAL_MS;
-         if (ctx->main.reconcile_attempt == 0U)
-            ctx->main.reconcile_attempt = ctx->main.reconcile_deadline;
+         main->reconcile_pending = TRUE;
+         main->reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
+         if (main->reconcile_attempt == 0U)
+            main->reconcile_attempt = main->reconcile_deadline;
          continue;
       }
 
       if (msg.message == WM_APP_SUSPEND) {
-         ctx->main.suspended = TRUE;
-         ctx->main.pre_sleep_monitor_count = ctx->main.monitors->Size();
+         main->suspended = TRUE;
+         main->pre_sleep_monitor_count = main->monitors->Size();
          continue;
       }
 
       if (msg.message == WM_APP_RESUME) {
-         ctx->main.suspended = FALSE;
+         main->suspended = FALSE;
          SystemStatusShutdown();
          SystemStatusInit();
-         Bar::ResetPollTimers(ctx);
-         ctx->main.reconcile_pending = TRUE;
-         ctx->main.reconcile_deadline =
+         Bar::ResetPollTimers(shared, main);
+         main->reconcile_pending = TRUE;
+         main->reconcile_deadline =
              GetTickCount64() + RECONCILE_RESUME_DELAY_MS;
-         ctx->main.reconcile_attempt = ctx->main.reconcile_deadline;
-         Bar::UpdateAll(ctx);
+         main->reconcile_attempt = main->reconcile_deadline;
+         Bar::UpdateAll(shared, main);
          continue;
       }
       // force-focus a specific window (from auto-focus guard)
       if (msg.message == WM_FORCE_FOCUS) {
-         FocusWindow(reinterpret_cast<HWND>(msg.wParam), ctx);
+         FocusWindow(reinterpret_cast<HWND>(msg.wParam), shared, main);
          continue;
       }
       // desktop click (from mouse hook): focus the closest window of the
@@ -398,7 +405,7 @@ inline void ProcessWindowMessages(struct BFWMContext *ctx) {
          POINT point;
          point.x = static_cast<LONG>(msg.lParam & 0xFFFFFFFFLL);
          point.y = static_cast<LONG>((msg.lParam >> 32) & 0xFFFFFFFFLL);
-         WorkspaceHandleDesktopClick(ctx, point);
+         WorkspaceHandleDesktopClick(shared, main, point);
          continue;
       }
       // focus-follows-mouse hover (from mouse hook).
@@ -406,7 +413,7 @@ inline void ProcessWindowMessages(struct BFWMContext *ctx) {
          POINT point;
          point.x = static_cast<LONG>(msg.lParam & 0xFFFFFFFFLL);
          point.y = static_cast<LONG>((msg.lParam >> 32) & 0xFFFFFFFFLL);
-         WorkspaceHandleMouseHover(ctx, point);
+         WorkspaceHandleMouseHover(shared, main, point);
          continue;
       }
       TranslateMessage(&msg);
@@ -414,14 +421,14 @@ inline void ProcessWindowMessages(struct BFWMContext *ctx) {
    }
 }
 
-inline void ProcessReconcile(struct BFWMContext *ctx) {
-   if ((ctx->main.reconcile_pending == 0) ||
-       GetTickCount64() < ctx->main.reconcile_deadline)
+inline void ProcessReconcile(SharedState *shared, MainContext *main) {
+   if ((main->reconcile_pending == 0) ||
+       GetTickCount64() < main->reconcile_deadline)
       return;
 
    // Purge windows whose HWND died or was reused (e.g. across sleep/wake)
    // before any cloak/layout work touches them.
-   Overlay::ReclaimStaleWindows(ctx);
+   Overlay::ReclaimStaleWindows(shared, main);
 
    // Exclusive-fullscreen games switch display modes without firing any
    // window event (only WM_DISPLAYCHANGE), so the transition is invisible to
@@ -430,29 +437,30 @@ inline void ProcessReconcile(struct BFWMContext *ctx) {
    // handling so a genuinely fullscreen window is not cloaked or re-tiled —
    // re-tiling an exclusive-fullscreen window forces it out of exclusive mode
    // (e.g. CS2 minimizing on every launch).
-   ctx->main.transaction.Begin();
+   main->transaction.Begin();
    {
-      ScopedLock const lock(ctx->main.lock);
-      RefreshFullscreenStates(ctx);
+      ScopedLock const lock(main->lock);
+      RefreshFullscreenStates(shared, main);
    }
-   BFWMTransactionCommit(ctx);
+   BFWMTransactionCommit(shared, main);
 
-   ReconcileMonitors(ctx);
-   ULONGLONG const waited = GetTickCount64() - ctx->main.reconcile_attempt;
-   if (ctx->main.pre_sleep_monitor_count > 0 &&
-       ctx->main.monitors->Size() < ctx->main.pre_sleep_monitor_count &&
+   ReconcileMonitors(shared, main);
+   ULONGLONG const waited = GetTickCount64() - main->reconcile_attempt;
+   if (main->pre_sleep_monitor_count > 0 &&
+       main->monitors->Size() < main->pre_sleep_monitor_count &&
        waited < RECONCILE_MAX_WAIT_MS) {
-      ctx->main.reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
+      main->reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
    } else {
-      ctx->main.reconcile_pending = FALSE;
-      ctx->main.reconcile_attempt = 0;
-      ctx->main.pre_sleep_monitor_count = 0;
-      if (!ctx->main.monitors->Empty())
-         Bar::UpdateAll(ctx);
+      main->reconcile_pending = FALSE;
+      main->reconcile_attempt = 0;
+      main->pre_sleep_monitor_count = 0;
+      if (!main->monitors->Empty())
+         Bar::UpdateAll(shared, main);
    }
 }
 
-inline void ProcessKeystrokes(struct BFWMContext *ctx) {
+inline void ProcessKeystrokes(SharedState *shared, WorkerContext *worker,
+                              MainContext *main) {
    Keystroke queued;
    BOOL processed = FALSE;
    // Drain the queue fully: every key still applies (repeats and distinct keys
@@ -460,25 +468,26 @@ inline void ProcessKeystrokes(struct BFWMContext *ctx) {
    // commit at the end. Previously each key committed its own transaction,
    // which throttled key rate to 1/commit-time and let the cap-8 drop-oldest
    // queue drop distinct keys during a slow hold.
-   while (ctx->worker.keystroke_queue.Dequeue(queued)) {
+   while (worker->keystroke_queue.Dequeue(queued)) {
       if (processed == FALSE) {
-         ctx->main.transaction.Begin();
+         main->transaction.Begin();
          processed = TRUE;
       }
-      DispatchKeybind(ctx, &queued);
+      DispatchKeybind(shared, main, &queued);
    }
    if (processed == TRUE) {
-      BFWMTransactionCommit(ctx);
+      BFWMTransactionCommit(shared, main);
    } else {
       Sleep(1);
    }
 }
 
-inline void MainLoop(struct BFWMContext *ctx) {
-   while (ctx->main.running == TRUE) {
-      DrainEventQueue(ctx);
-      ProcessWindowMessages(ctx);
-      ProcessReconcile(ctx);
+inline void MainLoop(SharedState *shared, WorkerContext *worker,
+                     MainContext *main) {
+   while (main->running == TRUE) {
+      DrainEventQueue(shared, worker, main);
+      ProcessWindowMessages(shared, main);
+      ProcessReconcile(shared, main);
       /* Periodic overlay reconcile: guarantees ring convergence within
        * RECONCILE_INTERVAL_MS regardless of dropped events, async z-ops, or
        * missed fullscreen transitions. Skipped during drags/suspend and for a
@@ -486,20 +495,20 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * mouse drags, so without this guard the tick can inject an extra commit
        * mid keyboard-resize). */
       if (GetTickCount64() >= overlay_reconcile_deadline &&
-          ctx->main.resize_hwnd == nullptr && (ctx->main.suspended == FALSE)) {
-         Overlay::OverlayReconcileAll(ctx);
+          main->resize_hwnd == nullptr && (main->suspended == FALSE)) {
+         Overlay::OverlayReconcileAll(shared, main);
          overlay_reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
       }
-      ProcessKeystrokes(ctx);
+      ProcessKeystrokes(shared, worker, main);
 
       /* Converge async moves at a throttled cadence while any layout move is
        * in flight or pending. Stops automatically: moves_in_flight is cleared
        * once every window has settled. */
-      ConvergeAsyncMoves(ctx);
+      ConvergeAsyncMoves(shared, main);
 
       /* Deadline backstop for the focus intent: retires an armed intent whose
        * planned target never landed. */
-      ctx->main.focus_intent.Expire();
+      main->focus_intent.Expire();
 
       /* Adopt stuck layouts: if a window on the focused workspace keeps
        * refusing its assigned rect (an app that self-resizes), write its actual
@@ -507,63 +516,63 @@ inline void MainLoop(struct BFWMContext *ctx) {
        * `desired` matches reality. This ends the re-issue loop instead of
        * fighting the app; the relayout that follows issues the moves that pull
        * the affected windows onto their new slots. */
-      AdoptStuckLayouts(ctx);
+      AdoptStuckLayouts(shared, main);
 
-      CheckPendingKills(ctx);
+      CheckPendingKills(shared, main);
 
-      Snackbar::Tick(ctx);
+      Snackbar::Tick(shared, main);
 
       /* Consume the DPI-update port: a monitor's DPI changed, so refresh every
        * monitor's reserved bar height (config is logical; the stored value is
        * physical), re-derive every workspace rect, and recreate the bars. */
-      if (ctx->main.dpi_update == TRUE) {
-         for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
-            Monitor *mon = ctx->main.monitors->At(i);
-            mon->SetBarHeight(ctx->main.dpi->ScaleForMonitor(
-                mon->GetHandle(), ctx->shared.config.bar_height));
+      if (main->dpi_update == TRUE) {
+         for (size_t i = 0; i < main->monitors->Size(); i++) {
+            Monitor *mon = main->monitors->At(i);
+            mon->SetBarHeight(main->dpi->ScaleForMonitor(
+                mon->GetHandle(), shared->config.bar_height));
          }
-         RecalculateAllWorkspaceRects(ctx);
+         RecalculateAllWorkspaceRects(shared, main);
          /* Rects changed; relayout the active workspace on every monitor so
           * PlacementApply issues the rescaled window moves. Active-only scope
           * mirrors ReloadConfig / PushGapConfigToAllWorkspaces. */
-         for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
-            Monitor *mon = ctx->main.monitors->At(i);
+         for (size_t i = 0; i < main->monitors->Size(); i++) {
+            Monitor *mon = main->monitors->At(i);
             Workspace *active = mon->GetActiveWorkspace();
             if (active != nullptr)
-               active->ApplyLayout(ctx);
+               active->ApplyLayout(shared, main);
          }
-         BarUpdateRequest(ctx, BAR_UPDATE_RECREATE);
-         ctx->main.dpi_update = FALSE;
+         BarUpdateRequest(main, BAR_UPDATE_RECREATE);
+         main->dpi_update = FALSE;
       }
 
       /* Consume the bar-update port: recreate bars first (RECREATE), then
        * invalidate so the fresh bars paint immediately. Deferred to the end of
        * the iteration because BarUpdate/BarUpdateAll only invalidate — the
        * paint happens on the next WM_PAINT pump. */
-      if (ctx->main.bar_update != BAR_UPDATE_NONE) {
-         if (ctx->main.bar_update == BAR_UPDATE_RECREATE) {
-            PresentBars(ctx);
+      if (main->bar_update != BAR_UPDATE_NONE) {
+         if (main->bar_update == BAR_UPDATE_RECREATE) {
+            PresentBars(shared, main);
          }
-         Bar::UpdateAll(ctx);
-         ctx->main.bar_update = BAR_UPDATE_NONE;
+         Bar::UpdateAll(shared, main);
+         main->bar_update = BAR_UPDATE_NONE;
       }
 
       {
-         ScopedLock const lock(ctx->main.lock);
-         if (ctx->main.running == 0) {
+         ScopedLock const lock(main->lock);
+         if (main->running == 0) {
             break;
          }
       }
    }
 }
 
-inline void ShutdownBFWM(struct BFWMContext *ctx) {
-   if (!WMWorkerStop(ctx))
+inline void ShutdownBFWM(SharedState *shared, MainContext *main) {
+   if (!WMWorkerStop(main))
       BFWMLogLastError("Could not stop worker thread");
 
-   RestoreFullscreenWindows(ctx);
-   RestoreDesktopState(ctx);
-   BFWMContextFree(ctx);
+   RestoreFullscreenWindows(shared, main);
+   RestoreDesktopState(shared, main);
+   BFWMFree(shared, main);
    SystemStatusShutdown();
    /* COM teardown (CoUninitialize) is owned by the ComInitGuard in main(), so
     * it is balanced on every exit path — including early returns. */
@@ -625,19 +634,24 @@ auto main(int argc, char *argv[]) -> int {
 
    RegisterActionHandlers();
 
-   BFWMContext *ctx = BFWMContextInit();
-   ctx->shared.main_thread_id = GetCurrentThreadId();
-   ctx->main.instance_mutex = instance_mutex;
+   SharedState shared;
+   WorkerContext worker;
+   MainContext main;
+   worker.shared = &shared;
+   worker.main = &main;
+   BFWMInit(&shared, &main);
+   shared.main_thread_id = GetCurrentThreadId();
+   main.instance_mutex = instance_mutex;
 
-   if (PopulateBFWMContext(ctx, &args) == FALSE) {
-      BFWMContextFree(ctx);
+   if (LoadConfig(&shared, &worker, &main, &args) == FALSE) {
+      BFWMFree(&shared, &main);
       return 1;
    }
 
-   TrayInit(ctx);
+   TrayInit(&shared, &main);
 
-   MainLoop(ctx);
+   MainLoop(&shared, &worker, &main);
    TrayShutdown();
-   ShutdownBFWM(ctx);
+   ShutdownBFWM(&shared, &main);
    return 0;
 }

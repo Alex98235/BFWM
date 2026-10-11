@@ -282,9 +282,9 @@ static inline auto IsWindowManagedByLayout(const Window *win) -> BOOL {
  *        "No node with window handle" diagnostics. Mirrors the PlacementApply
  *        guard.
  *
- * @tparam Context The BFWM context type (deduced as BFWMContext at call
- *        sites; window.h cannot name the complete type because
- *        bfwm_context.h includes window.h)
+ * @tparam Context The context pointer type (deduced at the call
+ *        site; window.h cannot name the complete type because
+ *        main_context.h includes window.h)
  * @param ctx  The BFWM context, or nullptr
  * @param hwnd The window handle to look up
  * @return The managed, layout-member Window*, or nullptr
@@ -292,8 +292,7 @@ static inline auto IsWindowManagedByLayout(const Window *win) -> BOOL {
 template <typename Context>
 [[nodiscard]] inline auto FindWindowIfManaged(Context *ctx, HWND hwnd)
     -> Window * {
-   Window *win =
-       (ctx != nullptr) ? ctx->main.windows->FindByHwnd(hwnd) : nullptr;
+   Window *win = (ctx != nullptr) ? ctx->windows->FindByHwnd(hwnd) : nullptr;
    if ((win == nullptr) || (IsWindowManagedByLayout(win) == FALSE))
       return nullptr;
    return win;

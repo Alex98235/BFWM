@@ -130,8 +130,9 @@ inline auto table_get_string_field(lua_State *lua_state, int table_idx,
 } // namespace
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-auto build_action(LuaConfig *config, struct BFWMContext *ctx,
-                  const char *action_name, int opts_table_idx) -> BFWMAction * {
+auto build_action(LuaConfig *config, struct SharedState *shared,
+                  struct MainContext *main, const char *action_name,
+                  int opts_table_idx) -> BFWMAction * {
    lua_State *lua_state = config->L;
    BFWMAction *action = nullptr;
 
@@ -149,7 +150,8 @@ auto build_action(LuaConfig *config, struct BFWMContext *ctx,
          const char *cmd =
              table_get_string_field(lua_state, opts_table_idx, "command");
          if (cmd == nullptr) {
-            Snackbar::Error(ctx, L"Spawn action requires a 'command' option");
+            Snackbar::Error(shared, main,
+                            L"Spawn action requires a 'command' option");
             return nullptr;
          }
          action = BFWMActionCreateSpawn(cmd);
@@ -219,7 +221,7 @@ auto build_action(LuaConfig *config, struct BFWMContext *ctx,
          const char *layout =
              table_get_string_field(lua_state, opts_table_idx, "layout");
          if (layout == nullptr) {
-            Snackbar::Error(ctx,
+            Snackbar::Error(shared, main,
                             L"SetLayout action requires a 'layout' option");
             return nullptr;
          }
@@ -245,8 +247,9 @@ auto build_action(LuaConfig *config, struct BFWMContext *ctx,
          const char *lua_fn =
              table_get_string_field(lua_state, opts_table_idx, "lua");
          if (lua_fn == nullptr) {
-            Snackbar::Error(ctx, L"Call action requires a 'lua' option "
-                                 L"specifying a function name");
+            Snackbar::Error(shared, main,
+                            L"Call action requires a 'lua' option "
+                            L"specifying a function name");
             return nullptr;
          }
          action = BFWMActionCreateCustom(lua_fn);
@@ -257,7 +260,8 @@ auto build_action(LuaConfig *config, struct BFWMContext *ctx,
          const char *cmd =
              table_get_string_field(lua_state, opts_table_idx, "command");
          if (cmd == nullptr) {
-            Snackbar::Error(ctx, L"Exec action requires a 'command' option");
+            Snackbar::Error(shared, main,
+                            L"Exec action requires a 'command' option");
             return nullptr;
          }
          action = BFWMActionCreateExec(cmd);
@@ -297,7 +301,7 @@ auto build_action(LuaConfig *config, struct BFWMContext *ctx,
          break;
       }
 
-      Snackbar::Error(ctx, L"Unknown action type '%hs'",
+      Snackbar::Error(shared, main, L"Unknown action type '%hs'",
                       (action_name != nullptr) ? action_name : "(null)");
    } while (false);
 

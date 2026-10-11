@@ -4,7 +4,9 @@
  */
 
 #include "wm_worker.h"
-#include "../core/bfwm_context.h"
+#include "../core/bfwm_def.h"
+#include "../core/main_context.h"
+#include "../core/worker_context.h"
 #include "../input/hooks.h"
 #include "../logging/logger.h"
 #include "../win/com_raii.h"
@@ -37,8 +39,8 @@ const wchar_t *DPI_WATCHER_MONITOR_PROP = L"BFWMDpiWatcherMonitor";
 inline auto CALLBACK DpiWatcherWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                                        LPARAM lParam) -> LRESULT {
    if (msg == WM_DPICHANGED) {
-      auto *ctx = (BFWMContext *)BFWMGetWindowData(hwnd);
-      if (ctx != nullptr) {
+      auto *worker = (WorkerContext *)BFWMGetWindowData(hwnd);
+      if (worker != nullptr) {
          auto *hmon = (HMONITOR)GetPropW(hwnd, DPI_WATCHER_MONITOR_PROP);
          EventRecord const record = {
              .event = WM_APP_DPI_CHANGED,
@@ -49,8 +51,7 @@ inline auto CALLBACK DpiWatcherWndProc(HWND hwnd, UINT msg, WPARAM wParam,
              .dwmsEventTime = 0,
              .dpi = LOWORD(wParam),
          };
-         ctx->worker.event_queue.Push(
-             record); // ignore push failure (queue full)
+         worker->event_queue.Push(record); // ignore push failure (queue full)
       }
       return 0;
    }
@@ -73,7 +74,7 @@ inline auto RegisterDpiWatcherClass(HINSTANCE hInstance) -> BOOL {
 
 /* EnumDisplayMonitors payload for DpiWatcherEnumProc. */
 using DpiWatcherEnumData = struct {
-   BFWMContext *ctx;
+   WorkerContext *worker;
    HINSTANCE hInstance;
    std::vector<HWND> *watchers;
 };
@@ -98,16 +99,16 @@ inline auto CALLBACK DpiWatcherEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
       return TRUE; // keep enumerating the remaining monitors
    }
 
-   BFWMSetWindowData(watcher, data->ctx);
+   BFWMSetWindowData(watcher, data->worker);
    SetPropW(watcher, DPI_WATCHER_MONITOR_PROP, (HANDLE)hMonitor);
    data->watchers->push_back(watcher);
    return TRUE;
 }
 
-inline void CreateDpiWatchers(BFWMContext *ctx, HINSTANCE hInstance,
+inline void CreateDpiWatchers(WorkerContext *worker, HINSTANCE hInstance,
                               std::vector<HWND> *watchers) {
    DpiWatcherEnumData const data = {
-       .ctx = ctx, .hInstance = hInstance, .watchers = watchers};
+       .worker = worker, .hInstance = hInstance, .watchers = watchers};
    EnumDisplayMonitors(nullptr, nullptr, DpiWatcherEnumProc, (LPARAM)&data);
 }
 
@@ -129,8 +130,8 @@ inline void DestroyDpiWatchers(std::vector<HWND> *watchers) {
  * Post WM_QUIT to the thread to shut it down.
  */
 inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
-   auto *ctx = (BFWMContext *)param;
-   if (ctx == nullptr)
+   auto *worker = (WorkerContext *)param;
+   if (worker == nullptr)
       return 1;
 
    ComInitGuard const com_guard;
@@ -140,11 +141,11 @@ inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
       return 1;
    }
 
-   if (SetupKeyboardHooks(ctx) == FALSE) {
+   if (SetupKeyboardHooks(worker) == FALSE) {
       return 1;
    }
 
-   if (SetupWindowEventHook(ctx) == FALSE) {
+   if (SetupWindowEventHook(worker) == FALSE) {
       TeardownKeyboardHooks();
       return 1;
    }
@@ -160,7 +161,7 @@ inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
     * SPSC event queue. Recreated on WM_APP_DPI_WATCHER_RECREATE (monitor
     * topology changed). */
    std::vector<HWND> dpi_watchers;
-   CreateDpiWatchers(ctx, hInstance, &dpi_watchers);
+   CreateDpiWatchers(worker, hInstance, &dpi_watchers);
 
    /* Blocking message loop. Exits when WM_QUIT is posted from WMWorkerStop */
    MSG msg;
@@ -170,7 +171,7 @@ inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
           * dispatch to. */
          if (msg.message == WM_APP_DPI_WATCHER_RECREATE) {
             DestroyDpiWatchers(&dpi_watchers);
-            CreateDpiWatchers(ctx, hInstance, &dpi_watchers);
+            CreateDpiWatchers(worker, hInstance, &dpi_watchers);
          }
          continue;
       }
@@ -186,24 +187,23 @@ inline auto __stdcall StartEventWatching(void *param) -> unsigned int {
 
 } // namespace
 
-auto WMWorkerRun(BFWMContext *ctx) -> bool {
-   ctx->main.worker_thread =
-       _beginthreadex(nullptr, 0, StartEventWatching, ctx, 0, nullptr);
-   return ctx->main.worker_thread != 0;
+auto WMWorkerRun(WorkerContext *worker, MainContext *main) -> bool {
+   main->worker_thread =
+       _beginthreadex(nullptr, 0, StartEventWatching, worker, 0, nullptr);
+   return main->worker_thread != 0;
 }
 
-auto WMWorkerStop(BFWMContext *ctx) -> bool {
-   if ((ctx == nullptr) || ctx->main.worker_thread == 0)
+auto WMWorkerStop(MainContext *main) -> bool {
+   if ((main == nullptr) || main->worker_thread == 0)
       return true;
 
    /* Post WM_QUIT to the worker thread's message queue so GetMessage returns 0
     */
-   PostThreadMessage(GetThreadId((HANDLE)ctx->main.worker_thread), WM_QUIT, 0,
-                     0);
+   PostThreadMessage(GetThreadId((HANDLE)main->worker_thread), WM_QUIT, 0, 0);
 
-   WaitForSingleObject((HANDLE)ctx->main.worker_thread, INFINITE);
+   WaitForSingleObject((HANDLE)main->worker_thread, INFINITE);
 
-   WINBOOL const ret = CloseHandle((HANDLE)ctx->main.worker_thread);
-   ctx->main.worker_thread = 0;
+   WINBOOL const ret = CloseHandle((HANDLE)main->worker_thread);
+   main->worker_thread = 0;
    return ret != FALSE;
 }

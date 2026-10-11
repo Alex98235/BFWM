@@ -27,7 +27,9 @@
 
 #include <gdiplus.h>
 
-#include "../../core/bfwm_context.h"
+#include "../../core/main_context.h"
+
+#include "../../core/shared_state.h"
 #include "../cleanup.h"
 
 /* One layered window plus its render surface (memory DC + 32bpp BGRA DIB).
@@ -110,8 +112,8 @@ class Overlay {
     * @param width  Border thickness in logical pixels
     * @param radius Corner radius in logical pixels (0 = square)
     */
-   Overlay(struct BFWMContext *ctx, HWND target, COLORREF color, int width,
-           int radius);
+   Overlay(struct SharedState *shared, struct MainContext *main, HWND target,
+           COLORREF color, int width, int radius);
 
    /**
     * @brief Initialize the overlay ring's resources.
@@ -308,9 +310,11 @@ class Overlay {
     *
     * @param ctx The BFWM context (owner)
     */
-   static void OverlayReconcileAll(struct BFWMContext *ctx);
+   static void OverlayReconcileAll(struct SharedState *shared,
+                                   struct MainContext *main);
    /// Purge windows whose HWND died or was reused (e.g. across sleep/wake).
-   static void ReclaimStaleWindows(struct BFWMContext *ctx);
+   static void ReclaimStaleWindows(struct SharedState *shared,
+                                   struct MainContext *main);
 
    /**
     * @brief Whether the ring currently needs a flush to converge.
@@ -391,7 +395,8 @@ class Overlay {
        OVERLAY_STRIP_RIGHT, OVERLAY_STRIP_LEFT, OVERLAY_STRIP_BOTTOM,
        OVERLAY_STRIP_TOP};
 
-   struct BFWMContext *ctx; /* owner context */
+   struct SharedState *shared = nullptr; /* owner context */
+   struct MainContext *main = nullptr;
    HWND target;
    COLORREF color;
    int width;          /* border thickness, logical px */

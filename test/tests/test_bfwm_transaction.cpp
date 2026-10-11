@@ -1,20 +1,39 @@
 #include "cbelt.h"
 #include <windows.h>
 
-#include "../../src/core/bfwm_context.h"
+#include "../../src/core/main_context.h"
+
+#include "../../src/core/shared_state.h"
+
+#include "../../src/core/worker_context.h"
 #include "../../src/transaction/transaction.h"
 
 CBELT_GROUP("BFWM_transaction")
 
 namespace {
 
-inline auto create_minimal_ctx(void) -> struct BFWMContext * {
-   return BFWMContextInit();
+struct TestCtx {
+   SharedState shared;
+   WorkerContext worker;
+   MainContext main;
+};
+
+inline auto create_minimal_ctx(void) -> TestCtx * {
+   auto *c = new TestCtx();
+   BFWMInit(&c->shared, &c->main);
+   c->worker.shared = &c->shared;
+   c->worker.main = &c->main;
+   return c;
+}
+
+inline void destroy_minimal_ctx(TestCtx *ctx) {
+   BFWMFree(&ctx->shared, &ctx->main);
+   delete ctx;
 }
 } // namespace
 
 CBELT_TEST(begin_sets_in_transaction) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    cbelt_assert(ctx->main.transaction.IsInTransaction() == FALSE);
@@ -23,12 +42,12 @@ CBELT_TEST(begin_sets_in_transaction) {
    cbelt_assert(ctx->main.transaction.IsInTransaction() == TRUE);
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(nested_begin_is_noop) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -39,37 +58,37 @@ CBELT_TEST(nested_begin_is_noop) {
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
    cbelt_assert(ctx->main.transaction.Capacity() == cap_before);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(commit_empty_transaction) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
-   BFWMTransactionCommit(ctx);
+   BFWMTransactionCommit(&ctx->shared, &ctx->main);
    cbelt_assert(ctx->main.transaction.IsInTransaction() == FALSE);
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(commit_without_begin_is_noop) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
-   BFWMTransactionCommit(ctx);
+   BFWMTransactionCommit(&ctx->shared, &ctx->main);
    cbelt_assert(ctx->main.transaction.IsInTransaction() == FALSE);
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(abort_clears_queue_and_flag) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -83,23 +102,23 @@ CBELT_TEST(abort_clears_queue_and_flag) {
    cbelt_assert(ctx->main.transaction.IsInTransaction() == FALSE);
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(abort_without_begin_is_safe) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Abort();
    cbelt_assert(ctx->main.transaction.IsInTransaction() == FALSE);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_move_window) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -116,12 +135,12 @@ CBELT_TEST(queue_move_window) {
    cbelt_assert(op->op_types.move_rect.width == 800);
    cbelt_assert(op->op_types.move_rect.height == 600);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_relayout) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -136,12 +155,12 @@ CBELT_TEST(queue_relayout) {
    cbelt_assert(op->hwnd == nullptr);
    cbelt_assert(op->op_types.workspace == &fake_ws);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_border_color) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -154,12 +173,12 @@ CBELT_TEST(queue_border_color) {
    cbelt_assert(op->hwnd == reinterpret_cast<HWND>(7));
    cbelt_assert(op->op_types.border.color == 0x0000FF);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_focus) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -171,12 +190,12 @@ CBELT_TEST(queue_focus) {
    cbelt_assert(op->type == OP_FOCUS_WINDOW);
    cbelt_assert(op->hwnd == reinterpret_cast<HWND>(99));
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_outside_transaction_is_noop) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.QueueMoveWindow(reinterpret_cast<HWND>(1), 0, 0, 100,
@@ -187,12 +206,12 @@ CBELT_TEST(queue_outside_transaction_is_noop) {
 
    cbelt_assert(ctx->main.transaction.OpCount() == 0);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(multiple_ops_maintain_order) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -210,12 +229,12 @@ CBELT_TEST(multiple_ops_maintain_order) {
    cbelt_assert(ctx->main.transaction.OpAt(2).type == OP_FOCUS_WINDOW);
    cbelt_assert(ctx->main.transaction.OpAt(3).type == OP_RELAYOUT_WORKSPACE);
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(queue_capacity_expands_beyond_initial) {
-   struct BFWMContext *ctx = create_minimal_ctx();
+   TestCtx *ctx = create_minimal_ctx();
    cbelt_assert_not_null(ctx);
 
    ctx->main.transaction.Begin();
@@ -234,6 +253,6 @@ CBELT_TEST(queue_capacity_expands_beyond_initial) {
                    reinterpret_cast<HWND>(static_cast<intptr_t>(i + 1)));
    }
 
-   BFWMContextFree(ctx);
+   destroy_minimal_ctx(ctx);
    return TEST_SUCCESS;
 }

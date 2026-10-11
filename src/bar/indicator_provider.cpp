@@ -6,7 +6,8 @@
 #include "indicator_provider.h"
 
 #include "../config/lua/parser.h"
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 #include "../system/system_status.h"
 #include "bar.h"
 #include "system_indicator_mapping.h"
@@ -35,17 +36,20 @@ struct WorkspacesIndicatorProvider final : IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_->RefreshWorkspaces(cfg, runtime);
    }
 
    void OnClick(const BarIndicatorConfig &cfg, int item,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_->DefaultWorkspacesClick(cfg, item);
    }
 
    void OnScroll(const BarIndicatorConfig &cfg, int delta,
-                 BFWMContext * /*ctx*/) const override {
+                 SharedState * /*shared*/,
+                 MainContext * /*main*/) const override {
       bar_->DefaultWorkspacesScroll(cfg, delta);
    }
 
@@ -63,7 +67,8 @@ struct TitleIndicatorProvider final : IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_->RefreshTitle(cfg, runtime);
    }
 
@@ -92,7 +97,8 @@ class ClockProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       SYSTEMTIME now;
       GetLocalTime(&now);
       bar_indicator_mapping::FormatClock(now, cfg.format, runtime);
@@ -111,7 +117,8 @@ class VolumeProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig & /*cfg*/, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_indicator_mapping::ApplyVolumeStatus(SystemGetVolumeStatus(),
                                                runtime);
    }
@@ -129,7 +136,8 @@ class NetworkProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig & /*cfg*/, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_indicator_mapping::ApplyNetworkStatus(SystemGetNetworkStatus(),
                                                 runtime);
    }
@@ -147,7 +155,8 @@ class CpuProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig & /*cfg*/, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_indicator_mapping::ApplyCpuStatus(SystemGetCpuStatus(), runtime);
    }
 };
@@ -164,7 +173,8 @@ class MemoryProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig & /*cfg*/, IndicatorRuntime &runtime,
-                BFWMContext * /*ctx*/) const override {
+                SharedState * /*shared*/,
+                MainContext * /*main*/) const override {
       bar_indicator_mapping::ApplyMemoryStatus(SystemGetMemoryStatus(),
                                                runtime);
    }
@@ -182,14 +192,14 @@ class CustomProvider final : public IndicatorProvider {
    }
 
    void Refresh(const BarIndicatorConfig &cfg, IndicatorRuntime &runtime,
-                BFWMContext *ctx) const override {
-      if (ctx == nullptr) {
+                SharedState *shared, MainContext *main) const override {
+      if (shared == nullptr) {
          runtime.valid = false;
          return;
       }
       LuaIndicatorOutput out;
       bool const success = LuaConfigCallOutput(
-          &ctx->main.lua, ctx, cfg.output.c_str(), cfg.id.c_str(), &out);
+          &main->lua, shared, main, cfg.output.c_str(), cfg.id.c_str(), &out);
       if (!success || !out.valid) {
          runtime.valid = false;
          return;

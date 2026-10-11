@@ -15,7 +15,9 @@
 
 #include "placement.h"
 
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+
+#include "../core/shared_state.h"
 #include "../dpi/dpi.h"
 #include "../logging/logger.h"
 #include "../math/rect.h"
@@ -176,7 +178,8 @@ namespace {
  * @param rect The desired frame rect (destination-monitor physical px)
  * @param ctx  The BFWM context (DPI registry for the destination scale)
  */
-inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
+inline void IssueMove(Window *win, const RECT *rect, struct SharedState *shared,
+                      struct MainContext *main) {
    RECT issued = *rect;
    DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
 
@@ -199,7 +202,7 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
                                      DPI_AWARENESS_CONTEXT_UNAWARE) != 0) ||
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) != 0));
-   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->main.dpi != nullptr)) {
+   if ((unaware == TRUE) && (shared != nullptr) && (main->dpi != nullptr)) {
       /* The desired rect is already destination physical px. Passing it from
        * a PMv2-aware thread makes the system reinterpret it against the
        * monitor the window is still on (the source), so a cross-monitor move
@@ -207,7 +210,7 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
        * rect (physical / dest_scale) inside the target's own awareness
        * context instead: the DWM then composes it back to the exact physical
        * rect on the destination monitor. */
-      UINT const dest_dpi = ctx->main.dpi->GetDpi(dst_hmon);
+      UINT const dest_dpi = main->dpi->GetDpi(dst_hmon);
       float const scale = (float)dest_dpi / (float)DpiSystem::BaseDpi();
       if (scale > 1.0F) {
          prev_ctx = SetThreadDpiAwarenessContext(target_ctx);
@@ -268,7 +271,9 @@ inline void IssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx) {
  * @param ctx       The BFWM context
  */
 inline void MaybeIssueMove(Window *win, const RECT *desired,
-                           Workspace * /*workspace*/, struct BFWMContext *ctx) {
+                           Workspace * /*workspace*/,
+                           struct SharedState *shared,
+                           struct MainContext *main) {
    RECT current_rect;
    BOOL const got_current = GetWindowRect(win->GetHwnd(), &current_rect);
    /* Cross-monitor trust: a cross-monitor issue arms this flag. Once the
@@ -297,7 +302,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
              MonitorFromWindow(win->GetHwnd(), MONITOR_DEFAULTTONEAREST);
          HMONITOR dst_hmon = MonitorFromRect(desired, MONITOR_DEFAULTTONEAREST);
          if (cur_hmon == dst_hmon) {
-            int const tol = DpiRoundingTolerance(ctx, win->GetHwnd());
+            int const tol = DpiRoundingTolerance(shared, main, win->GetHwnd());
             if (RectEqualsWithinTolerance(current_rect, *desired, tol) != 0) {
                /* (b) Reached the destination and landed at the issued rect:
                 * converged. Adopt the landed rect, clear in-flight state, and
@@ -324,7 +329,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
             /* (c) In transit: the window has not processed the posted move
              * yet. Hold briefly (no re-issue; avoids queued churn). Capped at
              * MOVE_STALL_TIMEOUT_MS so a hung window escalates fast. */
-            ctx->main.moves_in_flight = TRUE;
+            main->moves_in_flight = TRUE;
             return;
          } else {
             /* (c') Never reached the destination within the stall window:
@@ -341,7 +346,7 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
     * exact-equality landing checks would never match and the window would be
     * floated. Tolerance is 0 for aware targets and at 100% scale, preserving
     * exact behaviour there. */
-   int const tolerance = DpiRoundingTolerance(ctx, win->GetHwnd());
+   int const tolerance = DpiRoundingTolerance(shared, main, win->GetHwnd());
    if ((got_current == TRUE) &&
        (RectEqualsWithinTolerance(current_rect, *desired, tolerance) != 0)) {
       BOOL const was_in_flight = win->MoveInFlight();
@@ -380,12 +385,12 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
        * failed landing; a fresh issue from the landed reconcile (landed ==
        * TRUE) is a normal layout step and clears the count. */
       win->SetStuckFailures((landed != FALSE) ? 0 : win->StuckFailures() + 1);
-      IssueMove(win, desired, ctx);
-      ctx->main.moves_in_flight = TRUE;
+      IssueMove(win, desired, shared, main);
+      main->moves_in_flight = TRUE;
       break;
 
    case PLACEMENT_MOVE_DEFER:
-      ctx->main.moves_in_flight = TRUE;
+      main->moves_in_flight = TRUE;
       break;
    }
 }
@@ -395,8 +400,9 @@ inline void MaybeIssueMove(Window *win, const RECT *desired,
 /* DPI-unaware window on a scaled monitor lands a few px off the issued rect
  * and must not be treated as still in flight. Formerly shared with
  * overlay.cpp's now-removed OverlayFlush landed gate (PR #5). */
-auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int {
-   if ((ctx == nullptr) || (ctx->main.dpi == nullptr))
+auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
+                          HWND hwnd) -> int {
+   if ((shared == nullptr) || (main->dpi == nullptr))
       return 0;
    /* Aware (PMv1/PMv2/system) targets land at the exact physical rect. */
    DPI_AWARENESS_CONTEXT awareness = GetWindowDpiAwarenessContext(hwnd);
@@ -410,8 +416,8 @@ auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int {
    /* Strict at 100%: the logical round-trip is exact, so a tolerance here
     * could mask a genuinely stuck window (keeps behaviour identical to the
     * old exact-equality gate at 96 DPI). */
-   float const scale = ctx->main.dpi->GetScale(
-       MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
+   float const scale =
+       main->dpi->GetScale(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST));
    if (scale <= 1.0F)
       return 0;
    /* Covers the physical<->logical<->physical rounding round-trip (up to one
@@ -431,7 +437,8 @@ auto RectEqualsWithinTolerance(RECT a, RECT b, int tol) -> BOOL {
                             std::abs(a.bottom - b.bottom) <= tol);
 }
 
-void PlacementApply(Workspace *workspace, struct BFWMContext *ctx) {
+void PlacementApply(Workspace *workspace, struct SharedState *shared,
+                    struct MainContext *main) {
    if (workspace->GetEngine() == nullptr)
       return;
    workspace->GetEngine()->apply();
@@ -439,7 +446,7 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx) {
    /* Recomputed each pass: TRUE if any window below still needs a move
     * (issued or waiting for an in-flight move to land). Drives the
     * main-loop convergence pass. */
-   ctx->main.moves_in_flight = FALSE;
+   main->moves_in_flight = FALSE;
 
    for (size_t i = 0; i < workspace->Windows().size(); i++) {
       HWND hwnd = workspace->Windows()[i]->GetHwnd();
@@ -464,27 +471,28 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx) {
           * now; the engine's insert only mutates its own tree/list, never
           * workspace->Windows(), so it is safe to call while iterating that
           * vector. If the re-query still fails, skip as before (defensive). */
-         workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
+         workspace->GetEngine()->insert(hwnd, main->focused_hwnd);
          if (!workspace->GetEngine()->get_rect(hwnd, &desired_rect)) {
             Error("No valid rect for window: %p", hwnd);
             continue;
          }
       }
 
-      MaybeIssueMove(workspace->Windows()[i], &desired_rect, workspace, ctx);
+      MaybeIssueMove(workspace->Windows()[i], &desired_rect, workspace, shared,
+                     main);
    }
 }
 
 void PlacementIssueMove(Window *win, const RECT *rect,
-                        struct BFWMContext *ctx) {
-   IssueMove(win, rect, ctx);
+                        struct SharedState *shared, struct MainContext *main) {
+   IssueMove(win, rect, shared, main);
 }
 
-void AdoptStuckLayouts(struct BFWMContext *ctx) {
-   if ((ctx == nullptr) || (ctx->main.focused_workspace == nullptr))
+void AdoptStuckLayouts(struct SharedState *shared, struct MainContext *main) {
+   if ((shared == nullptr) || (main->focused_workspace == nullptr))
       return;
 
-   Workspace *workspace = ctx->main.focused_workspace;
+   Workspace *workspace = main->focused_workspace;
    LayoutEngine *engine = workspace->GetEngine();
    if (engine == nullptr)
       return;
@@ -506,7 +514,7 @@ void AdoptStuckLayouts(struct BFWMContext *ctx) {
       if (!engine->get_rect(win->GetHwnd(), &desired))
          continue;
 
-      int const tol = DpiRoundingTolerance(ctx, win->GetHwnd());
+      int const tol = DpiRoundingTolerance(shared, main, win->GetHwnd());
       if (RectEqualsWithinTolerance(current_rect, desired, tol) != 0) {
          /* Window is at its desired rect after all — clear the count. */
          win->SetLastLanded(current_rect);
@@ -567,10 +575,10 @@ void AdoptStuckLayouts(struct BFWMContext *ctx) {
        * not elapsed the adopted move is DEFERred and needs the convergence
        * pass to land. Forcing the flag off would strand the new layout
        * un-applied until the next unrelated interaction. */
-      workspace->ApplyLayout(ctx);
+      workspace->ApplyLayout(shared, main);
       /* One toast per pass (not per window) so a multi-window pass can't spam.
        * The per-window detail stays in the Debug terminal log above. */
-      Snackbar::Warn(ctx,
+      Snackbar::Warn(shared, main,
                      L"A window refused its size, adjusting layout to match");
    }
 }

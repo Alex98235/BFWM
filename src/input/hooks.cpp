@@ -1,6 +1,9 @@
 #include "hooks.h"
 #include "../config/keybinds.h"
-#include "../core/bfwm_context.h"
+#include "../core/bfwm_def.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
+#include "../core/worker_context.h"
 #include "../window/events/events.h"
 #include "../window/window.h"
 #include "keystroke.h"
@@ -17,7 +20,7 @@ enum {
 };
 
 namespace {
-BFWMContext *ctx = nullptr;
+WorkerContext *g_worker = nullptr;
 HHOOK g_kb_hook = nullptr;
 HHOOK g_mouse_hook = nullptr;
 
@@ -29,35 +32,35 @@ std::array<BOOL, KEY_STATE_SIZE> key_down = {};
 BOOL g_left_ctrl_down = FALSE;
 BOOL g_right_alt_down = FALSE;
 
-inline void UpdateModifierState(BFWMContext *context, DWORD vkCode,
+inline void UpdateModifierState(WorkerContext *worker, DWORD vkCode,
                                 BOOL isPressed) {
    switch (vkCode) {
    default:
       break;
    case VK_CONTROL:
    case VK_LCONTROL:
-      context->worker.modifiers.ctrl = isPressed;
+      worker->modifiers.ctrl = isPressed;
       g_left_ctrl_down = isPressed;
       break;
    case VK_RCONTROL:
-      context->worker.modifiers.ctrl = isPressed;
+      worker->modifiers.ctrl = isPressed;
       break;
    case VK_SHIFT:
    case VK_LSHIFT:
    case VK_RSHIFT:
-      context->worker.modifiers.shift = isPressed;
+      worker->modifiers.shift = isPressed;
       break;
    case VK_MENU:
    case VK_LMENU:
-      context->worker.modifiers.alt = isPressed;
+      worker->modifiers.alt = isPressed;
       break;
    case VK_RMENU:
-      context->worker.modifiers.alt = isPressed;
+      worker->modifiers.alt = isPressed;
       g_right_alt_down = isPressed;
       break;
    case VK_LWIN:
    case VK_RWIN:
-      context->worker.modifiers.super = isPressed;
+      worker->modifiers.super = isPressed;
       break;
    }
 }
@@ -85,15 +88,15 @@ inline auto PackPoint(POINT point) -> LPARAM {
 
 } // namespace
 
-auto SetupKeyboardHooks(BFWMContext *context) -> BOOL {
-   ctx = context;
-   if (ctx == nullptr)
+auto SetupKeyboardHooks(WorkerContext *worker) -> BOOL {
+   g_worker = worker;
+   if (g_worker == nullptr)
       return FALSE;
 
    g_kb_hook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc,
                                 GetModuleHandle(nullptr), 0);
    if (g_kb_hook == nullptr) {
-      ctx = nullptr;
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -102,7 +105,7 @@ auto SetupKeyboardHooks(BFWMContext *context) -> BOOL {
    if (g_mouse_hook == nullptr) {
       UnhookWindowsHookEx(g_kb_hook);
       g_kb_hook = nullptr;
-      ctx = nullptr;
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -118,7 +121,7 @@ void TeardownKeyboardHooks() {
       UnhookWindowsHookEx(g_mouse_hook);
       g_mouse_hook = nullptr;
    }
-   ctx = nullptr;
+   g_worker = nullptr;
 }
 
 auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -130,32 +133,32 @@ auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
       BOOL const isReleased =
           static_cast<BOOL>(wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-      if (ctx == nullptr)
+      if (g_worker == nullptr)
          return CallNextHookEx(nullptr, nCode, wParam, lParam);
 
-      UpdateModifierState(ctx, pKey->vkCode, isPressed);
+      UpdateModifierState(g_worker, pKey->vkCode, isPressed);
 
       if (isReleased != 0) {
          key_down[pKey->vkCode & KEY_INDEX_MASK] = FALSE;
       }
 
       if ((isPressed != 0) && (IsModifierKey(pKey->vkCode) == 0)) {
-         if (ctx->main.focused_hwnd != nullptr) {
-            Window *focused =
-                ctx->main.windows->FindByHwnd(ctx->main.focused_hwnd);
+         if (g_worker->main->focused_hwnd != nullptr) {
+            Window *focused = g_worker->main->windows->FindByHwnd(
+                g_worker->main->focused_hwnd);
             if ((focused != nullptr) && (focused->IsUnmanagedFullscreen() != 0))
                return CallNextHookEx(nullptr, nCode, wParam, lParam);
          }
 
          Keystroke queued;
          queued.key = *pKey;
-         queued.modifiers = ctx->worker.modifiers;
+         queued.modifiers = g_worker->modifiers;
          queued.repeat = key_down[pKey->vkCode & KEY_INDEX_MASK];
          key_down[pKey->vkCode & KEY_INDEX_MASK] = TRUE;
 
-         auto *actions = KBDFind(ctx->shared.keybinds, queued);
+         auto *actions = KBDFind(g_worker->shared->keybinds, queued);
          if ((actions != nullptr) && (IsAltGrChord(queued.modifiers) == 0)) {
-            ctx->worker.keystroke_queue.Enqueue(queued);
+            g_worker->keystroke_queue.Enqueue(queued);
             return 1;
          }
       }
@@ -166,17 +169,17 @@ auto CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 auto CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
     -> LRESULT {
    if (nCode >= 0) {
-      if (wParam == WM_LBUTTONDOWN && (ctx != nullptr)) {
+      if (wParam == WM_LBUTTONDOWN && (g_worker != nullptr)) {
          POINT point;
          GetCursorPos(&point);
          // Desktop-click handling lives on the main thread (workspace.c) —
          // mirror the WM_FORCE_FOCUS post precedent.
-         PostThreadMessage(ctx->shared.main_thread_id, WM_APP_DESKTOP_CLICK, 0,
-                           PackPoint(point));
+         PostThreadMessage(g_worker->shared->main_thread_id,
+                           WM_APP_DESKTOP_CLICK, 0, PackPoint(point));
          return CallNextHookEx(nullptr, nCode, wParam, lParam);
       }
-      if (wParam == WM_MOUSEMOVE && (ctx != nullptr) &&
-          (ctx->shared.config.focus_follows_mouse != 0)) {
+      if (wParam == WM_MOUSEMOVE && (g_worker != nullptr) &&
+          (g_worker->shared->config.focus_follows_mouse != 0)) {
          if (((GetAsyncKeyState(VK_LBUTTON) & HIGH_BIT_MASK) != 0) ||
              ((GetAsyncKeyState(VK_RBUTTON) & HIGH_BIT_MASK) != 0))
             return CallNextHookEx(nullptr, nCode, wParam, lParam);
@@ -188,10 +191,10 @@ auto CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 
          // Cheap pre-filter (no workspace.h needed); the main thread resolves
          // the workspace-active check via WorkspaceHandleMouseHover.
-         if ((hover != nullptr) && hover != ctx->main.focused_hwnd &&
-             (ctx->main.windows->FindByHwnd(hover) != nullptr)) {
-            PostThreadMessage(ctx->shared.main_thread_id, WM_APP_MOUSE_HOVER, 0,
-                              PackPoint(point));
+         if ((hover != nullptr) && hover != g_worker->main->focused_hwnd &&
+             (g_worker->main->windows->FindByHwnd(hover) != nullptr)) {
+            PostThreadMessage(g_worker->shared->main_thread_id,
+                              WM_APP_MOUSE_HOVER, 0, PackPoint(point));
          }
       }
    }

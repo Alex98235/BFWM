@@ -1,6 +1,8 @@
 #include "win_utils.h"
 
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+
+#include "../core/shared_state.h"
 #include "../dpi/dpi.h"
 
 #include <dwmapi.h>
@@ -28,7 +30,8 @@ auto BFWMSetWindowPos(HWND hwnd, const RECT *rect) -> BOOL {
                              SWP_NOCOPYBITS | SWP_FRAMECHANGED);
 }
 
-void IssueRectWithDpiConversion(struct BFWMContext *ctx, HWND hwnd,
+void IssueRectWithDpiConversion(struct SharedState *shared,
+                                struct MainContext *main, HWND hwnd,
                                 HMONITOR hmon, RECT rect,
                                 BOOL (*issue)(HWND, const RECT *)) {
    DPI_AWARENESS_CONTEXT target_ctx = GetWindowDpiAwarenessContext(hwnd);
@@ -38,8 +41,8 @@ void IssueRectWithDpiConversion(struct BFWMContext *ctx, HWND hwnd,
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
    DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
-   if ((unaware == TRUE) && (ctx != nullptr) && (ctx->main.dpi != nullptr)) {
-      UINT const dpi = ctx->main.dpi->GetDpi(hmon);
+   if ((unaware == TRUE) && (shared != nullptr) && (main->dpi != nullptr)) {
+      UINT const dpi = main->dpi->GetDpi(hmon);
       float const scale = (float)dpi / (float)DpiSystem::BaseDpi();
       if ((dpi != 0) && (scale > 1.0F)) {
          prev_ctx = SetThreadDpiAwarenessContext(target_ctx);

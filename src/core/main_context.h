@@ -1,19 +1,14 @@
 /**
  * @file main_context.h
- * @brief Main-thread-only application state — all runtime registries and
- *        mutable state except the shared-config and worker-queue state.
+ * @brief Main-thread-only application state — the runtime registries,
+ *        transaction, and main-loop control flags.
  *
- * MainContext holds everything that remains in BFWMContext after the
- * SharedState (config, keybinds, main_thread_id) and WorkerContext
- * (keystroke and event queues, modifier scratch, setup flag) have been
- * extracted.  Every field here is accessed only from the main thread.
+ * Every field here is accessed only from the main thread.
  *
  * Threading contract:
- *   - All fields are main-thread only.  The worker thread never mutates
- *     MainContext and only reads specific fields through a const pointer
- *     (see WorkerContext::main).
- *   - The worker thread reads `windows`, `focused_hwnd`, and `event_hook`
- *     via WorkerContext::main (a `const MainContext *` back-pointer).
+ *   - All fields are main-thread only. The worker thread never mutates
+ *     MainContext and reads only `windows`, `focused_hwnd`, and
+ *     `event_hook`, via the WorkerContext::main back-pointer.
  *   - `lock` serialises event processing against the main loop refresh,
  *     always on the main thread.
  */
@@ -32,6 +27,7 @@
 
 #include "focus_intent.h"
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <windows.h>
@@ -45,6 +41,16 @@ enum BarUpdateKind {
    BAR_UPDATE_DIRTY,
    BAR_UPDATE_RECREATE,
 };
+
+/** @brief Initial capacities for the context sub-registries. */
+enum {
+   BFC_INITIAL_MONITOR_CAP = 4,
+   BFC_INITIAL_WINDOW_CAP = 8,
+   BFC_INITIAL_KBD_CAP = 64,
+};
+
+struct SharedState;
+struct WorkerContext;
 
 /**
  * @brief Main-thread-only application state.
@@ -165,5 +171,22 @@ struct MainContext {
    FocusIntent focus_intent;
    /** @} */
 };
+
+/**
+ * @brief Request a bar refresh; max() semantics — RECREATE wins over DIRTY.
+ *
+ * @param main The main context
+ * @param kind The requested refresh kind
+ */
+static inline void BarUpdateRequest(struct MainContext *main,
+                                    enum BarUpdateKind kind) {
+   main->bar_update = std::max(kind, main->bar_update);
+}
+
+// Initialisation and teardown of the application contexts.
+void BFWMInit(SharedState *shared, MainContext *main);
+auto BFWMSetup(SharedState *shared, WorkerContext *worker, MainContext *main)
+    -> bool;
+void BFWMFree(SharedState *shared, MainContext *main);
 
 #endif

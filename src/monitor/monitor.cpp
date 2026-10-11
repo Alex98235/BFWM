@@ -6,8 +6,9 @@
 #include "monitor.h"
 #include "../bar/bar.h"
 #include "../config/lua/parser.h"
-#include "../core/bfwm_context.h"
 #include "../core/bfwm_def.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 #include "../core/sync.h"
 #include "../dpi/dpi.h"
 #include "../logging/logger.h"
@@ -125,7 +126,7 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
    if (data == nullptr)
       return FALSE;
    MonitorRegistry *const reg = data->reg;
-   BFWMContext *const ctx = data->ctx;
+   MainContext *const main = data->main;
 
    MONITORINFOEXW miex;
    miex.cbSize = sizeof(miex);
@@ -140,11 +141,11 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
 
    // Register the monitor's effective DPI in the DpiSystem registry (the
    // per-monitor DPI truth; rebuilt from scratch each reconcile).
-   if (ctx != nullptr && ctx->main.dpi != nullptr) {
+   if (main != nullptr && main->dpi != nullptr) {
       UINT dpi_x = 0;
       UINT dpi_y = 0;
       if (GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y) == S_OK)
-         ctx->main.dpi->RegisterMonitor(hMonitor, dpi_x);
+         main->dpi->RegisterMonitor(hMonitor, dpi_x);
    }
 
    mon->SetDisplayNumber(QueryDisplayNumber(hMonitor));
@@ -196,12 +197,13 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
 // WORKSPACE NAVIGATION (monitor-aware)
 // ============================================================
 
-auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
-    -> Workspace * {
-   if (ctx == nullptr)
+auto FindNeighbouringWorkspace(struct SharedState *shared,
+                               struct MainContext *main,
+                               BFWMDirection direction) -> Workspace * {
+   if (shared == nullptr)
       return nullptr;
 
-   const auto &monitors = ctx->main.monitors->Monitors();
+   const auto &monitors = main->monitors->Monitors();
    size_t const mon_count = monitors.size();
 
    RECT src = {};
@@ -212,17 +214,16 @@ auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
     * get_rect lookup would log "No node with window handle"; fall through to
     * the monitor work-area anchor like a failed lookup. Mirrors the
     * PlacementApply guard. */
-   Window *focused_win = ctx->main.windows->FindByHwnd(ctx->main.focused_hwnd);
+   Window *focused_win = main->windows->FindByHwnd(main->focused_hwnd);
    bool const focused_managed = (focused_win != nullptr) &&
                                 (IsWindowManagedByLayout(focused_win) != FALSE);
 
-   if ((ctx->main.focused_workspace == nullptr) ||
-       (ctx->main.focused_workspace->GetEngine() == nullptr) ||
-       !focused_managed ||
-       !ctx->main.focused_workspace->GetEngine()->get_rect(
-           ctx->main.focused_hwnd, &src)) {
+   if ((main->focused_workspace == nullptr) ||
+       (main->focused_workspace->GetEngine() == nullptr) || !focused_managed ||
+       !main->focused_workspace->GetEngine()->get_rect(main->focused_hwnd,
+                                                       &src)) {
       Monitor *current_mon =
-          FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
+          FindMonitorByWorkspace(shared, main, main->focused_workspace);
       if (current_mon != nullptr) {
          src = current_mon->GetWorkArea();
       } else if (mon_count > 0 && (monitors[0] != nullptr)) {
@@ -232,7 +233,7 @@ auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
 
    for (size_t m = 0; m < mon_count && (monitors[m] != nullptr); m++) {
       Monitor *mon = monitors[m];
-      if (ctx->main.focused_workspace == mon->GetActiveWorkspace()) {
+      if (main->focused_workspace == mon->GetActiveWorkspace()) {
          if (direction == DirPrev) {
             return monitors[(m - 1 + mon_count) % mon_count]
                 ->GetActiveWorkspace();
@@ -253,18 +254,20 @@ auto FindNeighbouringWorkspace(struct BFWMContext *ctx, BFWMDirection direction)
    return (best != nullptr) ? best->GetActiveWorkspace() : nullptr;
 }
 
-auto FindMonitorForHwnd(struct BFWMContext *ctx, HWND hwnd) -> Monitor * {
-   Workspace *workspace = FindWorkspaceByHwnd(ctx, hwnd);
+auto FindMonitorForHwnd(struct SharedState *shared, struct MainContext *main,
+                        HWND hwnd) -> Monitor * {
+   Workspace *workspace = FindWorkspaceByHwnd(shared, main, hwnd);
    if (workspace == nullptr)
       return nullptr;
-   return FindMonitorByWorkspace(ctx, workspace);
+   return FindMonitorByWorkspace(shared, main, workspace);
 }
 
-auto FindMonitorByDisplayNumber(struct BFWMContext *ctx, UINT display_number)
+auto FindMonitorByDisplayNumber(struct SharedState *shared,
+                                struct MainContext *main, UINT display_number)
     -> Monitor * {
-   if (ctx == nullptr)
+   if (shared == nullptr)
       return nullptr;
-   for (auto *monitor : ctx->main.monitors->Monitors()) {
+   for (auto *monitor : main->monitors->Monitors()) {
       if (monitor->GetDisplayNumber() == display_number)
          return monitor;
    }
@@ -295,11 +298,13 @@ inline auto FindNextPrevMonitor(Monitor *const *monitors, size_t mon_count,
 // RECONCILE MONITORS — INTERNAL HELPERS
 // ============================================================
 
-inline auto EnumerateMonitors(struct BFWMContext *ctx, MonitorRegistry *reg)
+inline auto EnumerateMonitors(struct SharedState *shared,
+                              struct MainContext *main, MonitorRegistry *reg)
     -> BOOL {
    reg->Reserve(BFC_INITIAL_MONITOR_CAP);
 
-   MonitorEnumData const enum_data = {.reg = reg, .ctx = ctx};
+   MonitorEnumData const enum_data = {
+       .reg = reg, .shared = shared, .main = main};
    EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)&enum_data);
    if (reg->Empty()) {
       Warn("ReconcileMonitors: no monitors found, keeping existing");
@@ -310,12 +315,13 @@ inline auto EnumerateMonitors(struct BFWMContext *ctx, MonitorRegistry *reg)
    return TRUE;
 }
 
-inline void RemoveDisabledMonitors(struct BFWMContext *ctx,
+inline void RemoveDisabledMonitors(struct SharedState *shared,
+                                   struct MainContext *main,
                                    MonitorRegistry *reg) {
    size_t dst = 0;
    for (size_t src = 0; src < reg->Size(); src++) {
       Monitor *monitor = reg->At(src);
-      if (monitor->IsDisabled(ctx) == TRUE) {
+      if (monitor->IsDisabled(shared, main) == TRUE) {
          InfoW(L"Monitor %u (uid %ls) is disabled, skipping",
                monitor->GetDisplayNumber(), monitor->GetUid().c_str());
          delete monitor;
@@ -328,7 +334,7 @@ inline void RemoveDisabledMonitors(struct BFWMContext *ctx,
 
 /* Match old monitors against the new enumeration by UID then HMONITOR.
  * Returns a std::vector<BOOL> where old_matched[i] is TRUE if
- * ctx->main.monitors->At(i) is still connected.  Geometry and display number
+ * main->monitors->At(i) is still connected.  Geometry and display number
  * are updated for matches so existing workspaces keep their state. */
 
 /* A DPI-only change (same physical rect) is invisible to TryMatchMonitor's
@@ -338,10 +344,10 @@ inline void RemoveDisabledMonitors(struct BFWMContext *ctx,
  * the matcher runs, so GetDpi on the adopted handle is the new value; the
  * pre-reconcile value comes from the UID-keyed old_dpis snapshot. */
 inline void ReconcileMonitorDpi(
-    struct BFWMContext *ctx, Monitor *mon,
+    struct SharedState *shared, struct MainContext *main, Monitor *mon,
     const std::vector<std::pair<std::wstring, UINT>> &old_dpis) {
    UINT const new_dpi =
-       (ctx->main.dpi != nullptr) ? ctx->main.dpi->GetDpi(mon->GetHandle()) : 0;
+       (main->dpi != nullptr) ? main->dpi->GetDpi(mon->GetHandle()) : 0;
    if (new_dpi == 0)
       return; // not registered — nothing to compare
    for (const auto &old : old_dpis) {
@@ -351,7 +357,7 @@ inline void ReconcileMonitorDpi(
          InfoW(L"Monitor %u DPI changed: %u -> %u", mon->GetDisplayNumber(),
                old.second, new_dpi);
          for (size_t w = 0; w < mon->Workspaces().size(); w++) {
-            mon->Workspaces()[w]->RecalculateRect(mon, ctx);
+            mon->Workspaces()[w]->RecalculateRect(mon, shared, main);
          }
       }
       break;
@@ -359,8 +365,8 @@ inline void ReconcileMonitorDpi(
 }
 
 inline void
-TryMatchMonitor(struct BFWMContext *ctx, Monitor *old_mon,
-                MonitorRegistry *new_reg,
+TryMatchMonitor(struct SharedState *shared, struct MainContext *main,
+                Monitor *old_mon, MonitorRegistry *new_reg,
                 const std::vector<std::pair<std::wstring, UINT>> &old_dpis,
                 std::vector<BOOL> &old_matched, size_t i) {
    for (size_t idx = 0; idx < new_reg->Size(); idx++) {
@@ -399,10 +405,10 @@ TryMatchMonitor(struct BFWMContext *ctx, Monitor *old_mon,
                old_mon->GetRect().top, old_mon->GetRect().right,
                old_mon->GetRect().bottom);
          for (size_t w = 0; w < old_mon->Workspaces().size(); w++) {
-            old_mon->Workspaces()[w]->RecalculateRect(old_mon, ctx);
+            old_mon->Workspaces()[w]->RecalculateRect(old_mon, shared, main);
          }
       } else {
-         ReconcileMonitorDpi(ctx, old_mon, old_dpis);
+         ReconcileMonitorDpi(shared, main, old_mon, old_dpis);
       }
 
       delete new_replacement;
@@ -413,16 +419,17 @@ TryMatchMonitor(struct BFWMContext *ctx, Monitor *old_mon,
 }
 
 inline auto MatchExistingMonitors(
-    struct BFWMContext *ctx, MonitorRegistry *new_reg,
+    struct SharedState *shared, struct MainContext *main,
+    MonitorRegistry *new_reg,
     const std::vector<std::pair<std::wstring, UINT>> &old_dpis)
     -> std::vector<BOOL> {
-   std::vector<BOOL> old_matched(ctx->main.monitors->Size(), FALSE);
+   std::vector<BOOL> old_matched(main->monitors->Size(), FALSE);
 
-   for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
-      Monitor *old_mon = ctx->main.monitors->At(i);
-      if (old_mon->IsDisabled(ctx) == TRUE)
+   for (size_t i = 0; i < main->monitors->Size(); i++) {
+      Monitor *old_mon = main->monitors->At(i);
+      if (old_mon->IsDisabled(shared, main) == TRUE)
          continue;
-      TryMatchMonitor(ctx, old_mon, new_reg, old_dpis, old_matched, i);
+      TryMatchMonitor(shared, main, old_mon, new_reg, old_dpis, old_matched, i);
    }
    return old_matched;
 }
@@ -431,21 +438,22 @@ inline auto MatchExistingMonitors(
  * monitor itself.  A two-pass approach avoids thrashing the fallback's
  * active workspace during the move (pass 1) before activating the
  * correct one (pass 2). */
-inline void HandleDisconnectedMonitors(struct BFWMContext *ctx,
+inline void HandleDisconnectedMonitors(struct SharedState *shared,
+                                       struct MainContext *main,
                                        const std::vector<BOOL> &old_matched) {
    Monitor *fallback_mon = nullptr;
-   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
+   for (size_t m = 0; m < main->monitors->Size(); m++) {
       if (old_matched[m] == TRUE) {
-         fallback_mon = ctx->main.monitors->At(m);
+         fallback_mon = main->monitors->At(m);
          break;
       }
    }
 
-   for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
+   for (size_t i = 0; i < main->monitors->Size(); i++) {
       if (old_matched[i] == TRUE)
          continue;
 
-      Monitor *old_mon = ctx->main.monitors->At(i);
+      Monitor *old_mon = main->monitors->At(i);
       InfoW(L"Monitor %u disconnected at (%ld,%ld)",
             old_mon->GetDisplayNumber(), old_mon->GetRect().left,
             old_mon->GetRect().top);
@@ -462,9 +470,9 @@ inline void HandleDisconnectedMonitors(struct BFWMContext *ctx,
          Workspace *workspace = dead_ws[w];
          if (fallback_mon != nullptr) {
             workspace->SetOriginMonitorUid(old_mon->GetUid());
-            workspace->MoveToMonitor(fallback_mon, ctx);
+            workspace->MoveToMonitor(fallback_mon, shared, main);
          } else {
-            workspace->DestroyWindows(ctx);
+            workspace->DestroyWindows(shared, main);
             delete workspace;
          }
       }
@@ -473,7 +481,7 @@ inline void HandleDisconnectedMonitors(struct BFWMContext *ctx,
       // the fallback keeps the same active state.  Other workspaces
       // stay cloaked until the user switches to them.
       if ((fallback_mon != nullptr) && (active_ws != nullptr)) {
-         WorkspaceActivateSimple(ctx, fallback_mon,
+         WorkspaceActivateSimple(shared, main, fallback_mon,
                                  fallback_mon->GetActiveWorkspace(), active_ws,
                                  true);
       }
@@ -485,39 +493,41 @@ inline void HandleDisconnectedMonitors(struct BFWMContext *ctx,
 
 /* Remove entries whose monitors disconnected and fix up the
  * focused_workspace if it pointed to a now-dead monitor. */
-inline void CompactMonitorArray(struct BFWMContext *ctx,
+inline void CompactMonitorArray(struct SharedState *shared,
+                                struct MainContext *main,
                                 const std::vector<BOOL> &old_matched) {
    size_t keep = 0;
-   for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
+   for (size_t i = 0; i < main->monitors->Size(); i++) {
       if (old_matched[i] == TRUE)
-         ctx->main.monitors->SetAt(keep++, ctx->main.monitors->At(i));
+         main->monitors->SetAt(keep++, main->monitors->At(i));
    }
-   ctx->main.monitors->Resize(keep);
+   main->monitors->Resize(keep);
    // old_matched is a std::vector owned by ReconcileMonitors (automatic
    // scope cleanup).
 
-   if (ctx->main.focused_workspace != nullptr) {
+   if (main->focused_workspace != nullptr) {
       Monitor *focused_monitor =
-          FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
+          FindMonitorByWorkspace(shared, main, main->focused_workspace);
       if (focused_monitor == nullptr) {
-         ctx->main.focused_workspace =
-             !ctx->main.monitors->Empty()
-                 ? ctx->main.monitors->At(0)->GetActiveWorkspace()
+         main->focused_workspace =
+             !main->monitors->Empty()
+                 ? main->monitors->At(0)->GetActiveWorkspace()
                  : nullptr;
-         ctx->main.focused_hwnd = nullptr;
+         main->focused_hwnd = nullptr;
       }
    }
 }
 
-inline auto FindPinnedWorkspaces(struct BFWMContext *ctx, UINT display_number,
+inline auto FindPinnedWorkspaces(struct SharedState *shared,
+                                 struct MainContext *main, UINT display_number,
                                  Workspace **out, int max) -> int {
    int count = 0;
-   for (size_t m = 0; m < ctx->main.monitors->Size() && count < max; m++) {
-      Monitor *other = ctx->main.monitors->At(m);
+   for (size_t m = 0; m < main->monitors->Size() && count < max; m++) {
+      Monitor *other = main->monitors->At(m);
       for (size_t w = 0; w < other->Workspaces().size() && count < max; w++) {
          Workspace *candidate = other->Workspaces()[w];
          const struct WorkspaceConfig *cfg =
-             FindWorkspaceConfig(ctx, candidate->GetIdentifier());
+             FindWorkspaceConfig(shared, main, candidate->GetIdentifier());
          if ((cfg != nullptr) && cfg->assigned_monitor > 0 &&
              std::cmp_equal(cfg->assigned_monitor, display_number)) {
             out[count++] = candidate;
@@ -527,14 +537,15 @@ inline auto FindPinnedWorkspaces(struct BFWMContext *ctx, UINT display_number,
    return count;
 }
 
-inline void SetupNewMonitors(struct BFWMContext *ctx,
+inline void SetupNewMonitors(struct SharedState *shared,
+                             struct MainContext *main,
                              MonitorRegistry *new_reg) {
    for (size_t idx = 0; idx < new_reg->Size(); idx++) {
       Monitor *mon = new_reg->At(idx);
 
       BOOL is_new = TRUE;
-      for (size_t k = 0; k < ctx->main.monitors->Size(); k++) {
-         if (ctx->main.monitors->At(k) == mon) {
+      for (size_t k = 0; k < main->monitors->Size(); k++) {
+         if (main->monitors->At(k) == mon) {
             is_new = FALSE;
             break;
          }
@@ -546,9 +557,9 @@ inline void SetupNewMonitors(struct BFWMContext *ctx,
             mon->GetDisplayNumber(), mon->GetRect().left, mon->GetRect().top,
             mon->GetRect().right, mon->GetRect().bottom);
 
-      mon->Init(ctx);
+      mon->Init(shared, main);
 
-      if (mon->SetupNewWorkspaces(ctx) == FALSE) {
+      if (mon->SetupNewWorkspaces(shared, main) == FALSE) {
          Warn("ReconcileMonitors: could not create workspace for new monitor");
          delete mon;
          new_reg->SetAt(idx, nullptr);
@@ -557,23 +568,24 @@ inline void SetupNewMonitors(struct BFWMContext *ctx,
 
       if (mon->GetBar() == nullptr || !mon->GetBar()->IsInitialized()) {
          mon->SetBar(
-             std::make_unique<Bar>(mon, &ctx->shared.config.bar_cfg, ctx));
+             std::make_unique<Bar>(mon, &shared->config.bar_cfg, shared, main));
          if (!mon->GetBar()->Init()) {
             /* keep object alive for retry */
          }
-         BarUpdateRequest(ctx, BAR_UPDATE_RECREATE);
+         BarUpdateRequest(main, BAR_UPDATE_RECREATE);
       }
    }
 }
 
 /* Ensure every monitor has at least one workspace and a valid
  * active_workspace pointer after the reconcile shuffle. */
-inline void RestoreDonorMonitors(struct BFWMContext *ctx) {
-   for (size_t i = 0; i < ctx->main.monitors->Size(); i++) {
-      Monitor *other = ctx->main.monitors->At(i);
+inline void RestoreDonorMonitors(struct SharedState *shared,
+                                 struct MainContext *main) {
+   for (size_t i = 0; i < main->monitors->Size(); i++) {
+      Monitor *other = main->monitors->At(i);
       if (other->Workspaces().empty()) {
-         size_t const new_id = FindNextWorkspaceId(ctx);
-         (void)other->CreateWorkspace(ctx, new_id);
+         size_t const new_id = FindNextWorkspaceId(shared, main);
+         (void)other->CreateWorkspace(shared, main, new_id);
          continue;
       }
 
@@ -594,9 +606,10 @@ inline void RestoreDonorMonitors(struct BFWMContext *ctx) {
 /* Cloak every workspace on each monitor, then uncloak only the active
  * workspace so that workspaces moved, created, or swapped during reconcile
  * get the correct visibility. */
-inline void CommitMonitorVisibility(struct BFWMContext *ctx,
+inline void CommitMonitorVisibility(struct SharedState *shared,
+                                    struct MainContext *main,
                                     MonitorRegistry *new_reg) {
-   ctx->main.transaction.Begin();
+   main->transaction.Begin();
 
    for (auto *monitor : new_reg->Monitors()) {
       Workspace *aws = monitor->GetActiveWorkspace();
@@ -618,7 +631,7 @@ inline void CommitMonitorVisibility(struct BFWMContext *ctx,
                   continue;
                }
             }
-            ctx->main.transaction.QueueCloak(window->GetHwnd(), TRUE);
+            main->transaction.QueueCloak(window->GetHwnd(), TRUE);
          }
       }
 
@@ -627,15 +640,15 @@ inline void CommitMonitorVisibility(struct BFWMContext *ctx,
          continue;
 
       for (const auto &window : aws->Windows()) {
-         ctx->main.transaction.QueueCloak(window->GetHwnd(), FALSE);
+         main->transaction.QueueCloak(window->GetHwnd(), FALSE);
       }
-      ctx->main.transaction.QueueRelayout(aws);
+      main->transaction.QueueRelayout(aws);
    }
 
-   BFWMTransactionCommit(ctx);
+   BFWMTransactionCommit(shared, main);
 }
 
-inline void FinalizeRegistrySwap(struct BFWMContext *ctx,
+inline void FinalizeRegistrySwap(struct MainContext *main,
                                  MonitorRegistry *new_reg) {
    size_t write = 0;
    for (size_t j = 0; j < new_reg->Size(); j++) {
@@ -644,36 +657,37 @@ inline void FinalizeRegistrySwap(struct BFWMContext *ctx,
    }
    new_reg->Resize(write);
 
-   ctx->main.monitors->ReplaceWith(new_reg->TakeMonitors());
+   main->monitors->ReplaceWith(new_reg->TakeMonitors());
 }
 
-inline void RestoreFocusState(struct BFWMContext *ctx) {
-   if (ctx->main.focused_hwnd != nullptr) {
-      if (IsWindow(ctx->main.focused_hwnd) == TRUE) {
+inline void RestoreFocusState(struct SharedState *shared,
+                              struct MainContext *main) {
+   if (main->focused_hwnd != nullptr) {
+      if (IsWindow(main->focused_hwnd) == TRUE) {
          Workspace *workspace =
-             FindWorkspaceByHwnd(ctx, ctx->main.focused_hwnd);
-         if ((workspace != nullptr) && workspace != ctx->main.focused_workspace)
-            ctx->main.focused_workspace = workspace;
+             FindWorkspaceByHwnd(shared, main, main->focused_hwnd);
+         if ((workspace != nullptr) && workspace != main->focused_workspace)
+            main->focused_workspace = workspace;
          return;
       }
-      ctx->main.focused_hwnd = nullptr;
+      main->focused_hwnd = nullptr;
    }
 
-   if ((ctx->main.focused_workspace != nullptr) &&
-       !ctx->main.focused_workspace->IsEmpty()) {
+   if ((main->focused_workspace != nullptr) &&
+       !main->focused_workspace->IsEmpty()) {
       HWND first = nullptr;
-      if (ctx->main.focused_workspace->GetEngine() != nullptr) {
-         first = ctx->main.focused_workspace->GetEngine()->get_closest_window(
-             nullptr);
+      if (main->focused_workspace->GetEngine() != nullptr) {
+         first =
+             main->focused_workspace->GetEngine()->get_closest_window(nullptr);
       }
       if (first != nullptr) {
-         FocusWindow(first, ctx);
+         FocusWindow(first, shared, main);
          return;
       }
    }
 
-   for (size_t m = 0; m < ctx->main.monitors->Size(); m++) {
-      Monitor *mon = ctx->main.monitors->At(m);
+   for (size_t m = 0; m < main->monitors->Size(); m++) {
+      Monitor *mon = main->monitors->At(m);
       if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr) ||
           mon->GetActiveWorkspace()->IsEmpty())
          continue;
@@ -683,8 +697,8 @@ inline void RestoreFocusState(struct BFWMContext *ctx) {
              nullptr);
       }
       if (first != nullptr) {
-         ctx->main.focused_workspace = mon->GetActiveWorkspace();
-         FocusWindow(first, ctx);
+         main->focused_workspace = mon->GetActiveWorkspace();
+         FocusWindow(first, shared, main);
          return;
       }
    }
@@ -692,7 +706,7 @@ inline void RestoreFocusState(struct BFWMContext *ctx) {
 
 /* RAII guard: frees Monitor* objects still owned by a MonitorRegistry when
  * the registry is discarded (early-return paths in ReconcileMonitors). On the
- * success path FinalizeRegistrySwap transfers ownership to ctx->main.monitors
+ * success path FinalizeRegistrySwap transfers ownership to main->monitors
  * and the registry's vector is cleared, so nothing is double-freed. */
 struct MonitorRegistryCleanup {
  private:
@@ -715,34 +729,36 @@ struct MonitorRegistryCleanup {
 // MONITOR MEMBER FUNCTIONS
 // ============================================================
 
-void Monitor::Init(BFWMContext *ctx) {
+void Monitor::Init(SharedState *shared, MainContext *main) {
    workspaces_.clear();
    active_workspace_ = nullptr;
    /* bar_height config is logical; store it scaled to this monitor's physical
     * pixels (the value reserved from the work area). */
-   bar_height_ = (ctx->main.dpi != nullptr)
-                     ? ctx->main.dpi->ScaleForMonitor(
-                           handle_, ctx->shared.config.bar_height)
-                     : ctx->shared.config.bar_height;
+   bar_height_ =
+       (main->dpi != nullptr)
+           ? main->dpi->ScaleForMonitor(handle_, shared->config.bar_height)
+           : shared->config.bar_height;
    fullscreen_count_ = 0;
    bar_.reset();
 }
 
-auto Monitor::IsDisabled(BFWMContext *ctx) const -> BOOL {
-   for (int d = 0; d < ctx->main.disabled_uid_count; d++) {
-      if (uid_ == ctx->main.disabled_uids[d])
+auto Monitor::IsDisabled(SharedState * /*shared*/, MainContext *main) const
+    -> BOOL {
+   for (int d = 0; d < main->disabled_uid_count; d++) {
+      if (uid_ == main->disabled_uids[d])
          return TRUE;
    }
    return FALSE;
 }
 
-auto Monitor::CreateWorkspace(BFWMContext *ctx, size_t identifier)
-    -> Workspace * {
+auto Monitor::CreateWorkspace(SharedState *shared, MainContext *main,
+                              size_t identifier) -> Workspace * {
    std::wstring const name = L"workspace_" + std::to_wstring(identifier);
-   auto *workspace = CreateWorkspaceForMonitor(ctx, identifier, &name, this);
+   auto *workspace =
+       CreateWorkspaceForMonitor(shared, main, identifier, &name, this);
    if (workspace == nullptr)
       return nullptr;
-   workspace->ApplyConfig(ctx, identifier);
+   workspace->ApplyConfig(shared, main, identifier);
    workspace->SetOriginMonitorUid(uid_);
    workspaces_.push_back(workspace);
    active_workspace_ = workspace;
@@ -753,24 +769,26 @@ auto Monitor::CreateWorkspace(BFWMContext *ctx, size_t identifier)
  * 1. pinned (assigned_monitor in config),
  * 2. origin_monitor_uid match (reconnected monitor),
  * 3. fresh workspace. */
-auto Monitor::TryPinnedWorkspaces(BFWMContext *ctx) -> BOOL {
+auto Monitor::TryPinnedWorkspaces(SharedState *shared, MainContext *main)
+    -> BOOL {
    std::array<Workspace *, PINNED_WS_MAX> pinned_ws = {};
    int const pinned_count = FindPinnedWorkspaces(
-       ctx, display_number_, pinned_ws.data(), PINNED_WS_MAX);
+       shared, main, display_number_, pinned_ws.data(), PINNED_WS_MAX);
    if (pinned_count == 0)
       return FALSE;
    for (int p = 0; p < pinned_count; p++)
-      pinned_ws[p]->MoveToMonitor(this, ctx);
+      pinned_ws[p]->MoveToMonitor(this, shared, main);
    active_workspace_ = pinned_ws[0];
    return TRUE;
 }
 
-auto Monitor::TryOriginWorkspaces(BFWMContext *ctx) -> BOOL {
+auto Monitor::TryOriginWorkspaces(SharedState *shared, MainContext *main)
+    -> BOOL {
    std::array<Workspace *, ORIGIN_WS_MAX> origin_ws = {};
    int origin_count = 0;
    for (size_t m = 0;
-        m < ctx->main.monitors->Size() && origin_count < ORIGIN_WS_MAX; m++) {
-      Monitor *src = ctx->main.monitors->At(m);
+        m < main->monitors->Size() && origin_count < ORIGIN_WS_MAX; m++) {
+      Monitor *src = main->monitors->At(m);
       for (size_t w = 0;
            w < src->Workspaces().size() && origin_count < ORIGIN_WS_MAX; w++) {
          Workspace *candidate = src->Workspaces()[w];
@@ -783,20 +801,22 @@ auto Monitor::TryOriginWorkspaces(BFWMContext *ctx) -> BOOL {
    if (origin_count == 0)
       return FALSE;
    for (int p = 0; p < origin_count; p++)
-      origin_ws[p]->MoveToMonitor(this, ctx);
+      origin_ws[p]->MoveToMonitor(this, shared, main);
    active_workspace_ = origin_ws[0];
    return TRUE;
 }
 
-auto Monitor::TryFreshWorkspace(BFWMContext *ctx) -> BOOL {
-   size_t const new_id = FindUnassignedWorkspaceId(ctx, this);
-   return static_cast<BOOL>(CreateWorkspace(ctx, new_id) != nullptr);
+auto Monitor::TryFreshWorkspace(SharedState *shared, MainContext *main)
+    -> BOOL {
+   size_t const new_id = FindUnassignedWorkspaceId(shared, main, this);
+   return static_cast<BOOL>(CreateWorkspace(shared, main, new_id) != nullptr);
 }
 
-auto Monitor::SetupNewWorkspaces(BFWMContext *ctx) -> BOOL {
-   return static_cast<BOOL>(TryPinnedWorkspaces(ctx) == TRUE ||
-                            (TryOriginWorkspaces(ctx) == TRUE) ||
-                            (TryFreshWorkspace(ctx) == TRUE));
+auto Monitor::SetupNewWorkspaces(SharedState *shared, MainContext *main)
+    -> BOOL {
+   return static_cast<BOOL>(TryPinnedWorkspaces(shared, main) == TRUE ||
+                            (TryOriginWorkspaces(shared, main) == TRUE) ||
+                            (TryFreshWorkspace(shared, main) == TRUE));
 }
 
 void Monitor::SetBar(std::unique_ptr<Bar> b) { bar_ = std::move(b); }
@@ -806,12 +826,13 @@ void MonitorRegistry::SortByPosition() {
    std::ranges::sort(monitors_, SortMonitorByPosition);
 }
 
-auto FindNeighbouringMonitor(struct BFWMContext *ctx, Monitor *src,
+auto FindNeighbouringMonitor(struct SharedState *shared,
+                             struct MainContext *main, Monitor *src,
                              BFWMDirection direction) -> Monitor * {
-   if ((ctx == nullptr) || (src == nullptr))
+   if ((shared == nullptr) || (src == nullptr))
       return nullptr;
 
-   const auto &monitors = ctx->main.monitors->Monitors();
+   const auto &monitors = main->monitors->Monitors();
    size_t const mon_count = monitors.size();
    if (mon_count < 2)
       return nullptr;
@@ -841,19 +862,19 @@ auto FindNeighbouringMonitor(struct BFWMContext *ctx, Monitor *src,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void ReconcileMonitors(struct BFWMContext *ctx) {
-   if (ctx == nullptr)
+void ReconcileMonitors(struct SharedState *shared, struct MainContext *main) {
+   if (shared == nullptr)
       return;
 
-   ScopedLock const lock(ctx->main.lock);
+   ScopedLock const lock(main->lock);
    Info("ReconcileMonitors: re-enumerating displays");
 
    // Snapshot the pre-reconcile monitor handles: a topology change (add or
    // remove) must recreate the worker's per-monitor DPI watcher windows, but a
    // pure DPI change must not (the watchers survive and keep reporting).
    std::vector<HMONITOR> handles_before;
-   handles_before.reserve(ctx->main.monitors->Size());
-   for (Monitor *mon : ctx->main.monitors->Monitors()) {
+   handles_before.reserve(main->monitors->Size());
+   for (Monitor *mon : main->monitors->Monitors()) {
       if (mon != nullptr)
          handles_before.push_back(mon->GetHandle());
    }
@@ -865,56 +886,56 @@ void ReconcileMonitors(struct BFWMContext *ctx) {
    // repaints; it does not recreate). Keying by uid (not handle) also catches a
    // disconnected-then-reconnected monitor that comes back with a new handle.
    std::vector<std::pair<std::wstring, UINT>> old_dpis;
-   if (ctx->main.dpi != nullptr) {
-      for (Monitor *mon : ctx->main.monitors->Monitors()) {
+   if (main->dpi != nullptr) {
+      for (Monitor *mon : main->monitors->Monitors()) {
          if ((mon == nullptr) || mon->GetUid().empty())
             continue;
-         UINT const dpi = ctx->main.dpi->GetDpi(mon->GetHandle());
+         UINT const dpi = main->dpi->GetDpi(mon->GetHandle());
          if (dpi == 0)
             continue; // not registered — nothing to compare
          old_dpis.emplace_back(mon->GetUid(), dpi);
       }
       // The DPI registry is rebuilt from scratch each reconcile.
-      ctx->main.dpi->Clear();
+      main->dpi->Clear();
    }
 
    MonitorRegistry new_reg;
    MonitorRegistryCleanup const new_reg_cleanup(new_reg);
 
-   if (EnumerateMonitors(ctx, &new_reg) == FALSE) {
+   if (EnumerateMonitors(shared, main, &new_reg) == FALSE) {
       return;
    }
 
-   RemoveDisabledMonitors(ctx, &new_reg);
+   RemoveDisabledMonitors(shared, main, &new_reg);
    if (new_reg.Empty()) {
       Warn("ReconcileMonitors: no enabled monitors found, keeping existing");
       return;
    }
 
    std::vector<BOOL> const old_matched =
-       MatchExistingMonitors(ctx, &new_reg, old_dpis);
+       MatchExistingMonitors(shared, main, &new_reg, old_dpis);
 
-   HandleDisconnectedMonitors(ctx, old_matched);
-   CompactMonitorArray(ctx, old_matched);
-   SetupNewMonitors(ctx, &new_reg);
-   RestoreDonorMonitors(ctx);
-   CommitMonitorVisibility(ctx, &new_reg);
-   FinalizeRegistrySwap(ctx, &new_reg);
-   new_reg.Clear(); // ownership transferred to ctx->main.monitors
-   RestoreFocusState(ctx);
+   HandleDisconnectedMonitors(shared, main, old_matched);
+   CompactMonitorArray(shared, main, old_matched);
+   SetupNewMonitors(shared, main, &new_reg);
+   RestoreDonorMonitors(shared, main);
+   CommitMonitorVisibility(shared, main, &new_reg);
+   FinalizeRegistrySwap(main, &new_reg);
+   new_reg.Clear(); // ownership transferred to main->monitors
+   RestoreFocusState(shared, main);
 
    // Detect a runtime DPI change on any surviving monitor: enumeration above
    // re-registered every monitor from a fresh GetDpiForMonitor, so a value
    // differing from the pre-clear snapshot means the scaling changed. The main
    // loop owns the SetBarHeight + RecalculateAllWorkspaceRects + RECREATE
-   // reaction (ctx->main.dpi_update); pure topology changes keep the DIRTY
+   // reaction (main->dpi_update); pure topology changes keep the DIRTY
    // repaint.
    bool dpi_changed = false;
-   if (ctx->main.dpi != nullptr) {
-      for (Monitor *mon : ctx->main.monitors->Monitors()) {
+   if (main->dpi != nullptr) {
+      for (Monitor *mon : main->monitors->Monitors()) {
          if ((mon == nullptr) || mon->GetUid().empty())
             continue;
-         UINT const new_dpi = ctx->main.dpi->GetDpi(mon->GetHandle());
+         UINT const new_dpi = main->dpi->GetDpi(mon->GetHandle());
          if (new_dpi == 0)
             continue; // not registered — nothing to compare
          for (const auto &old : old_dpis) {
@@ -930,9 +951,9 @@ void ReconcileMonitors(struct BFWMContext *ctx) {
    }
 
    if (dpi_changed) {
-      ctx->main.dpi_update = TRUE;
+      main->dpi_update = TRUE;
    } else {
-      BarUpdateRequest(ctx, BAR_UPDATE_DIRTY);
+      BarUpdateRequest(main, BAR_UPDATE_DIRTY);
    }
 
    // Monitor topology may have changed, so have the worker thread recreate its
@@ -940,17 +961,16 @@ void ReconcileMonitors(struct BFWMContext *ctx) {
    // (a pure DPI change must not churn the watchers) and on the worker thread
    // being alive (never post to thread 0).
    std::vector<HMONITOR> handles_after;
-   handles_after.reserve(ctx->main.monitors->Size());
-   for (Monitor *mon : ctx->main.monitors->Monitors()) {
+   handles_after.reserve(main->monitors->Size());
+   for (Monitor *mon : main->monitors->Monitors()) {
       if (mon != nullptr)
          handles_after.push_back(mon->GetHandle());
    }
    bool const topology_changed = (handles_after != handles_before);
-   if (topology_changed && ctx->main.worker_thread != 0) {
-      PostThreadMessage(GetThreadId((HANDLE)ctx->main.worker_thread),
+   if (topology_changed && main->worker_thread != 0) {
+      PostThreadMessage(GetThreadId((HANDLE)main->worker_thread),
                         WM_APP_DPI_WATCHER_RECREATE, 0, 0);
    }
 
-   Info("ReconcileMonitors: complete (%zu monitors)",
-        ctx->main.monitors->Size());
+   Info("ReconcileMonitors: complete (%zu monitors)", main->monitors->Size());
 }

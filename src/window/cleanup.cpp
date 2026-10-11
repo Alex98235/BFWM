@@ -10,7 +10,8 @@
 #include "cleanup.h"
 
 #include "../bar/bar.h"
-#include "../core/bfwm_context.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
 #include "../core/sync.h"
 #include "../logging/logger.h"
 #include "../monitor/monitor.h"
@@ -19,25 +20,26 @@
 #include <synchapi.h>
 #include <windef.h>
 
-void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
-   if ((ctx == nullptr) || (hWnd == nullptr))
+void CleanupTerminatedWindow(struct SharedState *shared,
+                             struct MainContext *main, HWND hWnd) {
+   if ((shared == nullptr) || (hWnd == nullptr))
       return;
 
    Workspace *workspace = nullptr;
    BOOL need_focus = FALSE;
    HWND fallback = nullptr;
    {
-      ScopedLock const lock(ctx->main.lock);
+      ScopedLock const lock(main->lock);
 
-      Window *win = ctx->main.windows->FindByHwnd(hWnd);
+      Window *win = main->windows->FindByHwnd(hWnd);
       if (win == nullptr) {
          Debug("CleanupTerminatedWindow: HWND %p not in window registry", hWnd);
          return;
       }
 
-      workspace = FindWorkspaceByHwnd(ctx, hWnd);
+      workspace = FindWorkspaceByHwnd(shared, main, hWnd);
 
-      need_focus = static_cast<BOOL>(ctx->main.focused_hwnd == hWnd);
+      need_focus = static_cast<BOOL>(main->focused_hwnd == hWnd);
       BOOL const was_fullscreen = win->IsFullscreen();
 
       // Compute fallback BEFORE removal — the reference window must still
@@ -52,7 +54,7 @@ void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
          workspace->RemoveWindow(win);
 
       if ((was_fullscreen == TRUE) && (workspace != nullptr)) {
-         Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
+         Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
          if (mon != nullptr) {
             if (mon->GetFullscreenCount() > 0)
                mon->DecrementFullscreenCount();
@@ -62,18 +64,18 @@ void CleanupTerminatedWindow(struct BFWMContext *ctx, HWND hWnd) {
       }
 
       if (need_focus == TRUE)
-         ctx->main.focused_hwnd = nullptr;
+         main->focused_hwnd = nullptr;
 
-      ctx->main.windows->Remove(win);
+      main->windows->Remove(win);
    }
 
    if (workspace != nullptr) {
-      workspace->ApplyLayout(ctx);
+      workspace->ApplyLayout(shared, main);
       if (need_focus == TRUE) {
          if ((fallback == nullptr) && !workspace->IsEmpty())
             fallback = workspace->Windows()[0]->GetHwnd();
          if (fallback != nullptr)
-            FocusWindow(fallback, ctx);
+            FocusWindow(fallback, shared, main);
       }
    }
 }

@@ -17,8 +17,6 @@
 #include <string>
 #include <vector>
 #include <windows.h>
-
-struct BFWMContext;
 class Monitor;
 struct Clay_Context;
 struct IndicatorProvider;
@@ -161,7 +159,7 @@ class Bar {
     * call Init() afterwards.
     */
    Bar(class Monitor *mon, const struct BarConfig *cfg,
-       struct BFWMContext *ctx);
+       struct SharedState *shared, struct MainContext *main);
 
    /// Release owned resources: destroys the window (if any), frees the Clay
    /// arena, and destroys the GDI renderer.
@@ -180,13 +178,14 @@ class Bar {
     * @brief Request a redraw of every bar across all monitors.
     * @param ctx The BFWM context
     */
-   static void UpdateAll(struct BFWMContext *ctx);
+   static void UpdateAll(struct SharedState *shared, struct MainContext *main);
 
    /**
     * @brief Reset all system-status poll timers (e.g. after resume).
     * @param ctx The BFWM context
     */
-   static void ResetPollTimers(struct BFWMContext *ctx);
+   static void ResetPollTimers(struct SharedState *shared,
+                               struct MainContext *main);
 
    /**
     * @brief Create the bar window and Clay state.
@@ -237,8 +236,8 @@ class Bar {
    /// The monitor this bar belongs to (public access for the window proc).
    [[nodiscard]] auto monitor() const -> class Monitor * { return mon; }
 
-   /// The owning BFWM context (public access for the window proc).
-   [[nodiscard]] auto context() const -> struct BFWMContext * { return ctx; }
+   /// The owning main context (public access for the window proc).
+   [[nodiscard]] auto context() const -> struct MainContext * { return main; }
 
  private:
    /// Bar-backed registry providers delegate refresh/click/scroll into Bar.
@@ -327,7 +326,9 @@ class Bar {
                          BOOL use_abs_center, float spacerL_w);
 
    /// Back-reference to the app context
-   struct BFWMContext *ctx = nullptr;
+   struct SharedState *shared = nullptr;
+   /// Main-thread-only context
+   struct MainContext *main = nullptr;
    /// The monitor this bar belongs to
    Monitor *mon = nullptr;
    /// Configuration pointer captured at construction (consumed by Init)

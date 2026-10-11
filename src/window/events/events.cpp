@@ -1,6 +1,8 @@
 #include "events.h"
-#include "../../core/bfwm_context.h"
+#include "../../core/main_context.h"
+#include "../../core/shared_state.h"
 #include "../../core/sync.h"
+#include "../../core/worker_context.h"
 #include "../../dpi/dpi.h"
 #include "../../logging/logger.h"
 #include "../../monitor/monitor.h"
@@ -57,7 +59,7 @@ inline auto WideToNarrow(std::wstring const &wide) -> std::string {
 }
 
 // ── WinEvent hook handles ──
-BFWMContext *ctx = nullptr;
+WorkerContext *g_worker = nullptr;
 HWINEVENTHOOK g_obj_hook = nullptr; // EVENT_OBJECT_DESTROY..LOCATIONCHANGE
 HWINEVENTHOOK g_foreground_hook = nullptr; // EVENT_SYSTEM_FOREGROUND
 HWINEVENTHOOK g_minimize_hook =
@@ -70,34 +72,33 @@ HWINEVENTHOOK g_move_hook = nullptr; // EVENT_SYSTEM_MOVESIZESTART..MOVESIZEEND
  * the explicit variant forces a state (minimize hides, restore shows). Both
  * no-op when the window has no overlay ("border dies, WM survives"). */
 
-inline void SyncWindowOverlay(BFWMContext *ctx, HWND hwnd, BOOL suppress) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+inline void SyncWindowOverlay(MainContext *main, HWND hwnd, BOOL suppress) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win != nullptr)
       win->SyncOverlay(suppress);
 }
 
-inline void SyncWindowOverlayAuto(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+inline void SyncWindowOverlayAuto(MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
    win->SyncOverlay(static_cast<BOOL>((win->IsFullscreen() == TRUE) ||
                                       (win->IsUnmanagedFullscreen() == TRUE)));
 }
 
-inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
-    -> enum WindowTriggerReturnType {
-   if (ctx == nullptr)
+inline auto NewWindowTrigger(HWND hwnd, SharedState *shared, MainContext *main,
+                             BOOL startup) -> enum WindowTriggerReturnType {
+   if (shared == nullptr)
       return NO_CONTEXT;
 
-   if (ctx->main.windows->FindByHwnd(hwnd) != nullptr) {
+   if (main->windows->FindByHwnd(hwnd) != nullptr) {
       return WINDOW_ALREADY_REGISTERED;
    }
 
-   if (IsManageableWindow(ctx, hwnd, startup)) {
+   if (IsManageableWindow(shared, main, hwnd, startup)) {
       // Reject owned windows — tooltips, dropdowns, context menus
       HWND owner = GetWindow(hwnd, GW_OWNER);
-      if ((owner != nullptr) &&
-          (ctx->main.windows->FindByHwnd(owner) != nullptr))
+      if ((owner != nullptr) && (main->windows->FindByHwnd(owner) != nullptr))
          return REGISTER_SKIPPED;
 
       // Reject very small windows (dialogs, Steam update popups, etc.)
@@ -137,7 +138,7 @@ inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
 
       // Check hardcoded blacklist and user ignore rules before creating
       // the Window.
-      if (IsExcludedByRules(ctx, class_name_a.data(), title_a.data(),
+      if (IsExcludedByRules(shared, main, class_name_a.data(), title_a.data(),
                             process)) {
          Debug("Window excluded by rules: hwnd=%p class=%s title=%s "
                "process=%s",
@@ -162,18 +163,18 @@ inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
          ShowWindow(hwnd, SW_RESTORE);
 
       // Apply non-ignore rules (floating, workspace).
-      WindowRulesApply(ctx, window, class_name_a.data(), title_a.data(),
-                       process);
+      WindowRulesApply(shared, main, window, class_name_a.data(),
+                       title_a.data(), process);
 
-      ctx->main.windows->Register(std::move(window_owner));
+      main->windows->Register(std::move(window_owner));
 
       // Create the border overlay ring. OverlayCreate establishes
       // initial geometry/visibility; a fullscreen window's ring stays
       // suppressed until it exits fullscreen. Construction never fails — on
       // failure the overlay is inert and every method no-ops.
       window->SetOverlay(std::make_unique<Overlay>(
-          ctx, hwnd, ctx->shared.config.border_color,
-          ctx->shared.config.border_width, ctx->shared.config.border_radius));
+          shared, main, hwnd, shared->config.border_color,
+          shared->config.border_width, shared->config.border_radius));
       if (window->IsUnmanagedFullscreen() == TRUE)
          window->SyncOverlay(TRUE);
 
@@ -193,13 +194,13 @@ inline auto NewWindowTrigger(HWND hwnd, BFWMContext *ctx, BOOL startup)
  * Priority: same workspace -> all other workspaces on all monitors.
  * Returns nullptr if no window (other than @c exclude_hwnd) exists anywhere.
  */
-inline auto IsUnmanagedFullscreen(BFWMContext *ctx, HWND hwnd) -> BOOL {
-   Window *w = ctx->main.windows->FindByHwnd(hwnd);
+inline auto IsUnmanagedFullscreen(MainContext *main, HWND hwnd) -> BOOL {
+   Window *w = main->windows->FindByHwnd(hwnd);
    return static_cast<BOOL>((w != nullptr) &&
                             (w->IsUnmanagedFullscreen() == TRUE));
 }
 
-inline auto FindNextFocusTarget(BFWMContext *ctx, Workspace *current_ws,
+inline auto FindNextFocusTarget(MainContext *main, Workspace *current_ws,
                                 HWND exclude_hwnd) -> HWND {
    if (current_ws != nullptr) {
       // Prefer fullscreen windows — focusing a non-fullscreen window
@@ -208,8 +209,8 @@ inline auto FindNextFocusTarget(BFWMContext *ctx, Workspace *current_ws,
       for (const auto &window : current_ws->Windows()) {
          HWND candidate = window->GetHwnd();
          if (candidate != exclude_hwnd &&
-             (IsUnmanagedFullscreen(ctx, candidate) == FALSE)) {
-            Window *w = ctx->main.windows->FindByHwnd(candidate);
+             (IsUnmanagedFullscreen(main, candidate) == FALSE)) {
+            Window *w = main->windows->FindByHwnd(candidate);
             if ((w != nullptr) && (w->IsFullscreen() == TRUE))
                return candidate;
          }
@@ -218,13 +219,13 @@ inline auto FindNextFocusTarget(BFWMContext *ctx, Workspace *current_ws,
       if (current_ws->GetEngine() != nullptr) {
          HWND first = current_ws->GetEngine()->get_closest_window(exclude_hwnd);
          if ((first != nullptr) && first != exclude_hwnd &&
-             (IsUnmanagedFullscreen(ctx, first) == 0))
+             (IsUnmanagedFullscreen(main, first) == 0))
             return first;
       }
       for (const auto &window : current_ws->Windows()) {
          HWND candidate = window->GetHwnd();
          if (candidate != exclude_hwnd &&
-             (IsUnmanagedFullscreen(ctx, candidate) == 0))
+             (IsUnmanagedFullscreen(main, candidate) == 0))
             return candidate;
       }
 
@@ -250,20 +251,21 @@ inline auto FindNextFocusTarget(BFWMContext *ctx, Workspace *current_ws,
  * now detected only at meaningful checkpoints (end of drag, focus change)
  * instead of on every pixel change.
  */
-inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
-   if (ctx->main.toggling_fullscreen_hwnd == hwnd)
+inline void CheckWindowTransitions(SharedState *shared, MainContext *main,
+                                   HWND hwnd) {
+   if (main->toggling_fullscreen_hwnd == hwnd)
       return;
 
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
 
-   Workspace *workspace = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *workspace = FindWorkspaceByHwnd(shared, main, hwnd);
    if ((workspace == nullptr) || (workspace->GetEngine() == nullptr))
       return;
 
    {
-      Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
+      Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
       if ((mon != nullptr) && workspace != mon->GetActiveWorkspace())
          return;
    }
@@ -274,31 +276,31 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
    if ((win->IsUnmanagedFullscreen() == TRUE) &&
        fullscreen_type == FS_NOT_FULLSCREEN) {
       win->SetUnmanagedFullscreen(FALSE);
-      SyncWindowOverlayAuto(ctx, hwnd);
+      SyncWindowOverlayAuto(main, hwnd);
       if (IsWindowManagedByLayout(win) == TRUE)
-         workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
-      ctx->main.transaction.QueueRelayout(workspace);
+         workspace->GetEngine()->insert(hwnd, main->focused_hwnd);
+      main->transaction.QueueRelayout(workspace);
       return;
    }
 
    // ── Managed fullscreen → not fullscreen (externally toggled) ──
    if ((win->IsFullscreen() == TRUE) && fullscreen_type == FS_NOT_FULLSCREEN) {
       win->SetFullscreen(FALSE);
-      SyncWindowOverlayAuto(ctx, hwnd);
-      ctx->main.transaction.QueueSetWindowStyle(hwnd, win->SavedStyle(),
-                                                win->SavedExstyle());
-      ctx->main.transaction.QueueZOrder(hwnd, HWND_NOTOPMOST);
+      SyncWindowOverlayAuto(main, hwnd);
+      main->transaction.QueueSetWindowStyle(hwnd, win->SavedStyle(),
+                                            win->SavedExstyle());
+      main->transaction.QueueZOrder(hwnd, HWND_NOTOPMOST);
 
       if (IsWindowManagedByLayout(win) == TRUE)
-         workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
-      ctx->main.transaction.QueueRelayout(workspace);
+         workspace->GetEngine()->insert(hwnd, main->focused_hwnd);
+      main->transaction.QueueRelayout(workspace);
 
-      Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
+      Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
       if (mon != nullptr) {
          if (mon->GetFullscreenCount() > 0)
             mon->DecrementFullscreenCount();
          if (mon->GetFullscreenCount() == 0)
-            ctx->main.transaction.QueueBarVisibility(hwnd, TRUE);
+            main->transaction.QueueBarVisibility(hwnd, TRUE);
       }
       return;
    }
@@ -308,8 +310,8 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
       win->SetMaximized(FALSE);
       win->SetFloating(FALSE);
       if (IsWindowManagedByLayout(win) == TRUE)
-         workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
-      ctx->main.transaction.QueueRelayout(workspace);
+         workspace->GetEngine()->insert(hwnd, main->focused_hwnd);
+      main->transaction.QueueRelayout(workspace);
       return;
    }
 
@@ -321,7 +323,7 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
       win->SetMaximized(TRUE);
       win->SetFloating(TRUE);
       workspace->GetEngine()->remove(hwnd);
-      ctx->main.transaction.QueueRelayout(workspace);
+      main->transaction.QueueRelayout(workspace);
       return;
    }
 
@@ -332,9 +334,9 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
         0)) {
       workspace->GetEngine()->remove(hwnd);
       win->SetUnmanagedFullscreen(TRUE);
-      SyncWindowOverlayAuto(ctx, hwnd);
-      ctx->main.transaction.QueueBarVisibility(hwnd, FALSE);
-      ctx->main.transaction.QueueRelayout(workspace);
+      SyncWindowOverlayAuto(main, hwnd);
+      main->transaction.QueueBarVisibility(hwnd, FALSE);
+      main->transaction.QueueRelayout(workspace);
       return;
    }
 }
@@ -345,16 +347,16 @@ inline void CheckWindowTransitions(BFWMContext *ctx, HWND hwnd) {
  *
  * Called from ProcessMoveSizeEnd.
  */
-inline void CheckResizeRevert(BFWMContext *ctx, HWND hwnd,
+inline void CheckResizeRevert(SharedState *shared, MainContext *main, HWND hwnd,
                               Workspace *workspace) {
-   if (ctx->shared.config.unlock_modifier == 0)
+   if (shared->config.unlock_modifier == 0)
       return;
    auto mod_state =
-       (SHORT)GetAsyncKeyState((int)ctx->shared.config.unlock_modifier);
+       (SHORT)GetAsyncKeyState((int)shared->config.unlock_modifier);
    if ((mod_state & MOD_KEY_DOWN_MASK) != 0)
       return; // modifier is held — accept the new position
 
-   Window *win = FindWindowIfManaged(ctx, hwnd);
+   Window *win = FindWindowIfManaged(main, hwnd);
    if (win == nullptr)
       return;
 
@@ -362,9 +364,9 @@ inline void CheckResizeRevert(BFWMContext *ctx, HWND hwnd,
    RECT tiled;
    if ((workspace->GetEngine() != nullptr) &&
        workspace->GetEngine()->get_rect(hwnd, &tiled)) {
-      ctx->main.transaction.QueueMoveWindow(hwnd, tiled.left, tiled.top,
-                                            tiled.right - tiled.left,
-                                            tiled.bottom - tiled.top);
+      main->transaction.QueueMoveWindow(hwnd, tiled.left, tiled.top,
+                                        tiled.right - tiled.left,
+                                        tiled.bottom - tiled.top);
    }
 }
 
@@ -372,11 +374,11 @@ inline void CheckResizeRevert(BFWMContext *ctx, HWND hwnd,
  * @brief After a resize drag, update the layout tree to reflect the new
  *        window size (in-drag resizing settled at end position).
  */
-inline void CheckResizeSettle(BFWMContext *ctx, HWND hwnd,
+inline void CheckResizeSettle(MainContext *main, HWND hwnd,
                               Workspace *workspace) {
    if (workspace->GetEngine() == nullptr)
       return;
-   Window *win = FindWindowIfManaged(ctx, hwnd);
+   Window *win = FindWindowIfManaged(main, hwnd);
    if (win == nullptr)
       return;
    RECT cur;
@@ -401,28 +403,33 @@ inline void CheckResizeSettle(BFWMContext *ctx, HWND hwnd,
  * @param win The managed window (rule_target_workspace must be > 0)
  * @return The rule-resolved workspace, or nullptr
  */
-inline auto ResolveRuleWorkspace(BFWMContext *ctx, const Window *win)
-    -> Workspace * {
+inline auto ResolveRuleWorkspace(SharedState *shared, MainContext *main,
+                                 const Window *win) -> Workspace * {
    Workspace *target_ws = nullptr;
    if ((win != nullptr) && win->RuleTargetWorkspace() > 0) {
-      target_ws = FindWorkspaceById(ctx, (size_t)win->RuleTargetWorkspace());
+      target_ws =
+          FindWorkspaceById(shared, main, (size_t)win->RuleTargetWorkspace());
       if (target_ws == nullptr) {
          Monitor *monitor = nullptr;
-         const struct WorkspaceConfig *ws_config =
-             FindWorkspaceConfig(ctx, (size_t)win->RuleTargetWorkspace());
+         const struct WorkspaceConfig *ws_config = FindWorkspaceConfig(
+             shared, main, (size_t)win->RuleTargetWorkspace());
          if ((ws_config != nullptr) && ws_config->assigned_monitor > 0) {
             monitor = FindMonitorByDisplayNumber(
-                ctx, (UINT)ws_config->assigned_monitor);
+                shared, main, (UINT)ws_config->assigned_monitor);
          }
-         if (monitor == nullptr)
-            monitor = FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
+         if (monitor == nullptr) {
+            monitor =
+                FindMonitorByWorkspace(shared, main, main->focused_workspace);
+         }
          if (monitor != nullptr) {
             std::wstring const ws_name =
                 L"ws_" + std::to_wstring(win->RuleTargetWorkspace());
             target_ws = CreateWorkspaceForMonitor(
-                ctx, (size_t)win->RuleTargetWorkspace(), &ws_name, monitor);
+                shared, main, (size_t)win->RuleTargetWorkspace(), &ws_name,
+                monitor);
             if (target_ws != nullptr) {
-               target_ws->ApplyConfig(ctx, (size_t)win->RuleTargetWorkspace());
+               target_ws->ApplyConfig(shared, main,
+                                      (size_t)win->RuleTargetWorkspace());
                monitor->TrackWorkspace(target_ws);
             }
          }
@@ -441,14 +448,14 @@ inline auto ResolveRuleWorkspace(BFWMContext *ctx, const Window *win)
  * @param hwnd The window to hit-test
  * @return The hit-test workspace, or nullptr
  */
-inline auto ResolveHitTestWorkspace(BFWMContext *ctx, HWND hwnd)
+inline auto ResolveHitTestWorkspace(MainContext *main, HWND hwnd)
     -> Workspace * {
-   Workspace *target_ws = ctx->main.focused_workspace;
+   Workspace *target_ws = main->focused_workspace;
    RECT win_rect;
    if (GetWindowRect(hwnd, &win_rect) == TRUE) {
       POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                             .y = (win_rect.top + win_rect.bottom) / 2};
-      for (Monitor *mon : ctx->main.monitors->Monitors()) {
+      for (Monitor *mon : main->monitors->Monitors()) {
          RECT const mon_work_area = mon->GetWorkArea();
          if ((PtInRect(&mon_work_area, centre) == TRUE) &&
              (mon->GetActiveWorkspace() != nullptr)) {
@@ -472,19 +479,20 @@ inline auto ResolveHitTestWorkspace(BFWMContext *ctx, HWND hwnd)
  * @param hwnd      The window handle
  * @param win       The managed window
  */
-inline void InsertWindowIntoWorkspace(BFWMContext *ctx, Workspace *workspace,
-                                      HWND hwnd, Window *win) {
+inline void InsertWindowIntoWorkspace(SharedState *shared, MainContext *main,
+                                      Workspace *workspace, HWND hwnd,
+                                      Window *win) {
    if ((workspace->GetEngine() != nullptr) && (win != nullptr) &&
        (IsWindowManagedByLayout(win) == TRUE)) {
-      workspace->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
+      workspace->GetEngine()->insert(hwnd, main->focused_hwnd);
    }
    workspace->TrackWindow(win);
 
    if ((win != nullptr) && (win->IsFloating() != 0)) {
-      Monitor *mon = FindMonitorByWorkspace(ctx, workspace);
+      Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
       if (mon != nullptr) {
-         UINT const dpi = (ctx->main.dpi != nullptr)
-                              ? ctx->main.dpi->GetDpi(mon->GetHandle())
+         UINT const dpi = (main->dpi != nullptr)
+                              ? main->dpi->GetDpi(mon->GetHandle())
                               : DpiSystem::BaseDpi();
          RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
          if (EqualRect(&clamped, win->SavedRectPtr()) == FALSE) {
@@ -492,8 +500,9 @@ inline void InsertWindowIntoWorkspace(BFWMContext *ctx, Workspace *workspace,
             /* Synchronous placement: a chosen placement is handed to the
              * window once — no async move in flight, so the ring converges
              * same-commit. */
-            IssueRectWithDpiConversion(ctx, win->GetHwnd(), mon->GetHandle(),
-                                       clamped, BFWMSetWindowPos);
+            IssueRectWithDpiConversion(shared, main, win->GetHwnd(),
+                                       mon->GetHandle(), clamped,
+                                       BFWMSetWindowPos);
             win->MarkOverlayDirty();
          }
       }
@@ -505,47 +514,48 @@ inline void InsertWindowIntoWorkspace(BFWMContext *ctx, Workspace *workspace,
 // is the only caller; keeping it in events.c lets events.c drop its handlers.h
 // include and removes the handlers.h <-> events.h include cycle.
 
-inline auto ResolveRuleTargetWorkspace(Window *win, struct BFWMContext *ctx)
+inline auto ResolveRuleTargetWorkspace(Window *win, struct SharedState *shared,
+                                       struct MainContext *main)
     -> Workspace * {
    Workspace *target_ws =
-       FindWorkspaceById(ctx, (size_t)win->RuleTargetWorkspace());
+       FindWorkspaceById(shared, main, (size_t)win->RuleTargetWorkspace());
    if (target_ws != nullptr)
       return target_ws;
 
    Monitor *monitor = nullptr;
    const struct WorkspaceConfig *ws_config =
-       FindWorkspaceConfig(ctx, (size_t)win->RuleTargetWorkspace());
+       FindWorkspaceConfig(shared, main, (size_t)win->RuleTargetWorkspace());
    if ((ws_config != nullptr) && ws_config->assigned_monitor > 0) {
-      monitor =
-          FindMonitorByDisplayNumber(ctx, (UINT)ws_config->assigned_monitor);
+      monitor = FindMonitorByDisplayNumber(shared, main,
+                                           (UINT)ws_config->assigned_monitor);
    }
    if (monitor == nullptr)
-      monitor = FindMonitorByWorkspace(ctx, ctx->main.focused_workspace);
+      monitor = FindMonitorByWorkspace(shared, main, main->focused_workspace);
    if (monitor == nullptr)
       return nullptr;
 
    std::wstring const ws_name =
        L"ws_" + std::to_wstring(win->RuleTargetWorkspace());
    target_ws = CreateWorkspaceForMonitor(
-       ctx, (size_t)win->RuleTargetWorkspace(), &ws_name, monitor);
+       shared, main, (size_t)win->RuleTargetWorkspace(), &ws_name, monitor);
    if (target_ws == nullptr)
       return nullptr;
 
-   target_ws->ApplyConfig(ctx, (size_t)win->RuleTargetWorkspace());
+   target_ws->ApplyConfig(shared, main, (size_t)win->RuleTargetWorkspace());
    monitor->TrackWorkspace(target_ws);
    return target_ws;
 }
 
-inline auto ResolveDefaultTargetWorkspace(HWND hwnd, struct BFWMContext *ctx)
+inline auto ResolveDefaultTargetWorkspace(HWND hwnd, struct MainContext *main)
     -> Workspace * {
-   Workspace *target_ws = ctx->main.focused_workspace;
+   Workspace *target_ws = main->focused_workspace;
    RECT win_rect;
    if (GetWindowRect(hwnd, &win_rect) == FALSE)
       return target_ws;
 
    POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                          .y = (win_rect.top + win_rect.bottom) / 2};
-   for (Monitor *mon : ctx->main.monitors->Monitors()) {
+   for (Monitor *mon : main->monitors->Monitors()) {
       RECT const mon_work_area = mon->GetWorkArea();
       if ((PtInRect(&mon_work_area, centre) == TRUE) &&
           (mon->GetActiveWorkspace() != nullptr)) {
@@ -556,11 +566,12 @@ inline auto ResolveDefaultTargetWorkspace(HWND hwnd, struct BFWMContext *ctx)
    return target_ws;
 }
 
-inline void HandleWindowReRegistered(HWND hwnd, struct BFWMContext *ctx) {
+inline void HandleWindowReRegistered(HWND hwnd, struct SharedState *shared,
+                                     struct MainContext *main) {
    Workspace *target_ws = nullptr;
    {
-      ScopedLock const lock(ctx->main.lock);
-      if (ctx->main.focused_hwnd == hwnd)
+      ScopedLock const lock(main->lock);
+      if (main->focused_hwnd == hwnd)
          return;
 
       // Focus must always shift to the workspace owning this window: cloak the
@@ -570,30 +581,30 @@ inline void HandleWindowReRegistered(HWND hwnd, struct BFWMContext *ctx) {
       // protects the orphan re-add path. Previously the shift sat after that
       // guard and was unreachable, because DrainEventQueue always processes
       // events inside a transaction.
-      WorkspaceActivateForWindow(hwnd, ctx);
+      WorkspaceActivateForWindow(hwnd, shared, main);
 
-      if ((ctx->main.focused_hwnd != nullptr) &&
-          (IsWindowVisible(ctx->main.focused_hwnd) == TRUE)) {
-         BorderManagerSetInactive(ctx, ctx->main.focused_hwnd);
-         BorderManagerRedraw(ctx, ctx->main.focused_hwnd);
+      if ((main->focused_hwnd != nullptr) &&
+          (IsWindowVisible(main->focused_hwnd) == TRUE)) {
+         BorderManagerSetInactive(shared, main, main->focused_hwnd);
+         BorderManagerRedraw(shared, main, main->focused_hwnd);
       }
-      UpdateFocusTracking(hwnd, ctx);
+      UpdateFocusTracking(hwnd, shared, main);
       if (IsWindowVisible(hwnd) == TRUE) {
-         BorderManagerSetActive(ctx, hwnd);
-         BorderManagerRedraw(ctx, hwnd);
+         BorderManagerSetActive(shared, main, hwnd);
+         BorderManagerRedraw(shared, main, hwnd);
       }
 
-      if (ctx->main.transaction.IsInTransaction() == TRUE)
+      if (main->transaction.IsInTransaction() == TRUE)
          return;
 
-      Workspace *hwnd_ws = FindWorkspaceByHwnd(ctx, hwnd);
+      Workspace *hwnd_ws = FindWorkspaceByHwnd(shared, main, hwnd);
       if (hwnd_ws == nullptr) {
          /* Window is registered but orphaned.  If the window is still
             minimized or hidden (e.g. HandleMinimizeStart removed it and
             a spurious foreground event arrived before the actual restore),
             don't re-add it yet — wait for HandleMinimizeEnd / the real
             restore. */
-         Window *win = ctx->main.windows->FindByHwnd(hwnd);
+         Window *win = main->windows->FindByHwnd(hwnd);
          if (win == nullptr)
             return;
 
@@ -603,12 +614,12 @@ inline void HandleWindowReRegistered(HWND hwnd, struct BFWMContext *ctx) {
          if ((IsIconic(hwnd) == TRUE) || (IsWindowVisible(hwnd) == FALSE))
             return;
 
-         target_ws = ctx->main.focused_workspace;
+         target_ws = main->focused_workspace;
          RECT win_rect;
          if (GetWindowRect(hwnd, &win_rect) == TRUE) {
             POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                                   .y = (win_rect.top + win_rect.bottom) / 2};
-            for (Monitor *mon : ctx->main.monitors->Monitors()) {
+            for (Monitor *mon : main->monitors->Monitors()) {
                RECT const mon_work_area = mon->GetWorkArea();
                if ((PtInRect(&mon_work_area, centre) == TRUE) &&
                    (mon->GetActiveWorkspace() != nullptr)) {
@@ -621,7 +632,7 @@ inline void HandleWindowReRegistered(HWND hwnd, struct BFWMContext *ctx) {
          if (target_ws != nullptr) {
             if ((target_ws->GetEngine() != nullptr) &&
                 (IsWindowManagedByLayout(win) == TRUE)) {
-               target_ws->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
+               target_ws->GetEngine()->insert(hwnd, main->focused_hwnd);
             }
             target_ws->TrackWindow(win);
          }
@@ -631,43 +642,45 @@ inline void HandleWindowReRegistered(HWND hwnd, struct BFWMContext *ctx) {
    // ApplyLayout must run outside the lock (the original
    // release/re-acquire dance is preserved via scopes).
    if (target_ws != nullptr)
-      target_ws->ApplyLayout(ctx);
+      target_ws->ApplyLayout(shared, main);
 
    {
-      ScopedLock const lock(ctx->main.lock);
+      ScopedLock const lock(main->lock);
       return;
    }
 }
 
-inline void HandleWindowCreate(HWND hwnd, BFWMContext *ctx) {
-   if ((ctx == nullptr) || (IsWindow(hwnd) == FALSE))
+inline void HandleWindowCreate(HWND hwnd, SharedState *shared,
+                               MainContext *main) {
+   if ((shared == nullptr) || (IsWindow(hwnd) == FALSE))
       return;
 
-   enum WindowTriggerReturnType const ret = NewWindowTrigger(hwnd, ctx, FALSE);
+   enum WindowTriggerReturnType const ret =
+       NewWindowTrigger(hwnd, shared, main, FALSE);
 
    {
-      ScopedLock const lock(ctx->main.lock);
+      ScopedLock const lock(main->lock);
 
       if (ret == REGISTER_SUCCESSFUL) {
-         Window *win = ctx->main.windows->Windows().back().get();
+         Window *win = main->windows->Windows().back().get();
 
          Workspace *target_ws = nullptr;
          if (win->RuleTargetWorkspace() > 0)
-            target_ws = ResolveRuleTargetWorkspace(win, ctx);
+            target_ws = ResolveRuleTargetWorkspace(win, shared, main);
          if (target_ws == nullptr)
-            target_ws = ResolveDefaultTargetWorkspace(hwnd, ctx);
+            target_ws = ResolveDefaultTargetWorkspace(hwnd, main);
 
          InfoW(L"New window registered and focused: %p (%ls)", hwnd,
                win->GetTitle().c_str());
-         target_ws->AddWindow(ctx, win);
+         target_ws->AddWindow(shared, main, win);
       } else if (ret == WINDOW_ALREADY_REGISTERED) {
-         HandleWindowReRegistered(hwnd, ctx);
+         HandleWindowReRegistered(hwnd, shared, main);
       }
    }
 }
 
-void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
-                        Window *&float_win) {
+void HandleFloatingMove(SharedState *&shared, MainContext *&main, HWND &hwnd,
+                        Workspace *&rws, Window *&float_win) {
    if ((float_win != nullptr) && (float_win->IsFloating() == TRUE)) {
       GetWindowRect(hwnd, float_win->SavedRectPtr());
 
@@ -680,8 +693,8 @@ void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
                2,
       };
 
-      Monitor *current_mon = FindMonitorByWorkspace(ctx, rws);
-      Monitor *mon = FindMonitorByPoint(ctx, center);
+      Monitor *current_mon = FindMonitorByWorkspace(shared, main, rws);
+      Monitor *mon = FindMonitorByPoint(shared, main, center);
 
       // Stuck-signature fallback: Windows pins an unaware window's center to a
       // mixed-DPI monitor boundary mid-drag, so the rect cannot express the
@@ -690,16 +703,15 @@ void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
       // destination is the boundary monitor that is not the source (a pinned
       // window can only have crossed from its own workspace's monitor).
       if ((current_mon != nullptr) && (mon == current_mon)) {
-         auto const &mons = ctx->main.monitors->Monitors();
+         auto const &mons = main->monitors->Monitors();
          std::vector<FloatDragMonitor> cand;
          cand.reserve(mons.size());
          size_t src_idx = 0;
          for (size_t i = 0; i < mons.size(); i++) {
-            cand.push_back(
-                {.rect = mons[i]->GetRect(),
-                 .dpi = (ctx->main.dpi != nullptr)
-                            ? ctx->main.dpi->GetDpi(mons[i]->GetHandle())
-                            : DpiSystem::BaseDpi()});
+            cand.push_back({.rect = mons[i]->GetRect(),
+                            .dpi = (main->dpi != nullptr)
+                                       ? main->dpi->GetDpi(mons[i]->GetHandle())
+                                       : DpiSystem::BaseDpi()});
             if (mons[i] == current_mon) {
                src_idx = i;
             }
@@ -716,15 +728,15 @@ void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
       if ((mon != nullptr) && (mon != current_mon) &&
           mon->GetActiveWorkspace() != rws) {
          rws->RemoveWindow(float_win);
-         mon->GetActiveWorkspace()->AddWindow(ctx, float_win);
-         ctx->main.focused_workspace = mon->GetActiveWorkspace();
+         mon->GetActiveWorkspace()->AddWindow(shared, main, float_win);
+         main->focused_workspace = mon->GetActiveWorkspace();
       }
 
-      rws = FindWorkspaceByHwnd(ctx, hwnd);
-      Monitor *clamp_mon = FindMonitorByWorkspace(ctx, rws);
+      rws = FindWorkspaceByHwnd(shared, main, hwnd);
+      Monitor *clamp_mon = FindMonitorByWorkspace(shared, main, rws);
       if (clamp_mon != nullptr) {
-         UINT const dpi = (ctx != nullptr && ctx->main.dpi != nullptr)
-                              ? ctx->main.dpi->GetDpi(clamp_mon->GetHandle())
+         UINT const dpi = (shared != nullptr && main->dpi != nullptr)
+                              ? main->dpi->GetDpi(clamp_mon->GetHandle())
                               : DpiSystem::BaseDpi();
          RECT const clamped = float_win->ClampTo(clamp_mon->GetWorkArea(), dpi);
          if (EqualRect(&clamped, float_win->SavedRectPtr()) == FALSE) {
@@ -732,7 +744,7 @@ void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
             /* Synchronous placement: the drag is settled, so issue the rect
              * directly — no async move in flight, the ring converges
              * same-commit. */
-            IssueRectWithDpiConversion(ctx, float_win->GetHwnd(),
+            IssueRectWithDpiConversion(shared, main, float_win->GetHwnd(),
                                        clamp_mon->GetHandle(), clamped,
                                        BFWMSetWindowPos);
             float_win->MarkOverlayDirty();
@@ -743,15 +755,15 @@ void HandleFloatingMove(BFWMContext *&ctx, HWND &hwnd, Workspace *&rws,
 
 } // namespace
 
-void RefreshFullscreenStates(BFWMContext *ctx) {
-   for (const auto &window : ctx->main.windows->Windows()) {
-      CheckWindowTransitions(ctx, window->GetHwnd());
+void RefreshFullscreenStates(SharedState *shared, MainContext *main) {
+   for (const auto &window : main->windows->Windows()) {
+      CheckWindowTransitions(shared, main, window->GetHwnd());
    }
 }
 
-auto SetupWindowEventHook(BFWMContext *context) -> BOOL {
-   ctx = context;
-   if (ctx == nullptr)
+auto SetupWindowEventHook(WorkerContext *worker) -> BOOL {
+   g_worker = worker;
+   if (g_worker == nullptr)
       return FALSE;
 
    g_obj_hook = SetWinEventHook(
@@ -759,8 +771,9 @@ auto SetupWindowEventHook(BFWMContext *context) -> BOOL {
        0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
    if (g_obj_hook == nullptr) {
-      Snackbar::LogLastError(ctx, "SetWinEventHook (object events) failed");
-      ctx = nullptr;
+      Snackbar::LogLastError(worker->shared, worker->main,
+                             "SetWinEventHook (object events) failed");
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -769,10 +782,11 @@ auto SetupWindowEventHook(BFWMContext *context) -> BOOL {
        0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
    if (g_foreground_hook == nullptr) {
-      Snackbar::LogLastError(ctx, "SetWinEventHook (foreground) failed");
+      Snackbar::LogLastError(worker->shared, worker->main,
+                             "SetWinEventHook (foreground) failed");
       UnhookWinEvent(g_obj_hook);
       g_obj_hook = nullptr;
-      ctx = nullptr;
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -781,12 +795,13 @@ auto SetupWindowEventHook(BFWMContext *context) -> BOOL {
        WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
    if (g_minimize_hook == nullptr) {
-      Snackbar::LogLastError(ctx, "SetWinEventHook (minimize) failed");
+      Snackbar::LogLastError(worker->shared, worker->main,
+                             "SetWinEventHook (minimize) failed");
       UnhookWinEvent(g_obj_hook);
       UnhookWinEvent(g_foreground_hook);
       g_obj_hook = nullptr;
       g_foreground_hook = nullptr;
-      ctx = nullptr;
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -796,8 +811,9 @@ auto SetupWindowEventHook(BFWMContext *context) -> BOOL {
 
    if (g_move_hook == nullptr) {
       TeardownWindowEventHook();
-      Snackbar::LogLastError(ctx, "SetWinEventHook (move/size) failed");
-      ctx = nullptr;
+      Snackbar::LogLastError(worker->shared, worker->main,
+                             "SetWinEventHook (move/size) failed");
+      g_worker = nullptr;
       return FALSE;
    }
 
@@ -821,31 +837,31 @@ void TeardownWindowEventHook() {
       UnhookWinEvent(g_move_hook);
       g_move_hook = nullptr;
 
-      ctx = nullptr;
+      g_worker = nullptr;
    }
 }
 
 // NOLINTNEXTLINE
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
-   auto *context = (BFWMContext *)lParam;
-   return static_cast<BOOL>(NewWindowTrigger(hwnd, context, TRUE) !=
-                            NO_CONTEXT);
+   auto *data = (WindowEnumData *)lParam;
+   return static_cast<BOOL>(
+       NewWindowTrigger(hwnd, data->shared, data->main, TRUE) != NO_CONTEXT);
 }
 
 // ProcessObjectDestroy — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessObjectDestroy(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessObjectDestroy(SharedState *shared, MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
 
    InfoW(L"Managed window destroyed: %p", hwnd);
 
-   Workspace *target_ws = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *target_ws = FindWorkspaceByHwnd(shared, main, hwnd);
 
    // Compute focus fallback BEFORE removal so get_closest_window can
    // still find the reference window in the layout tree.
-   BOOL const was_focused = static_cast<BOOL>(ctx->main.focused_hwnd == hwnd);
+   BOOL const was_focused = static_cast<BOOL>(main->focused_hwnd == hwnd);
    HWND next_focus = nullptr;
    if ((was_focused == TRUE) && (target_ws != nullptr) &&
        target_ws->Windows().size() > 1 && (target_ws->GetEngine() != nullptr)) {
@@ -857,51 +873,51 @@ void ProcessObjectDestroy(BFWMContext *ctx, HWND hwnd) {
 
    // Decrement fullscreen_count if the destroyed window was fullscreen
    if ((win->IsFullscreen() == TRUE) && (target_ws != nullptr)) {
-      Monitor *mon = FindMonitorByWorkspace(ctx, target_ws);
+      Monitor *mon = FindMonitorByWorkspace(shared, main, target_ws);
       if (mon != nullptr) {
          if (mon->GetFullscreenCount() > 0)
             mon->DecrementFullscreenCount();
          if (mon->GetFullscreenCount() == 0)
-            ctx->main.transaction.QueueBarVisibility(win->GetHwnd(), TRUE);
+            main->transaction.QueueBarVisibility(win->GetHwnd(), TRUE);
       }
    }
 
-   ctx->main.windows->Remove(win);
+   main->windows->Remove(win);
 
    if (was_focused == TRUE)
-      ctx->main.focused_hwnd = nullptr;
+      main->focused_hwnd = nullptr;
 
    if (target_ws != nullptr)
-      ctx->main.transaction.QueueRelayout(target_ws);
+      main->transaction.QueueRelayout(target_ws);
 
    if (was_focused == TRUE) {
       Workspace *next_ws =
-          (target_ws != nullptr) ? target_ws : ctx->main.focused_workspace;
+          (target_ws != nullptr) ? target_ws : main->focused_workspace;
       if (next_focus == nullptr)
-         next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
+         next_focus = FindNextFocusTarget(main, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->main.focus_intent.ArmKnown(next_focus);
+         main->focus_intent.ArmKnown(next_focus);
       }
    }
 }
 
 // ProcessObjectHide — called from DrainEventQueue (main thread, in transaction)
-void ProcessObjectHide(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessObjectHide(SharedState *shared, MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
 
    // Any hide hides the ring with it (minimize, programmatic SW_HIDE, etc.).
-   SyncWindowOverlay(ctx, hwnd, TRUE);
+   SyncWindowOverlay(main, hwnd, TRUE);
 
    InfoW(L"Managed window hidden: %p", hwnd);
 
-   Workspace *target_ws = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *target_ws = FindWorkspaceByHwnd(shared, main, hwnd);
 
    // Compute focus fallback BEFORE removal — EVENT_OBJECT_HIDE precedes
    // EVENT_OBJECT_DESTROY, so a subsequent HandleObjectDestroy would
    // find the window already removed from the tree.
-   BOOL const was_focused = static_cast<BOOL>(ctx->main.focused_hwnd == hwnd);
+   BOOL const was_focused = static_cast<BOOL>(main->focused_hwnd == hwnd);
    HWND next_focus = nullptr;
    if ((was_focused != 0) && (target_ws != nullptr) &&
        target_ws->Windows().size() > 1 && (target_ws->GetEngine() != nullptr)) {
@@ -912,38 +928,38 @@ void ProcessObjectHide(BFWMContext *ctx, HWND hwnd) {
       target_ws->RemoveWindow(win);
 
    if (was_focused == TRUE)
-      ctx->main.focused_hwnd = nullptr;
+      main->focused_hwnd = nullptr;
 
    if (target_ws != nullptr)
-      ctx->main.transaction.QueueRelayout(target_ws);
+      main->transaction.QueueRelayout(target_ws);
 
    if (was_focused == TRUE) {
       Workspace *next_ws =
-          (target_ws != nullptr) ? target_ws : ctx->main.focused_workspace;
+          (target_ws != nullptr) ? target_ws : main->focused_workspace;
       if (next_focus == nullptr)
-         next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
+         next_focus = FindNextFocusTarget(main, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->main.focus_intent.ArmKnown(next_focus);
+         main->focus_intent.ArmKnown(next_focus);
       }
    }
 }
 
 // ProcessMinimizeStart — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessMinimizeStart(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessMinimizeStart(SharedState *shared, MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
 
    // Hide-not-destroy: the ring is suppressed, the overlay survives and
    // re-appears on restore (ProcessMinimizeEnd).
-   SyncWindowOverlay(ctx, hwnd, TRUE);
+   SyncWindowOverlay(main, hwnd, TRUE);
 
-   Workspace *target_ws = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *target_ws = FindWorkspaceByHwnd(shared, main, hwnd);
 
    // Compute focus fallback BEFORE removal so get_closest_window can
    // still find the reference window in the layout tree.
-   BOOL const was_focused = static_cast<BOOL>(ctx->main.focused_hwnd == hwnd);
+   BOOL const was_focused = static_cast<BOOL>(main->focused_hwnd == hwnd);
    HWND next_focus = nullptr;
    if ((was_focused == TRUE) && (target_ws != nullptr) &&
        target_ws->Windows().size() > 1 && (target_ws->GetEngine() != nullptr)) {
@@ -954,30 +970,30 @@ void ProcessMinimizeStart(BFWMContext *ctx, HWND hwnd) {
       target_ws->RemoveWindow(win);
 
    if (was_focused == TRUE)
-      ctx->main.focused_hwnd = nullptr;
+      main->focused_hwnd = nullptr;
 
    if (target_ws != nullptr) {
-      ctx->main.transaction.QueueRelayout(target_ws);
+      main->transaction.QueueRelayout(target_ws);
       for (const auto &window : target_ws->Windows()) {
-         ctx->main.transaction.QueueRedrawContent(window->GetHwnd());
+         main->transaction.QueueRedrawContent(window->GetHwnd());
       }
    }
 
    if (was_focused == TRUE) {
       Workspace *next_ws =
-          (target_ws != nullptr) ? target_ws : ctx->main.focused_workspace;
+          (target_ws != nullptr) ? target_ws : main->focused_workspace;
       if (next_focus == nullptr)
-         next_focus = FindNextFocusTarget(ctx, next_ws, hwnd);
+         next_focus = FindNextFocusTarget(main, next_ws, hwnd);
       if (next_focus != nullptr) {
-         ctx->main.focus_intent.ArmKnown(next_focus);
+         main->focus_intent.ArmKnown(next_focus);
       }
    }
 }
 
 // ProcessMinimizeEnd — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessMinimizeEnd(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessMinimizeEnd(SharedState *shared, MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    BOOL new_registration = FALSE;
    if (win == nullptr) {
       // Window was not registered — the FOREGROUND event may have fired
@@ -987,28 +1003,28 @@ void ProcessMinimizeEnd(BFWMContext *ctx, HWND hwnd) {
       if (IsWindowVisible(hwnd) == FALSE)
          return;
       enum WindowTriggerReturnType const ret =
-          NewWindowTrigger(hwnd, ctx, FALSE);
+          NewWindowTrigger(hwnd, shared, main, FALSE);
       if (ret != REGISTER_SUCCESSFUL)
          return;
-      win = ctx->main.windows->Windows().back().get();
+      win = main->windows->Windows().back().get();
       new_registration = TRUE;
    }
 
    // Window restored — re-show the ring.
-   SyncWindowOverlay(ctx, hwnd, FALSE);
+   SyncWindowOverlay(main, hwnd, FALSE);
 
    Workspace *target_ws = nullptr;
-   Workspace *ws_with_window = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *ws_with_window = FindWorkspaceByHwnd(shared, main, hwnd);
    if (ws_with_window == nullptr) {
       // Only skip re-add if the window is actually hidden.
       if (IsWindowVisible(hwnd) == FALSE)
          return;
-      target_ws = ctx->main.focused_workspace;
+      target_ws = main->focused_workspace;
       RECT win_rect;
       if (GetWindowRect(hwnd, &win_rect) == TRUE) {
          POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                                .y = (win_rect.top + win_rect.bottom) / 2};
-         for (Monitor *mon : ctx->main.monitors->Monitors()) {
+         for (Monitor *mon : main->monitors->Monitors()) {
             RECT const mon_work_area = mon->GetWorkArea();
             if (PtInRect(&mon_work_area, centre) == TRUE) {
                target_ws = mon->GetActiveWorkspace();
@@ -1020,72 +1036,72 @@ void ProcessMinimizeEnd(BFWMContext *ctx, HWND hwnd) {
       if (target_ws != nullptr) {
          if ((target_ws->GetEngine() != nullptr) &&
              (IsWindowManagedByLayout(win) == TRUE)) {
-            target_ws->GetEngine()->insert(hwnd, ctx->main.focused_hwnd);
+            target_ws->GetEngine()->insert(hwnd, main->focused_hwnd);
          }
          target_ws->TrackWindow(win);
       }
    }
 
    if (target_ws != nullptr)
-      ctx->main.transaction.QueueRelayout(target_ws);
+      main->transaction.QueueRelayout(target_ws);
 
    // Newly registered on restore: focus it, matching the show-path behavior
    // for brand-new windows.
    if ((new_registration == TRUE) && (target_ws != nullptr)) {
-      FocusWindow(hwnd, ctx);
+      FocusWindow(hwnd, shared, main);
    }
 }
 
 // ProcessMoveSizeStart — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessMoveSizeStart(BFWMContext *ctx, HWND hwnd) {
-   Workspace *mws = FindWorkspaceByHwnd(ctx, hwnd);
+void ProcessMoveSizeStart(SharedState *shared, MainContext *main, HWND hwnd) {
+   Workspace *mws = FindWorkspaceByHwnd(shared, main, hwnd);
    if (mws != nullptr)
-      ctx->main.resize_hwnd = hwnd;
+      main->resize_hwnd = hwnd;
 }
 
 // ProcessMoveSizeEnd — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessMoveSizeEnd(BFWMContext *ctx, HWND hwnd) {
-   if (ctx->main.resize_hwnd != hwnd)
+void ProcessMoveSizeEnd(SharedState *shared, MainContext *main, HWND hwnd) {
+   if (main->resize_hwnd != hwnd)
       return;
 
-   ctx->main.resize_hwnd = nullptr;
+   main->resize_hwnd = nullptr;
 
    // ── Settled: clear any in-flight layout move ──
    // The window's move/size operation ended, so it is at its final rect —
    // whether it landed at the issued rect (layout move) or somewhere else
    // (user drag, app-driven move). Clearing the flag lets the commit-end
    // flush sync the ring to the settled rect immediately.
-   Window *settled_win = ctx->main.windows->FindByHwnd(hwnd);
+   Window *settled_win = main->windows->FindByHwnd(hwnd);
    if (settled_win != nullptr) {
       settled_win->SetMoveInFlight(FALSE);
    }
 
    // ── Transition detection (formerly in LOCATIONCHANGE) ──
-   CheckWindowTransitions(ctx, hwnd);
+   CheckWindowTransitions(shared, main, hwnd);
 
    // ── Main relayout ──
-   Workspace *rws = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *rws = FindWorkspaceByHwnd(shared, main, hwnd);
    if (rws == nullptr) {
       Warn("Window without an assigned workspace reached ProcessMoveSizeEnd, "
            "this should be near impossible. Processing aborted.");
       return;
    }
    if (rws != nullptr)
-      ctx->main.transaction.QueueRelayout(rws);
+      main->transaction.QueueRelayout(rws);
 
    // ── Revert if unlock modifier not held ──
    if (rws != nullptr)
-      CheckResizeRevert(ctx, hwnd, rws);
+      CheckResizeRevert(shared, main, hwnd, rws);
 
    // ── Update layout tree to settled size ──
    if (rws != nullptr)
-      CheckResizeSettle(ctx, hwnd, rws);
+      CheckResizeSettle(main, hwnd, rws);
 
    // ── Floating-window handling ──
-   Window *float_win = ctx->main.windows->FindByHwnd(hwnd);
-   HandleFloatingMove(ctx, hwnd, rws, float_win);
+   Window *float_win = main->windows->FindByHwnd(hwnd);
+   HandleFloatingMove(shared, main, hwnd, rws, float_win);
 
    // ── Border overlay: converge the settled geometry at commit-end flush ──
    // Tiled windows settle without emitting OP_MOVE_WINDOW (layout skips
@@ -1094,51 +1110,52 @@ void ProcessMoveSizeEnd(BFWMContext *ctx, HWND hwnd) {
       float_win->MarkOverlayDirty();
 }
 
-void ProcessObjectShow(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessObjectShow(SharedState *shared, MainContext *main, HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    BOOL new_registration = FALSE;
    if (win == nullptr) {
       enum WindowTriggerReturnType const ret =
-          NewWindowTrigger(hwnd, ctx, FALSE);
+          NewWindowTrigger(hwnd, shared, main, FALSE);
       if (ret != REGISTER_SUCCESSFUL)
          return;
-      win = ctx->main.windows->Windows().back().get();
+      win = main->windows->Windows().back().get();
       new_registration = TRUE;
    }
 
    // Window visible again — sync the ring (suppressed while fullscreen).
-   SyncWindowOverlayAuto(ctx, hwnd);
+   SyncWindowOverlayAuto(main, hwnd);
 
-   Workspace *ws_with_window = FindWorkspaceByHwnd(ctx, hwnd);
+   Workspace *ws_with_window = FindWorkspaceByHwnd(shared, main, hwnd);
 
    // Minimized windows must never enter the workspace layout.
    if (IsIconic(hwnd) == TRUE)
       return;
 
    if (ws_with_window == nullptr) {
-      Workspace *target_ws = ResolveRuleWorkspace(ctx, win);
+      Workspace *target_ws = ResolveRuleWorkspace(shared, main, win);
       if (target_ws == nullptr)
-         target_ws = ResolveHitTestWorkspace(ctx, hwnd);
+         target_ws = ResolveHitTestWorkspace(main, hwnd);
       if (target_ws != nullptr) {
-         InsertWindowIntoWorkspace(ctx, target_ws, hwnd, win);
-         ctx->main.transaction.QueueRelayout(target_ws);
+         InsertWindowIntoWorkspace(shared, main, target_ws, hwnd, win);
+         main->transaction.QueueRelayout(target_ws);
          // Windows registered via EVENT_OBJECT_SHOW never pass through
          // HandleWindowCreate's focus path, so focus the new window here:
          // FocusWindow queues OP_FOCUS_WINDOW + border colors + relayout and
          // is safe to call inside the current transaction.
          if (new_registration == TRUE) {
-            FocusWindow(hwnd, ctx);
+            FocusWindow(hwnd, shared, main);
          }
       }
    } else {
-      ctx->main.transaction.QueueRelayout(ws_with_window);
+      main->transaction.QueueRelayout(ws_with_window);
    }
 }
 
 // ProcessObjectReorder — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessObjectReorder(BFWMContext *ctx, HWND hwnd) {
-   Window *win = ctx->main.windows->FindByHwnd(hwnd);
+void ProcessObjectReorder(SharedState * /*shared*/, MainContext *main,
+                          HWND hwnd) {
+   Window *win = main->windows->FindByHwnd(hwnd);
    if (win == nullptr)
       return;
    // Re-assert the ring's relative z-slot after something was raised above
@@ -1147,7 +1164,7 @@ void ProcessObjectReorder(BFWMContext *ctx, HWND hwnd) {
 
    /* Repair every ring, not just the reordered window's: a raise of one
     * window buries others' rings too, and this is the event-speed repair. */
-   for (const auto &window : ctx->main.windows->Windows()) {
+   for (const auto &window : main->windows->Windows()) {
       Window *w = window.get();
       if (w != nullptr)
          w->AssertOverlayZOrder();
@@ -1156,8 +1173,9 @@ void ProcessObjectReorder(BFWMContext *ctx, HWND hwnd) {
 
 // ProcessCreateOrForeground — called from DrainEventQueue (main thread, in
 // transaction)
-void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
-   if (ctx->worker.setup_in_progress == TRUE)
+void ProcessCreateOrForeground(SharedState *shared, MainContext *main,
+                               DWORD event, HWND hwnd) {
+   if (g_worker->setup_in_progress == TRUE)
       return;
 
    // ── Focus intent ──
@@ -1166,23 +1184,23 @@ void ProcessCreateOrForeground(BFWMContext *ctx, DWORD event, HWND hwnd) {
    // non-target foreground and re-assert our planned target; STAY armed so a
    // later stray in a spawn storm cannot slip through.
    if (event == EVENT_SYSTEM_FOREGROUND &&
-       ctx->main.focus_intent.ShouldSuppress(
-           hwnd, static_cast<BOOL>(ctx->main.windows->FindByHwnd(hwnd) !=
+       main->focus_intent.ShouldSuppress(
+           hwnd, static_cast<BOOL>(main->windows->FindByHwnd(hwnd) !=
                                    nullptr)) == TRUE) {
-      if (ctx->main.focus_intent.Kind() == FocusIntentKind::Known) {
-         PostThreadMessage(ctx->shared.main_thread_id, WM_FORCE_FOCUS,
-                           (WPARAM)ctx->main.focus_intent.Target(), 0);
+      if (main->focus_intent.Kind() == FocusIntentKind::Known) {
+         PostThreadMessage(shared->main_thread_id, WM_FORCE_FOCUS,
+                           (WPARAM)main->focus_intent.Target(), 0);
       }
       return; // drop the noise, STAY armed
    }
 
-   HandleWindowCreate(hwnd, ctx);
+   HandleWindowCreate(hwnd, shared, main);
 
    // Check for window state transitions (fullscreen, maximize, restore)
-   CheckWindowTransitions(ctx, hwnd);
+   CheckWindowTransitions(shared, main, hwnd);
 
    if (event == EVENT_SYSTEM_FOREGROUND)
-      ctx->main.focus_intent.NoteLanded(hwnd);
+      main->focus_intent.NoteLanded(hwnd);
 }
 
 void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
@@ -1193,7 +1211,7 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
    (void)dwmsEventTime;
    (void)idChild;
 
-   if (ctx == nullptr)
+   if (g_worker == nullptr)
       return;
 
    if (idObject != OBJID_WINDOW)
@@ -1217,12 +1235,12 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
                                   .dwEventThread = dwEventThread,
                                   .dwmsEventTime = dwmsEventTime,
                                   .dpi = 0};
-      ctx->worker.event_queue.Push(record);
+      g_worker->event_queue.Push(record);
       break;
    }
    case EVENT_OBJECT_CREATE:
    case EVENT_SYSTEM_FOREGROUND:
-      if (ctx->worker.setup_in_progress == TRUE)
+      if (g_worker->setup_in_progress == TRUE)
          break;
       {
          EventRecord const record = {.event = event,
@@ -1232,7 +1250,7 @@ void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd,
                                      .dwEventThread = dwEventThread,
                                      .dwmsEventTime = dwmsEventTime,
                                      .dpi = 0};
-         ctx->worker.event_queue.Push(record);
+         g_worker->event_queue.Push(record);
       }
       break;
    }

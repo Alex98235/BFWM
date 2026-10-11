@@ -15,8 +15,6 @@
 #include <string>
 #include <vector>
 #include <windows.h>
-
-struct BFWMContext;
 class Window;
 
 /**
@@ -147,8 +145,8 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
  * @param process    Process name
  * @return RULE_RESULT_APPLIED if a rule matched, RULE_RESULT_CONTINUE otherwise
  */
-auto WindowRulesApply(struct BFWMContext *ctx, Window *window,
-                      const char *class_name, const char *title,
+auto WindowRulesApply(struct SharedState *shared, struct MainContext *main,
+                      Window *window, const char *class_name, const char *title,
                       const char *process) -> WindowRuleResult;
 
 #endif

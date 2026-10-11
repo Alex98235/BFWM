@@ -13,7 +13,6 @@
 #include <windows.h>
 
 /* Forward: the DPI registry is owned by the BFWM context. */
-struct BFWMContext;
 
 /**
  * @brief Captures the current window style and extended style.
@@ -77,7 +76,8 @@ auto BFWMSetWindowPos(HWND hwnd, const RECT *rect) -> BOOL;
  * @param rect  The physical rect to issue
  * @param issue The Win32 call that applies the rect
  */
-void IssueRectWithDpiConversion(struct BFWMContext *ctx, HWND hwnd,
+void IssueRectWithDpiConversion(struct SharedState *shared,
+                                struct MainContext *main, HWND hwnd,
                                 HMONITOR hmon, RECT rect,
                                 BOOL (*issue)(HWND, const RECT *));
 

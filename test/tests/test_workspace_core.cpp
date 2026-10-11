@@ -4,7 +4,9 @@
 #include <vector>
 #include <windows.h>
 
-#include "../../src/core/bfwm_context.h"
+#include "../../src/core/main_context.h"
+
+#include "../../src/core/shared_state.h"
 #include "../../src/monitor/monitor.h"
 #include "../../src/window/window.h"
 #include "../../src/workspace/workspace.h"
@@ -29,12 +31,12 @@ inline auto make_win(std::vector<std::unique_ptr<Window>> &owned, HWND hwnd)
  * test's `owned` vector. Release just clears the workspace's view. */
 inline void release_ws_windows(Workspace *ws) { ws->ClearWindows(); }
 
-/* The stack-declared BFWMContext used by these tests only needs a heap
- * monitor registry (ctx->main.monitors is now a unique_ptr member). */
-inline void init_test_monitors(BFWMContext *ctx) {
-   ctx->main.monitors = std::make_unique<MonitorRegistry>();
+/* The stack-declared MainContext used by these tests only needs a heap
+ * monitor registry (ctx->monitors is now a unique_ptr member). */
+inline void init_test_monitors(MainContext *ctx) {
+   ctx->monitors = std::make_unique<MonitorRegistry>();
 }
-inline void free_test_monitors(BFWMContext *ctx) { ctx->main.monitors.reset(); }
+inline void free_test_monitors(MainContext *ctx) { ctx->monitors.reset(); }
 } // namespace
 
 CBELT_TEST(create_and_destroy_workspace) {
@@ -144,16 +146,18 @@ CBELT_TEST(find_workspace_by_hwnd_found) {
    mon.TrackWorkspace(ws);
    Monitor *mon_ptr = &mon;
 
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
-   ctx.main.monitors->Add(mon_ptr);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
+   main.monitors->Add(mon_ptr);
 
-   Workspace *result = FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(42));
+   Workspace *result =
+       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(42));
    cbelt_assert(result == ws);
 
    release_ws_windows(ws);
    delete ws;
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 
@@ -168,16 +172,18 @@ CBELT_TEST(find_workspace_by_hwnd_not_found) {
    mon.TrackWorkspace(ws);
    Monitor *mon_ptr = &mon;
 
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
-   ctx.main.monitors->Add(mon_ptr);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
+   main.monitors->Add(mon_ptr);
 
-   Workspace *result = FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(99));
+   Workspace *result =
+       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(99));
    cbelt_assert(result == nullptr);
 
    release_ws_windows(ws);
    delete ws;
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 
@@ -198,21 +204,24 @@ CBELT_TEST(find_workspace_by_hwnd_multiple_monitors) {
    m1.TrackWorkspace(ws1);
    m2.TrackWorkspace(ws2);
 
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
-   ctx.main.monitors->Add(&m1);
-   ctx.main.monitors->Add(&m2);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
+   main.monitors->Add(&m1);
+   main.monitors->Add(&m2);
 
-   cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(10)) == ws1);
-   cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(20)) == ws2);
-   cbelt_assert(FindWorkspaceByHwnd(&ctx, reinterpret_cast<HWND>(30)) ==
-                nullptr);
+   cbelt_assert(
+       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(10)) == ws1);
+   cbelt_assert(
+       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(20)) == ws2);
+   cbelt_assert(FindWorkspaceByHwnd(&shared, &main,
+                                    reinterpret_cast<HWND>(30)) == nullptr);
 
    release_ws_windows(ws1);
    release_ws_windows(ws2);
    delete ws1;
    delete ws2;
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 
@@ -221,8 +230,9 @@ CBELT_TEST(find_workspace_by_hwnd_multiple_monitors) {
  * ========================================================================= */
 
 CBELT_TEST(find_workspace_by_id_found) {
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
    Workspace *ws1 =
        new Workspace(5, L"A", DWINDLE, RECT{0, 0, 800, 600}, 0, 0, 0);
    Workspace *ws2 =
@@ -232,20 +242,20 @@ CBELT_TEST(find_workspace_by_id_found) {
    mon.TrackWorkspace(ws2);
    Monitor *mon_ptr = &mon;
 
-   ctx.main.monitors->Add(mon_ptr);
+   main.monitors->Add(mon_ptr);
 
-   cbelt_assert(FindWorkspaceById(&ctx, 5) == ws1);
-   cbelt_assert(FindWorkspaceById(&ctx, 10) == ws2);
-   cbelt_assert(FindWorkspaceById(&ctx, 99) == nullptr);
+   cbelt_assert(FindWorkspaceById(&shared, &main, 5) == ws1);
+   cbelt_assert(FindWorkspaceById(&shared, &main, 10) == ws2);
+   cbelt_assert(FindWorkspaceById(&shared, &main, 99) == nullptr);
 
    delete ws1;
    delete ws2;
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(find_workspace_by_id_null_ctx) {
-   cbelt_assert(FindWorkspaceById(nullptr, 1) == nullptr);
+   cbelt_assert(FindWorkspaceById(nullptr, nullptr, 1) == nullptr);
    return TEST_SUCCESS;
 }
 
@@ -290,18 +300,19 @@ CBELT_TEST(find_monitor_by_workspace_found) {
    m1.TrackWorkspace(ws1);
    m2.TrackWorkspace(ws2);
 
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
-   ctx.main.monitors->Add(&m1);
-   ctx.main.monitors->Add(&m2);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
+   main.monitors->Add(&m1);
+   main.monitors->Add(&m2);
 
-   cbelt_assert(FindMonitorByWorkspace(&ctx, ws1) == &m1);
-   cbelt_assert(FindMonitorByWorkspace(&ctx, ws2) == &m2);
-   cbelt_assert(FindMonitorByWorkspace(&ctx, nullptr) == nullptr);
+   cbelt_assert(FindMonitorByWorkspace(&shared, &main, ws1) == &m1);
+   cbelt_assert(FindMonitorByWorkspace(&shared, &main, ws2) == &m2);
+   cbelt_assert(FindMonitorByWorkspace(&shared, &main, nullptr) == nullptr);
 
    delete ws1;
    delete ws2;
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 
@@ -315,16 +326,17 @@ CBELT_TEST(find_monitor_by_point_inside) {
    m1.SetRect(RECT{0, 0, 800, 600});
    m2.SetRect(RECT{800, 0, 1600, 600});
 
-   BFWMContext ctx = {};
-   init_test_monitors(&ctx);
-   ctx.main.monitors->Add(&m1);
-   ctx.main.monitors->Add(&m2);
+   SharedState shared = {};
+   MainContext main = {};
+   init_test_monitors(&main);
+   main.monitors->Add(&m1);
+   main.monitors->Add(&m2);
 
-   cbelt_assert(FindMonitorByPoint(&ctx, POINT{400, 300}) == &m1);
-   cbelt_assert(FindMonitorByPoint(&ctx, POINT{1200, 300}) == &m2);
-   cbelt_assert(FindMonitorByPoint(&ctx, POINT{-50, -50}) == nullptr);
+   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{400, 300}) == &m1);
+   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{1200, 300}) == &m2);
+   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{-50, -50}) == nullptr);
 
-   free_test_monitors(&ctx);
+   free_test_monitors(&main);
    return TEST_SUCCESS;
 }
 

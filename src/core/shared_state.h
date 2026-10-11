@@ -12,8 +12,8 @@
  *                      PostThreadMessage().
  *
  * Threading contract:
- *   - The main thread owns all writes. Writes happen during BFWMContextInit(),
- *     BFWMContextSetup(), and Lua config (re)loads — only ever on the main
+ *   - The main thread owns all writes. Writes happen during BFWMInit(),
+ *     BFWMSetup(), and Lua config (re)loads — only ever on the main
  *     thread, before the worker may observe the new value.
  *   - The worker thread only reads. It must never mutate SharedState.
  *   - Reads are deliberately lock-free. MainContext::lock does NOT cover
@@ -91,7 +91,7 @@ struct SharedState {
    /**
     * @brief Main thread id, for PostThreadMessage from the worker.
     *
-    * Constant after BFWMContextInit(); read by the worker's hook callbacks.
+    * Constant after BFWMInit(); read by the worker's hook callbacks.
     */
    DWORD main_thread_id = 0;
 };

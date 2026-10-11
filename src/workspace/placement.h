@@ -13,8 +13,6 @@
 #define BFWM_PLACEMENT_H
 
 #include <windows.h>
-
-struct BFWMContext;
 class Window;
 class Workspace;
 
@@ -100,7 +98,8 @@ void ClampRectWithInsets(RECT *rect, RECT const *bounds,
  * @param workspace The workspace to place
  * @param ctx The BFWM context (moves_in_flight is recomputed each pass)
  */
-void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
+void PlacementApply(Workspace *workspace, struct SharedState *shared,
+                    struct MainContext *main);
 
 /**
  * @brief Ungated single-shot move issue (no backpressure gate).
@@ -115,7 +114,8 @@ void PlacementApply(Workspace *workspace, struct BFWMContext *ctx);
  * @param rect The desired frame rect
  * @param ctx  The BFWM context (unused except for API symmetry)
  */
-void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
+void PlacementIssueMove(Window *win, const RECT *rect,
+                        struct SharedState *shared, struct MainContext *main);
 
 /**
  * @brief Check the focused workspace for windows that persistently refuse
@@ -136,7 +136,7 @@ void PlacementIssueMove(Window *win, const RECT *rect, struct BFWMContext *ctx);
  *
  * @param ctx The BFWM context
  */
-void AdoptStuckLayouts(struct BFWMContext *ctx);
+void AdoptStuckLayouts(struct SharedState *shared, struct MainContext *main);
 
 /// DPI rounding tolerance (px) for the landed-rect comparison: 0 for DPI-aware
 /// or 100%-scale windows, std::max(1, ceil(scale*2)) for DPI-unaware windows on
@@ -144,7 +144,8 @@ void AdoptStuckLayouts(struct BFWMContext *ctx);
 /// rect a few px off the issued rect). Formerly shared with overlay.cpp's
 /// now-removed OverlayFlush landed gate (PR #5); now only used within the
 /// placement pass.
-auto DpiRoundingTolerance(struct BFWMContext *ctx, HWND hwnd) -> int;
+auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
+                          HWND hwnd) -> int;
 
 /// Compare two RECTs for equality within a per-field pixel tolerance (0 =
 /// exact).

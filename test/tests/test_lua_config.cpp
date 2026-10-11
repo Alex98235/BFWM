@@ -11,7 +11,9 @@
 #include "../../src/config/action.h"
 #include "../../src/config/defaults.h"
 #include "../../src/config/lua/parser.h"
-#include "../../src/core/bfwm_context.h"
+#include "../../src/core/main_context.h"
+#include "../../src/core/shared_state.h"
+#include "../../src/core/worker_context.h"
 #include "../../src/memory/safe.h"
 
 CBELT_GROUP("lua_config")
@@ -35,14 +37,24 @@ inline auto write_temp_config(const char *content) -> std::string {
    return tmp_file.data();
 }
 
-inline auto create_test_ctx(void) -> BFWMContext * {
-   /* Use the production initializer: it placement-news every non-trivial
-    * member (keybinds, window_rules, lua.config_path, keystroke_queue,
-    * bar_cfg, ...) that raw calloc storage would leave unconstructed. */
-   return BFWMContextInit();
+struct TestCtx {
+   SharedState shared;
+   WorkerContext worker;
+   MainContext main;
+};
+
+inline auto create_test_ctx(void) -> TestCtx * {
+   auto *c = new TestCtx();
+   BFWMInit(&c->shared, &c->main);
+   c->worker.shared = &c->shared;
+   c->worker.main = &c->main;
+   return c;
 }
 
-inline void destroy_test_ctx(BFWMContext *ctx) { BFWMContextFree(ctx); }
+inline void destroy_test_ctx(TestCtx *ctx) {
+   BFWMFree(&ctx->shared, &ctx->main);
+   delete ctx;
+}
 } // namespace
 
 /* =========================================================================
@@ -75,9 +87,9 @@ CBELT_TEST(load_bare_minimum) {
    const char *lua = "BFWM.gap_between = 8\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.gap_between == 8);
    LuaConfigFree(&config);
@@ -109,9 +121,9 @@ CBELT_TEST(load_all_settings) {
 
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
    cbelt_assert(ctx->shared.config.gap_between == 8);
@@ -156,9 +168,9 @@ CBELT_TEST(load_with_keybinds) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(!ctx->shared.keybinds.entries.empty());
    LuaConfigFree(&config);
@@ -175,9 +187,9 @@ CBELT_TEST(load_with_indicators) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.bar_cfg.indicator_count == 2);
    cbelt_assert(ctx->shared.config.bar_cfg.indicators[0].type ==
@@ -209,9 +221,9 @@ CBELT_TEST(load_with_indicator_states) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.bar_cfg.indicator_count == 1);
 
@@ -255,9 +267,9 @@ CBELT_TEST(load_black_color_is_expressible) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
    const BarIndicatorConfig *ind = ctx->shared.config.bar_cfg.indicators.data();
@@ -284,9 +296,9 @@ CBELT_TEST(load_defaults_id_and_tolerates_bad_rules) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
    const BarIndicatorConfig *ind = ctx->shared.config.bar_cfg.indicators.data();
@@ -311,9 +323,9 @@ CBELT_TEST(load_with_position_bar) {
                      "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.bar_cfg.indicators[0].position_bar == true);
    LuaConfigFree(&config);
@@ -333,9 +345,10 @@ CBELT_TEST(load_dedupes_indicator_ids) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 5);
@@ -360,9 +373,10 @@ CBELT_TEST(load_drops_unknown_indicator_type) {
                      "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 2);
@@ -389,9 +403,9 @@ CBELT_TEST(load_truncates_extra_indicators) {
                      "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.bar_cfg.indicator_count ==
                 BAR_MAX_INDICATORS);
@@ -412,9 +426,9 @@ CBELT_TEST(load_with_window_rules) {
                      "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->main.window_rule_count == 1);
    LuaConfigFree(&config);
@@ -432,9 +446,9 @@ CBELT_TEST(load_unknown_BFWM_key) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == FALSE);
 
    LuaConfigFree(&config);
@@ -448,9 +462,9 @@ CBELT_TEST(load_unknown_bar_key) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == FALSE);
 
    LuaConfigFree(&config);
@@ -464,9 +478,9 @@ CBELT_TEST(load_syntax_error) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == FALSE);
 
    LuaConfigFree(&config);
@@ -480,9 +494,9 @@ CBELT_TEST(load_missing_BFWM_table) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
    /* Defaults should be applied after reset */
@@ -500,12 +514,12 @@ CBELT_TEST(load_missing_BFWM_table) {
 }
 
 CBELT_TEST(load_empty_path_uses_defaults) {
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
 
    /* Empty path = no config file found: must succeed using C++ defaults,
       without raising a spurious "Error loading config" snackbar. */
-   bool ok = LuaConfigLoad(&config, ctx, "");
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, "");
    cbelt_assert(ok == TRUE);
 
    cbelt_assert(ctx->shared.config.gap_between == 6);
@@ -531,12 +545,12 @@ CBELT_TEST(call_existing_function) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   bool result = LuaConfigCall(&config, ctx, "test_fn");
+   bool result = LuaConfigCall(&config, &ctx->shared, &ctx->main, "test_fn");
    cbelt_assert(result == TRUE);
 
    LuaConfigFree(&config);
@@ -550,12 +564,13 @@ CBELT_TEST(call_missing_function) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   bool ok = LuaConfigLoad(&config, ctx, path.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str());
    cbelt_assert(ok == TRUE);
 
-   bool result = LuaConfigCall(&config, ctx, "does_not_exist");
+   bool result =
+       LuaConfigCall(&config, &ctx->shared, &ctx->main, "does_not_exist");
    cbelt_assert(result == FALSE);
 
    LuaConfigFree(&config);
@@ -566,7 +581,7 @@ CBELT_TEST(call_missing_function) {
 
 CBELT_TEST(call_with_null_state) {
    LuaConfig config = {};
-   bool result = LuaConfigCall(&config, nullptr, "anything");
+   bool result = LuaConfigCall(&config, nullptr, nullptr, "anything");
    cbelt_assert(result == FALSE);
    return TEST_SUCCESS;
 }
@@ -587,13 +602,15 @@ CBELT_TEST(call_click_receives_args) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
-   bool const ok = LuaConfigCallClick(&config, ctx, "probe_click", "vol",
-                                      "left", true, false, true);
+   bool const ok =
+       LuaConfigCallClick(&config, &ctx->shared, &ctx->main, "probe_click",
+                          "vol", "left", true, false, true);
    cbelt_assert(ok == TRUE);
    cbelt_assert(lua_gettop(config.L) ==
                 before); /* success keeps stack balanced */
@@ -633,13 +650,14 @@ CBELT_TEST(call_scroll_receives_args) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
-   bool const ok =
-       LuaConfigCallScroll(&config, ctx, "probe_scroll", "cpu", "down");
+   bool const ok = LuaConfigCallScroll(&config, &ctx->shared, &ctx->main,
+                                       "probe_scroll", "cpu", "down");
    cbelt_assert(ok == TRUE);
    cbelt_assert(lua_gettop(config.L) ==
                 before); /* success keeps stack balanced */
@@ -666,15 +684,17 @@ CBELT_TEST(call_missing_callback_returns_false_without_throwing) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
-   cbelt_assert_false(LuaConfigCallClick(&config, ctx, "no_such_click", "id",
-                                         "left", false, false, false));
-   cbelt_assert_false(
-       LuaConfigCallScroll(&config, ctx, "no_such_scroll", "id", "up"));
+   cbelt_assert_false(LuaConfigCallClick(&config, &ctx->shared, &ctx->main,
+                                         "no_such_click", "id", "left", false,
+                                         false, false));
+   cbelt_assert_false(LuaConfigCallScroll(&config, &ctx->shared, &ctx->main,
+                                          "no_such_scroll", "id", "up"));
    cbelt_assert(lua_gettop(config.L) == before); /* stack balanced */
 
    LuaConfigFree(&config);
@@ -690,13 +710,15 @@ CBELT_TEST(call_erroring_callback_returns_false_and_balances) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
-   cbelt_assert_false(LuaConfigCallClick(&config, ctx, "boom", "id", "left",
-                                         false, false, false));
+   cbelt_assert_false(LuaConfigCallClick(&config, &ctx->shared, &ctx->main,
+                                         "boom", "id", "left", false, false,
+                                         false));
    cbelt_assert(lua_gettop(config.L) == before); /* stack balanced */
 
    LuaConfigFree(&config);
@@ -710,14 +732,17 @@ CBELT_TEST(call_non_function_global_returns_false_and_balances) {
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
-   cbelt_assert_false(LuaConfigCallClick(&config, ctx, "cb_func", "id", "left",
-                                         false, false, false));
-   cbelt_assert_false(LuaConfigCallScroll(&config, ctx, "cb_func", "id", "up"));
+   cbelt_assert_false(LuaConfigCallClick(&config, &ctx->shared, &ctx->main,
+                                         "cb_func", "id", "left", false, false,
+                                         false));
+   cbelt_assert_false(LuaConfigCallScroll(&config, &ctx->shared, &ctx->main,
+                                          "cb_func", "id", "up"));
    cbelt_assert(lua_gettop(config.L) == before); /* stack balanced */
 
    LuaConfigFree(&config);
@@ -727,25 +752,30 @@ CBELT_TEST(call_non_function_global_returns_false_and_balances) {
 }
 
 CBELT_TEST(call_empty_or_null_func_returns_false) {
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, "") == TRUE);
+   cbelt_assert(LuaConfigLoad(&config, &ctx->shared, &ctx->main, "") == TRUE);
    cbelt_assert_not_null(config.L);
 
    int const before = lua_gettop(config.L);
+   cbelt_assert_false(LuaConfigCallClick(&config, &ctx->shared, &ctx->main, "",
+                                         "id", "left", false, false, false));
+   cbelt_assert_false(LuaConfigCallClick(&config, &ctx->shared, &ctx->main,
+                                         nullptr, "id", "left", false, false,
+                                         false));
    cbelt_assert_false(
-       LuaConfigCallClick(&config, ctx, "", "id", "left", false, false, false));
-   cbelt_assert_false(LuaConfigCallClick(&config, ctx, nullptr, "id", "left",
-                                         false, false, false));
-   cbelt_assert_false(LuaConfigCallScroll(&config, ctx, "", "id", "up"));
-   cbelt_assert_false(LuaConfigCallScroll(&config, ctx, nullptr, "id", "up"));
+       LuaConfigCallScroll(&config, &ctx->shared, &ctx->main, "", "id", "up"));
+   cbelt_assert_false(LuaConfigCallScroll(&config, &ctx->shared, &ctx->main,
+                                          nullptr, "id", "up"));
    cbelt_assert(lua_gettop(config.L) == before);
 
    /* Also safe with no Lua state at all. */
    LuaConfig no_state = {};
-   cbelt_assert_false(LuaConfigCallClick(&no_state, ctx, "fn", "id", "left",
-                                         false, false, false));
-   cbelt_assert_false(LuaConfigCallScroll(&no_state, ctx, "fn", "id", "up"));
+   cbelt_assert_false(LuaConfigCallClick(&no_state, &ctx->shared, &ctx->main,
+                                         "fn", "id", "left", false, false,
+                                         false));
+   cbelt_assert_false(LuaConfigCallScroll(&no_state, &ctx->shared, &ctx->main,
+                                          "fn", "id", "up"));
 
    LuaConfigFree(&config);
    destroy_test_ctx(ctx);
@@ -764,9 +794,10 @@ CBELT_TEST(load_custom_indicator) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 1);
@@ -789,9 +820,10 @@ CBELT_TEST(load_drops_custom_without_output) {
        "}\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    const BarConfig *bar = &ctx->shared.config.bar_cfg;
    cbelt_assert(bar->indicator_count == 1);
@@ -807,13 +839,15 @@ CBELT_TEST(call_output_string_return) {
    const char *lua = "function out(id) return \"hi \" .. id end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
    LuaIndicatorOutput out;
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "out", "s1", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "out",
+                                    "s1", &out) == TRUE);
    cbelt_assert(out.valid == true);
    cbelt_assert(out.has_text == true);
    cbelt_assert(strcmp(out.text.c_str(), "hi s1") == 0);
@@ -833,13 +867,15 @@ CBELT_TEST(call_output_table_return) {
        "end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
    LuaIndicatorOutput out;
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "out", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "out",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.valid == true);
    cbelt_assert(out.has_text && strcmp(out.text.c_str(), "t") == 0);
    cbelt_assert(out.has_state && strcmp(out.state.c_str(), "st") == 0);
@@ -870,17 +906,19 @@ CBELT_TEST(call_output_nil_or_missing_returns_false) {
    const char *lua = "function out(id) return nil end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
    LuaIndicatorOutput out;
    out.valid = true; /* must be reset by the call */
-   cbelt_assert_false(LuaConfigCallOutput(&config, ctx, "out", "s", &out));
+   cbelt_assert_false(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main,
+                                          "out", "s", &out));
    cbelt_assert(out.valid == false);
-   cbelt_assert_false(
-       LuaConfigCallOutput(&config, ctx, "no_such_fn", "s", &out));
+   cbelt_assert_false(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main,
+                                          "no_such_fn", "s", &out));
    cbelt_assert(lua_gettop(config.L) == before);
 
    LuaConfigFree(&config);
@@ -893,13 +931,15 @@ CBELT_TEST(call_output_error_returns_false_and_balances) {
    const char *lua = "function out(id) error('boom') end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
    LuaIndicatorOutput out;
-   cbelt_assert_false(LuaConfigCallOutput(&config, ctx, "out", "s", &out));
+   cbelt_assert_false(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main,
+                                          "out", "s", &out));
    cbelt_assert(out.valid == false);
    cbelt_assert(lua_gettop(config.L) == before);
 
@@ -913,13 +953,15 @@ CBELT_TEST(call_output_non_function_returns_false) {
    const char *lua = "out = 5\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    int const before = lua_gettop(config.L);
    LuaIndicatorOutput out;
-   cbelt_assert_false(LuaConfigCallOutput(&config, ctx, "out", "s", &out));
+   cbelt_assert_false(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main,
+                                          "out", "s", &out));
    cbelt_assert(lua_gettop(config.L) == before);
 
    LuaConfigFree(&config);
@@ -935,18 +977,21 @@ CBELT_TEST(call_output_preserves_raw_bytes) {
                      "function utf8(id) return \"caf\\195\\169\" end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    LuaIndicatorOutput out;
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "nul", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "nul",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.has_text == true);
    cbelt_assert(out.text.size() == 3);
    cbelt_assert(out.text[0] == 'a' && out.text[1] == '\0' &&
                 out.text[2] == 'b');
 
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "utf8", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "utf8",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.text.size() == 5);
    cbelt_assert(static_cast<unsigned char>(out.text[3]) == 0xC3);
    cbelt_assert(static_cast<unsigned char>(out.text[4]) == 0xA9);
@@ -964,18 +1009,23 @@ CBELT_TEST(call_output_rejects_malformed_color) {
                      "function c4(id) return { color = \"#00ff00\" } end\n";
    std::string path = write_temp_config(lua);
    cbelt_assert_false(path.empty());
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, path.c_str()) == TRUE);
+   cbelt_assert(
+       LuaConfigLoad(&config, &ctx->shared, &ctx->main, path.c_str()) == TRUE);
 
    LuaIndicatorOutput out;
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "c1", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "c1",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.has_color == false);
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "c2", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "c2",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.has_color == false);
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "c3", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "c3",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.has_color == false);
-   cbelt_assert(LuaConfigCallOutput(&config, ctx, "c4", "s", &out) == TRUE);
+   cbelt_assert(LuaConfigCallOutput(&config, &ctx->shared, &ctx->main, "c4",
+                                    "s", &out) == TRUE);
    cbelt_assert(out.has_color == true);
    cbelt_assert(out.color == RGB(0x00, 0xff, 0x00));
 
@@ -990,9 +1040,9 @@ CBELT_TEST(call_output_rejects_malformed_color) {
  * ========================================================================= */
 
 CBELT_TEST(exec_cache_invalid_args_return_nil) {
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, "") == TRUE);
+   cbelt_assert(LuaConfigLoad(&config, &ctx->shared, &ctx->main, "") == TRUE);
    cbelt_assert_not_null(ctx->main.exec_cache);
 
    const char *cases[] = {
@@ -1004,8 +1054,10 @@ CBELT_TEST(exec_cache_invalid_args_return_nil) {
        "BFWM.spawn(42)",                             /* invalid spawn argv */
        "BFWM.spawn({})",                             /* empty spawn argv */
    };
-   for (const char *code : cases)
-      cbelt_assert(LuaConfigCall(&config, ctx, code) == TRUE);
+   for (const char *code : cases) {
+      cbelt_assert(LuaConfigCall(&config, &ctx->shared, &ctx->main, code) ==
+                   TRUE);
+   }
 
    lua_getglobal(config.L, "r");
    cbelt_assert(lua_isnil(config.L, -1));
@@ -1017,13 +1069,13 @@ CBELT_TEST(exec_cache_invalid_args_return_nil) {
 }
 
 CBELT_TEST(exec_cache_valid_argv_roundtrip) {
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
-   cbelt_assert(LuaConfigLoad(&config, ctx, "") == TRUE);
+   cbelt_assert(LuaConfigLoad(&config, &ctx->shared, &ctx->main, "") == TRUE);
 
    /* First call starts a child and returns nil (nothing cached yet). */
    cbelt_assert(
-       LuaConfigCall(&config, ctx,
+       LuaConfigCall(&config, &ctx->shared, &ctx->main,
                      "r = BFWM.exec_cache("
                      "{ 'cmd.exe', '/c', 'echo', 'bfwm_lua' }, 'lk', 0)") ==
        TRUE);
@@ -1048,7 +1100,7 @@ CBELT_TEST(exec_cache_valid_argv_roundtrip) {
 
    /* Fire-and-forget spawn must not crash; harvest it before teardown. */
    cbelt_assert(
-       LuaConfigCall(&config, ctx,
+       LuaConfigCall(&config, &ctx->shared, &ctx->main,
                      "BFWM.spawn({ 'cmd.exe', '/c', 'echo', 'sp' })") == TRUE);
    Sleep(50);
    (void)ExecCacheGet(ctx->main.exec_cache, argv, "lk", 0);
@@ -1079,11 +1131,11 @@ CBELT_TEST(reload_updates_config) {
    std::string path1 = write_temp_config(lua1);
    cbelt_assert_false(path1.empty());
 
-   BFWMContext *ctx = create_test_ctx();
+   TestCtx *ctx = create_test_ctx();
    LuaConfig config = {};
 
    /* First load */
-   bool ok = LuaConfigLoad(&config, ctx, path1.c_str());
+   bool ok = LuaConfigLoad(&config, &ctx->shared, &ctx->main, path1.c_str());
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.gap_between == 4);
 
@@ -1094,7 +1146,7 @@ CBELT_TEST(reload_updates_config) {
    fclose(f);
 
    /* Reload */
-   ok = LuaConfigReload(&config, ctx);
+   ok = LuaConfigReload(&config, &ctx->shared, &ctx->main);
    cbelt_assert(ok == TRUE);
    cbelt_assert(ctx->shared.config.gap_between == 12);
 

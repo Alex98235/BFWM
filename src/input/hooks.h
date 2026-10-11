@@ -9,7 +9,7 @@
 #ifndef BFWM_INPUT_HOOKS_H
 #define BFWM_INPUT_HOOKS_H
 
-#include "../core/bfwm_context.h"
+#include "../core/worker_context.h"
 #include <windows.h>
 
 /**
@@ -18,10 +18,10 @@
  * Registers LowLevelKeyboardProc as a global WH_KEYBOARD_LL hook.
  * Must be called from a thread with a message pump.
  *
- * @param context The BFWM context (stored for use in the hook proc)
+ * @param worker The worker context (stored for use in the hook proc)
  * @return TRUE if the hook was installed successfully
  */
-auto SetupKeyboardHooks(BFWMContext *context) -> BOOL;
+auto SetupKeyboardHooks(WorkerContext *worker) -> BOOL;
 
 /**
  * @brief Remove all installed input hooks.

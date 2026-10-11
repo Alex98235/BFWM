@@ -1,7 +1,9 @@
 #include "tray.h"
 
-#include "../core/bfwm_context.h"
 #include "../core/bfwm_def.h"
+#include "../core/main_context.h"
+#include "../core/shared_state.h"
+#include "../core/worker_context.h"
 #include "../input/keystroke.h"
 #include "../logging/logger.h"
 #include "../win/win_error.h"
@@ -18,7 +20,9 @@ const wchar_t *TRAY_CLASS = L"BFWMTrayHelper";
  * Singleton state — there is exactly one tray icon per process.
  * (Should only ever be one)
  */
-BFWMContext *g_ctx = nullptr;
+SharedState *g_shared = nullptr;
+WorkerContext *g_worker = nullptr;
+MainContext *g_main = nullptr;
 HWND g_hwnd = nullptr;
 HICON g_icon = nullptr;
 NOTIFYICONDATA g_nid = {};
@@ -80,22 +84,25 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
                 cursor.y, 0, hwnd, nullptr);
             DestroyMenu(menu);
 
-            if (cmd_id == ID_TRAY_EXIT && g_ctx != nullptr) {
+            if (cmd_id == ID_TRAY_EXIT && g_main != nullptr &&
+                g_worker != nullptr) {
                /* Mirror the Ctrl+C handler: signal the loop and enqueue a dummy
                 * keystroke so a blocking DequeueKeystroke() wakes and re-checks
-                * ctx->main.running. */
-               g_ctx->main.running = FALSE;
+                * g_main->running. */
+               g_main->running = FALSE;
                Keystroke const dummy = {};
-               g_ctx->worker.keystroke_queue.Enqueue(dummy);
+               g_worker->keystroke_queue.Enqueue(dummy);
             }
             std::wstring path;
-            if (cmd_id == ID_TRAY_LOGS && g_ctx != nullptr) {
+            if (cmd_id == ID_TRAY_LOGS && g_shared != nullptr &&
+                g_main != nullptr) {
                int const wlen = MultiByteToWideChar(CP_UTF8, 0, BFWM_LOG_PATH,
                                                     -1, nullptr, 0);
                MultiByteToWideChar(CP_UTF8, 0, BFWM_LOG_PATH, -1, path.data(),
                                    wlen);
                if (!OpenTextFileWithEnv(path)) {
-                  Snackbar::Error(g_ctx, L"Could not open log file at %s",
+                  Snackbar::Error(g_shared, g_main,
+                                  L"Could not open log file at %s",
                                   BFWM_LOG_PATH);
                }
             }
@@ -108,8 +115,9 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
 } // namespace
 
-auto TrayInit(struct BFWMContext *ctx) -> BOOL {
-   g_ctx = ctx;
+auto TrayInit(SharedState *shared, MainContext *main) -> BOOL {
+   g_shared = shared;
+   g_main = main;
 
    WNDCLASSW window_class = {};
    window_class.lpfnWndProc = TrayWndProc;
@@ -169,5 +177,7 @@ void TrayShutdown() {
       g_hwnd = nullptr;
    }
    UnregisterClassW(TRAY_CLASS, GetModuleHandleW(nullptr));
-   g_ctx = nullptr;
+   g_shared = nullptr;
+   g_worker = nullptr;
+   g_main = nullptr;
 }

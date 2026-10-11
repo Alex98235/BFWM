@@ -92,9 +92,10 @@ class GdiplusRuntime {
 /* The ctor keeps its never-fails contract: the fallible work lives in Init,
  * so a failure just leaves the object inert (no strip surfaces, every method a
  * no-op) and the caller can retry with a later Init() call. */
-Overlay::Overlay(struct BFWMContext *ctx, HWND target, COLORREF color,
-                 int width, int radius)
-    : ctx(ctx), target(target), color(color), width(width), radius(radius) {
+Overlay::Overlay(struct SharedState *shared, struct MainContext *main,
+                 HWND target, COLORREF color, int width, int radius)
+    : shared(shared), main(main), target(target), color(color), width(width),
+      radius(radius) {
    /* Never-fails contract: the result is intentionally discarded — on failure
     * the object is left inert (all methods no-op) and the caller can retry
     * with a later Init() call. */
@@ -171,8 +172,8 @@ auto Overlay::Init() -> bool {
          EnumWindows(CountOwnWindowProc,
                      reinterpret_cast<LPARAM>(&own_windows));
          const size_t registry_size =
-             (this->ctx->main.windows != nullptr)
-                 ? this->ctx->main.windows->Windows().size()
+             (this->main->windows != nullptr)
+                 ? this->main->windows->Windows().size()
                  : 0;
 
          ErrorW(L"Overlay: construction failed — USER objects %lu / GDI "
@@ -180,8 +181,7 @@ auto Overlay::Init() -> bool {
                 L"%d / resize_hwnd %p",
                 (unsigned long)user_objects, (unsigned long)gdi_objects,
                 (unsigned long)own_windows, registry_size,
-                (int)this->ctx->main.suspended,
-                (void *)this->ctx->main.resize_hwnd);
+                (int)this->main->suspended, (void *)this->main->resize_hwnd);
       }
 
       /* Partial construction: tear down the strips created so far and leave
@@ -466,12 +466,13 @@ void Overlay::OverlayReconcile(BOOL suppress, BOOL force) {
  * flag would otherwise hide the ring forever. Also catches undetected
  * fullscreen enters. Flushes + commits once when anything changed; no idle
  * churn. */
-void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
-   ReclaimStaleWindows(ctx);
+void Overlay::OverlayReconcileAll(struct SharedState *shared,
+                                  struct MainContext *main) {
+   ReclaimStaleWindows(shared, main);
 
    BOOL any_dirty = FALSE;
 
-   for (const auto &window : ctx->main.windows->Windows()) {
+   for (const auto &window : main->windows->Windows()) {
       Window *win = window.get();
       if ((win == nullptr) || (win->overlay_ == nullptr))
          continue;
@@ -522,7 +523,7 @@ void Overlay::OverlayReconcileAll(struct BFWMContext *ctx) {
 
    /* Flush + commit only when something changed (no idle churn). */
    if (any_dirty == TRUE) {
-      for (const auto &window : ctx->main.windows->Windows()) {
+      for (const auto &window : main->windows->Windows()) {
          Window *win = window.get();
          if ((win != nullptr) && (win->overlay_ != nullptr)) {
             win->overlay_->OverlayFlush(
@@ -681,11 +682,11 @@ void Overlay::overlay_measure_insets(HWND target, const RECT *efb,
 auto Overlay::overlay_dpi() const -> UINT {
    HMONITOR hmon = MonitorFromWindow(this->target, MONITOR_DEFAULTTONEAREST);
    UINT dpi = DpiSystem::BaseDpi();
-   if ((this->ctx != nullptr) && (this->ctx->main.dpi != nullptr)) {
+   if ((this->shared != nullptr) && (this->main->dpi != nullptr)) {
       /* GetDpi returns 0 on a registry miss under the upcoming sentinel
        * semantics; under the current semantics it returns 96. Either way a 0
        * result must fall back to the base DPI. */
-      UINT const queried = this->ctx->main.dpi->GetDpi(hmon);
+      UINT const queried = this->main->dpi->GetDpi(hmon);
       if (queried != 0) {
          dpi = queried;
       }
@@ -1288,10 +1289,10 @@ void Overlay::overlay_sync_position(BOOL suppress) {
  * quota (error 1158). Reuses the kill-path teardown (CleanupTerminatedWindow)
  * so workspace removal, fullscreen accounting, focus fallback and layout stay
  * consistent. Backward iteration: removal shifts the registry array. */
-void Overlay::ReclaimStaleWindows(struct BFWMContext *ctx) {
-   for (size_t index = ctx->main.windows->Windows().size(); index > 0;
-        index--) {
-      Window *win = ctx->main.windows->Windows()[index - 1].get();
+void Overlay::ReclaimStaleWindows(struct SharedState *shared,
+                                  struct MainContext *main) {
+   for (size_t index = main->windows->Windows().size(); index > 0; index--) {
+      Window *win = main->windows->Windows()[index - 1].get();
       if (win == nullptr)
          continue;
       HWND h = win->GetHwnd();
@@ -1313,7 +1314,7 @@ void Overlay::ReclaimStaleWindows(struct BFWMContext *ctx) {
       }
       if (reclaim == TRUE) {
          WarnW(L"Reclaimed stale window (target gone or reused): %p", h);
-         CleanupTerminatedWindow(ctx, h);
+         CleanupTerminatedWindow(shared, main, h);
       }
    }
 }

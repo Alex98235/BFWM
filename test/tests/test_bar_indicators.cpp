@@ -51,8 +51,8 @@ struct TestIndicatorProvider : IndicatorProvider {
       per_frame = true;
       is_collection = false;
    }
-   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &,
-                BFWMContext *) const override {}
+   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, SharedState *,
+                MainContext *) const override {}
 };
 
 /// Workspaces provider for testing (default_format = "{id}")
@@ -64,8 +64,8 @@ struct WorkspacesTestProvider : IndicatorProvider {
       per_frame = true;
       is_collection = true;
    }
-   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &,
-                BFWMContext *) const override {}
+   void Refresh(const BarIndicatorConfig &, IndicatorRuntime &, SharedState *,
+                MainContext *) const override {}
 };
 
 TestIndicatorProvider g_test_provider;
@@ -669,7 +669,7 @@ CBELT_TEST(registry_resolves_every_indicator_type) {
    /* The registry must be total: every type resolves to a provider. Workspaces
       and Title used to be missing from the registry, which silently broke
       hit-testing, click/scroll dispatch and width measurement. */
-   Bar bar(nullptr, nullptr, nullptr);
+   Bar bar(nullptr, nullptr, nullptr, nullptr);
    auto registry = IndicatorRegistry::CreateDefault(&bar);
 
    for (int t = 0; t < static_cast<int>(BAR_INDICATOR_COUNT); t++) {
