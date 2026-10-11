@@ -1089,11 +1089,6 @@ void Bar::ComposeIndicator(int slot) {
 
    if (provider->is_collection) {
       runtime.valid = !runtime.item_text.empty();
-   } else if (cfg.type == BAR_INDICATOR_CUSTOM) {
-      // Custom output may supply only a state/icon/value (used by a format or
-      // states rule), so treat any of them as drawable.
-      runtime.valid = !runtime.text.empty() || !runtime.icon.empty() ||
-                      !runtime.state.empty() || !runtime.values.empty();
    } else {
       runtime.valid = !runtime.text.empty();
    }
@@ -1155,6 +1150,18 @@ void Bar::RefreshAllIndicators() {
 // Rendering
 // ---------------------------------------------------------------------------
 
+namespace {
+
+/// Shared measure/render drawability predicate: an indicator occupies space
+/// (and is rendered) only when its provider exists and its runtime is valid.
+/// Measure and render MUST agree on this or a group's centered layout drifts.
+inline auto IndicatorIsDrawable(const IndicatorProvider *provider,
+                                const IndicatorRuntime &runtime) -> bool {
+   return (provider != nullptr) && runtime.valid;
+}
+
+} // namespace
+
 void Bar::ClayIndicatorText(int slot, Clay_String str, Clay_Color color,
                             int min_width) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
@@ -1196,11 +1203,8 @@ void Bar::ClayIndicatorText(int slot, Clay_String str, Clay_Color color,
 void Bar::RenderIndicator(int slot) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime const &runtime = runtimes[slot];
-   if (!runtime.valid)
-      return;
-
    const IndicatorProvider *provider = provider_registry->Get(cfg.type);
-   if (provider == nullptr)
+   if (!IndicatorIsDrawable(provider, runtime))
       return;
 
    if (provider->is_collection) {
@@ -1404,23 +1408,93 @@ void Bar::TruncateTextWithEllipsis(std::wstring &wtitle, int max_width,
    wtitle = L"...";
 }
 
+// ---------------------------------------------------------------------------
+// Layout measurement helpers (pure, exposed for unit testing)
+// ---------------------------------------------------------------------------
+
+#ifdef BFWM_BUILD_TESTING
+// BarGroupItem and the helper declarations come from bar.h; the helpers have
+// external linkage so the unit tests can call them.
+#else
+namespace {
+
+/// Production definition; the declaration lives in bar.h under test builds.
+struct BarGroupItem {
+   bool drawable;
+   float width;
+};
+#endif
+
+#ifdef BFWM_BUILD_TESTING
+auto
+#else
+inline auto
+#endif
+CollectionWidth(const int *item_width, int n) -> float {
+   float total = 0.0F;
+   for (int i = 0; i < n; i++)
+      total += static_cast<float>(item_width[i]);
+   if (n > 0)
+      total += static_cast<float>(4 * (n - 1));
+   return total;
+}
+
+#ifdef BFWM_BUILD_TESTING
+auto
+#else
+inline auto
+#endif
+MeasureGroupWidthFrom(const BarGroupItem *items, int n, float edge_pad)
+    -> float {
+   float total = 0.0F;
+   int drawable_count = 0;
+   for (int i = 0; i < n; i++) {
+      if (!items[i].drawable)
+         continue;
+      total += items[i].width;
+      drawable_count++;
+   }
+   if (drawable_count == 0)
+      return 0.0F;
+   return total + static_cast<float>(4 * (drawable_count - 1)) + edge_pad;
+}
+
+#ifdef BFWM_BUILD_TESTING
+auto
+#else
+inline auto
+#endif
+CenterSpacerFor(float bar_width, float c_total, float l_total, float r_total,
+                bool *use_abs) -> float {
+   float const half_remain =
+       (bar_width - c_total) / static_cast<float>(HALF_DIV);
+   if (half_remain >= l_total && half_remain >= r_total) {
+      *use_abs = true;
+      return half_remain - l_total;
+   }
+   *use_abs = false;
+   return 0.0F;
+}
+
+#ifndef BFWM_BUILD_TESTING
+} // namespace
+#endif
+
 auto Bar::MeasureIndicatorWidth(int slot) -> float {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime const &runtime = runtimes[slot];
 
-   if (cfg.max_width > 0)
-      return static_cast<float>(cfg.max_width);
-
    const IndicatorProvider *provider = provider_registry->Get(cfg.type);
-   if (provider == nullptr)
+   if (!IndicatorIsDrawable(provider, runtime))
       return 0;
 
    if (provider->is_collection) {
-      float total = 0;
-      for (int const width : runtime.item_width)
-         total += static_cast<float>(width);
-      return total;
+      return CollectionWidth(runtime.item_width.data(),
+                             static_cast<int>(runtime.item_width.size()));
    }
+
+   if (cfg.max_width > 0)
+      return static_cast<float>(cfg.max_width);
 
    if (runtime.text.empty())
       return 0;
@@ -1436,16 +1510,18 @@ auto Bar::MeasureIndicatorWidth(int slot) -> float {
 }
 
 auto Bar::MeasureGroupWidth(BarIndicatorAlign align) -> float {
-   float total = 0;
-   int count = 0;
+   std::vector<BarGroupItem> items;
    for (int i = 0; i < config.indicator_count; i++) {
       if (config.indicators[i].align != align)
          continue;
-      total += MeasureIndicatorWidth(i);
-      count++;
+      if (!IndicatorIsDrawable(
+              provider_registry->Get(config.indicators[i].type), runtimes[i]))
+         continue;
+      items.push_back(BarGroupItem{
+          .drawable = true,
+          .width = MeasureIndicatorWidth(i),
+      });
    }
-   if (count == 0)
-      return 0;
    float padding;
    if (align == BAR_ALIGN_LEFT) {
       padding = static_cast<float>(config.padding.left);
@@ -1454,7 +1530,8 @@ auto Bar::MeasureGroupWidth(BarIndicatorAlign align) -> float {
    } else {
       padding = 0.0F;
    }
-   return total + padding + static_cast<float>((count - 1) * 4);
+   return MeasureGroupWidthFrom(items.data(), static_cast<int>(items.size()),
+                                padding);
 }
 
 void Bar::RenderIndicatorsForAlign(BarIndicatorAlign align) {
@@ -1472,17 +1549,16 @@ void Bar::ComputeCenterLayout(float bar_width, BOOL has_left, BOOL has_center,
    *spacerL_w = 0;
    if (has_center == 0)
       return;
-   float const C_total = MeasureGroupWidth(BAR_ALIGN_CENTER);
-   float const half_remain =
-       (bar_width - C_total) / static_cast<float>(HALF_DIV);
-   float const L_total =
+   float const c_total = MeasureGroupWidth(BAR_ALIGN_CENTER);
+   float const l_total =
        (has_left != 0) ? MeasureGroupWidth(BAR_ALIGN_LEFT) : 0;
-   float const R_total =
+   float const r_total =
        (has_right != 0) ? MeasureGroupWidth(BAR_ALIGN_RIGHT) : 0;
-   if (half_remain >= L_total && half_remain >= R_total) {
-      *use_abs_center = TRUE;
-      *spacerL_w = half_remain - L_total;
-   }
+   bool use_abs = false;
+   float const spacer =
+       CenterSpacerFor(bar_width, c_total, l_total, r_total, &use_abs);
+   *use_abs_center = use_abs ? TRUE : FALSE;
+   *spacerL_w = spacer;
 }
 
 void Bar::RenderBarContent(BOOL has_left, BOOL has_center, BOOL has_right,

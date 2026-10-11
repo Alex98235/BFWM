@@ -9,10 +9,13 @@
  * Non-fatal if it fails — BFWM still runs headless. Call once on the main
  * thread, before MainLoop.
  *
- * @param ctx The BFWM context (used to signal shutdown from the tray menu)
+ * @param shared Shared state.
+ * @param worker Worker context (its keystroke queue wakes the main loop).
+ * @param main   Main context (its `running` flag signals shutdown).
  * @return TRUE if the icon was added, FALSE on any failure
  */
-auto TrayInit(struct SharedState *shared, struct MainContext *main) -> BOOL;
+auto TrayInit(struct SharedState *shared, struct WorkerContext *worker,
+              struct MainContext *main) -> BOOL;
 
 /**
  * @brief Remove the tray icon and free its resources.

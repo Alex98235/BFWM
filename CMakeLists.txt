@@ -214,8 +214,13 @@ endif()
 # -DBFWM_VERSION=<x.y.z>; local builds default to a dev marker. The leading
 # numeric triple must stay parseable even for pre-release suffixes
 # (e.g. "0.0.1-pre-release").
+#
+# project(BFWM) defines a normal variable named BFWM_VERSION (the project
+# version, empty here), which would shadow the cache entry and make
+# ${BFWM_VERSION} resolve empty. Read the cache value via $CACHE{} so both the
+# -DBFWM_VERSION override and the default take effect.
 set(BFWM_VERSION "0.0.0-dev" CACHE STRING "Version string embedded in the binary")
-string(STRIP "${BFWM_VERSION}" BFWM_VERSION)
+string(STRIP "$CACHE{BFWM_VERSION}" BFWM_VERSION)
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" BFWM_VERSION_MATCH "${BFWM_VERSION}")
 set(BFWM_VERSION_MAJOR "${CMAKE_MATCH_1}")
 set(BFWM_VERSION_MINOR "${CMAKE_MATCH_2}")

@@ -115,8 +115,10 @@ inline auto CALLBACK TrayWndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
 } // namespace
 
-auto TrayInit(SharedState *shared, MainContext *main) -> BOOL {
+auto TrayInit(SharedState *shared, WorkerContext *worker, MainContext *main)
+    -> BOOL {
    g_shared = shared;
+   g_worker = worker;
    g_main = main;
 
    WNDCLASSW window_class = {};
