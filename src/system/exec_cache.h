@@ -55,6 +55,26 @@ auto ExecCacheCreate(uint64_t timeout_ms = EXEC_CACHE_DEFAULT_TIMEOUT_MS)
 void ExecCacheDestroy(ExecCache *cache);
 
 /**
+ * @brief Freshness test for a cached value, measured from production time.
+ *
+ * A value is fresh while it is younger than `ttl_ms`, i.e. while
+ * `now_ms - updated_ms < ttl_ms`. `updated_ms` is when the data was *produced*
+ * (the child's start tick), not when it was harvested: harvest and the
+ * freshness test share a single poll, so a harvest-time stamp would always
+ * read as age 0 (fresh) and suppress the next replacement spawn.
+ *
+ * Exposed for unit testing.
+ *
+ * @param has_value  Whether a value has been recorded at all.
+ * @param now_ms     The current tick.
+ * @param updated_ms The tick when the value was produced.
+ * @param ttl_ms     Freshness window in milliseconds (0 => never fresh).
+ * @return true if a value exists and its age is strictly less than `ttl_ms`
+ */
+auto ExecCacheIsFresh(bool has_value, uint64_t now_ms, uint64_t updated_ms,
+                      uint64_t ttl_ms) -> bool;
+
+/**
  * @brief Return the cached stdout for `key`, refreshing it non-blockingly.
  *
  * First harvests finished children. If `key` has a value younger than `ttl_ms`

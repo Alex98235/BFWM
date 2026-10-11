@@ -285,3 +285,39 @@ CBELT_TEST(entry_cap_returns_nil_without_crash) {
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
 }
+
+/* =========================================================================
+ * Freshness is measured from the data's production time, not harvest time
+ * ========================================================================= */
+
+CBELT_TEST(freshness_age_is_measured_from_production_time) {
+   /* Harvest happens in the same poll as the freshness test, so a value
+    * harvested now but produced one interval ago must be judged stale: with a
+    * harvest-time stamp the age would read 0 and always look fresh, skipping
+    * the next replacement spawn. */
+   uint64_t const interval = 1000;
+   cbelt_assert(ExecCacheIsFresh(true, /*now_ms=*/interval, /*updated_ms=*/0,
+                                 /*ttl_ms=*/interval) == false);
+   cbelt_assert(ExecCacheIsFresh(true, interval, 0, interval - 1) == false);
+   cbelt_assert(ExecCacheIsFresh(true, interval, 0, 1) == false);
+
+   /* A ttl strictly greater than the age is fresh. */
+   cbelt_assert(ExecCacheIsFresh(true, interval, 0, interval + 1) == true);
+
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(freshness_ttl_zero_is_never_fresh) {
+   /* 0 < 0 is false: ttl = 0 always requests a refresh. */
+   cbelt_assert(ExecCacheIsFresh(true, 0, 0, 0) == false);
+   cbelt_assert(ExecCacheIsFresh(true, 500, 500, 0) == false);
+   cbelt_assert(ExecCacheIsFresh(true, 500, 0, 0) == false);
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(freshness_requires_a_value) {
+   /* No value recorded means nothing can be fresh, regardless of ttl. */
+   cbelt_assert(ExecCacheIsFresh(false, 1000, 0, 1000) == false);
+   cbelt_assert(ExecCacheIsFresh(false, 1000, 0, 60000) == false);
+   return TEST_SUCCESS;
+}

@@ -320,7 +320,11 @@ void HarvestAll(ExecCache *cache, uint64_t now) {
       if (!child.key.empty()) {
          if (ExecEntry *entry = FindEntry(cache, child.key)) {
             entry->value = std::move(child.collected);
-            entry->updated_ms = now;
+            // Stamp with when the data was *produced* (the child's start), not
+            // when it was harvested: harvest and freshness test share one poll,
+            // so a harvest-time stamp would always read as age 0 (fresh) and
+            // suppress the next replacement spawn.
+            entry->updated_ms = child.started_ms;
             entry->has_value = true;
             entry->in_flight = false;
             entry->attempted = false;
@@ -383,6 +387,11 @@ void ExecCacheDestroy(ExecCache *cache) {
    delete cache;
 }
 
+auto ExecCacheIsFresh(bool has_value, uint64_t now_ms, uint64_t updated_ms,
+                      uint64_t ttl_ms) -> bool {
+   return has_value && ((now_ms - updated_ms) < ttl_ms);
+}
+
 auto ExecCacheGet(ExecCache *cache, const std::vector<std::string> &argv,
                   const std::string &key, uint64_t ttl_ms)
     -> const std::string * {
@@ -396,7 +405,8 @@ auto ExecCacheGet(ExecCache *cache, const std::vector<std::string> &argv,
    if (entry == nullptr)
       return nullptr; // entry cap reached: behave as "no data", no crash
 
-   bool const fresh = entry->has_value && ((now - entry->updated_ms) < ttl_ms);
+   bool const fresh =
+       ExecCacheIsFresh(entry->has_value, now, entry->updated_ms, ttl_ms);
    bool const backoff =
        entry->attempted && ((now - entry->last_attempt_ms) < ttl_ms);
    if (!fresh && !entry->in_flight && !backoff) {
