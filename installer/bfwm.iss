@@ -1,7 +1,7 @@
 ; BFWM installer - compile with Inno Setup 6+ (iscc)
 ;   iscc /DMyAppVersion=<version> installer\BFWM.iss
 ; Output: installer\output\BFWM-Setup-<version>.exe
-; Version falls back to the VERSION file value when /D is not given.
+; MyAppVersion is supplied via /DMyAppVersion (see scripts/build_installer.ps1).
 
 #define MyAppName "BFWM"
 #ifndef MyAppVersion

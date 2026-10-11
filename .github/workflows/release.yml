@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 1.2.3)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,19 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The tag is the single source of truth for the version. On a tag build
-      # (v1.2.3) the leading "v" is stripped and written to VERSION so the
-      # CMake version resource and the installer filename both agree with the
-      # release. On a manual run, the committed VERSION is used as-is.
+      # The git tag is the single source of truth for the version. On a tag
+      # build (v1.2.3) the leading "v" is stripped and exported as VERSION,
+      # which the version resource and the installer filename both consume.
+      # This workflow only ever produces user-facing releases, so a manual run
+      # must supply the `version` input explicitly; there is no fallback.
       - name: Resolve version
         shell: pwsh
         run: |
           if ($env:GITHUB_REF -like 'refs/tags/*') {
             $version = $env:GITHUB_REF_NAME -replace '^v', ''
           } else {
-            $version = (Get-Content VERSION -Raw).Trim()
+            $version = '${{ inputs.version }}'
           }
-          Set-Content -Path VERSION -Value $version -NoNewline
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "No version available: push a 'v*' tag or supply the workflow_dispatch 'version' input."
+          }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Building version $version"
 
@@ -46,7 +54,7 @@ jobs:
 
       - name: Configure (CMake)
         shell: msys2 {0}
-        run: cmake --preset ucrt64
+        run: cmake --preset ucrt64 -DBFWM_VERSION=$VERSION
 
       # Only the production target is built: the test target depends on the
       # test/cbelt submodule, which is not part of release builds.
@@ -60,7 +68,7 @@ jobs:
 
       - name: Build installer
         shell: pwsh
-        run: ./scripts/build_installer.ps1
+        run: ./scripts/build_installer.ps1 -Version $env:VERSION
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

@@ -210,11 +210,12 @@ else()
     message(STATUS "icons/BFWM.ico not found - run scripts/build_icon.ps1 to generate it (icon resource skipped)")
 endif()
 
-# Version: single source of truth is the VERSION file at the repo root. The
-# leading numeric triple must stay parseable even for pre-release suffixes
+# Version: supplied by the build. Release builds pass the git tag via
+# -DBFWM_VERSION=<x.y.z>; local builds default to a dev marker. The leading
+# numeric triple must stay parseable even for pre-release suffixes
 # (e.g. "0.0.1-pre-release").
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" BFWM_VERSION_RAW)
-string(STRIP "${BFWM_VERSION_RAW}" BFWM_VERSION)
+set(BFWM_VERSION "0.0.0-dev" CACHE STRING "Version string embedded in the binary")
+string(STRIP "${BFWM_VERSION}" BFWM_VERSION)
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" BFWM_VERSION_MATCH "${BFWM_VERSION}")
 set(BFWM_VERSION_MAJOR "${CMAKE_MATCH_1}")
 set(BFWM_VERSION_MINOR "${CMAKE_MATCH_2}")
@@ -224,8 +225,6 @@ set(BFWM_VERSION_PATCH "${CMAKE_MATCH_3}")
 set(BFWM_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/icons/BFWM.ico")
 file(RELATIVE_PATH BFWM_ICON "${CMAKE_CURRENT_BINARY_DIR}" "${BFWM_ICON_PATH}")
 configure_file(src/app.rc.in ${CMAKE_CURRENT_BINARY_DIR}/app.rc @ONLY)
-# Re-run configure when VERSION changes so the version resource stays in sync.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(BFWM PRIVATE
