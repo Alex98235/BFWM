@@ -648,7 +648,7 @@ auto main(int argc, char *argv[]) -> int {
       return 1;
    }
 
-   TrayInit(&shared, &main);
+   TrayInit(&shared, &worker, &main);
 
    MainLoop(&shared, &worker, &main);
    TrayShutdown();
