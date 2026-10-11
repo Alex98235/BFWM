@@ -93,6 +93,15 @@ auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
 auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
                            IndicatorRuntime &runtime) -> bool;
 
+/// Drop a custom callback's cleared output before compose.
+///
+/// When the callback returned `{ clear = true }`, `runtime.clear_requested` is
+/// set and the runtime must not be re-composed — otherwise the raw format
+/// template (e.g. `"{icon} {text}"`) would be drawn from the now-empty value
+/// bag. Clears `text` and marks the runtime invalid. Returns true when it
+/// dropped. Exposed for unit testing.
+auto IndicatorDropClearedOutput(IndicatorRuntime &runtime) -> bool;
+
 /// Resolve the matched rule's icon/color effects into `icon_out`/`color_out`.
 ///
 /// Precedence for color: matched-rule (if `has_color`) > indicator (if

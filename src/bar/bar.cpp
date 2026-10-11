@@ -894,6 +894,14 @@ auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
    return true;
 }
 
+auto IndicatorDropClearedOutput(IndicatorRuntime &runtime) -> bool {
+   if (!runtime.clear_requested)
+      return false;
+   runtime.text.clear();
+   runtime.valid = false;
+   return true;
+}
+
 auto IndicatorResolveEffects(const BarIndicatorConfig &cfg,
                              const IndicatorRuntime &runtime,
                              Clay_Color bar_default, std::string &icon_out,
@@ -1022,6 +1030,12 @@ void Bar::RefreshTitle(const BarIndicatorConfig &cfg,
 void Bar::ComposeIndicator(int slot) {
    BarIndicatorConfig const &cfg = config.indicators[slot];
    IndicatorRuntime &runtime = runtimes[slot];
+
+   // A custom callback that returned { clear = true } drops its output: don't
+   // re-compose the format from the (now empty) values, or the raw template
+   // (e.g. "{icon} {text}") would be drawn.
+   if (IndicatorDropClearedOutput(runtime))
+      return;
 
    const IndicatorProvider *provider = provider_registry->Get(cfg.type);
    if (provider == nullptr)

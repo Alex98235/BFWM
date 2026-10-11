@@ -534,6 +534,47 @@ CBELT_TEST(apply_custom_output_clear_drops_runtime) {
    return TEST_SUCCESS;
 }
 
+CBELT_TEST(clear_requested_drops_before_format_compose) {
+   /* `{ clear = true }` maps to an invalid, empty runtime with the flag set. */
+   LuaIndicatorOutput out;
+   out.valid = true;
+   out.clear = true;
+   IndicatorRuntime rt;
+   rt.text = "old";
+   ApplyIndicatorOutput(out, rt);
+   cbelt_assert(rt.clear_requested == true);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+
+   /* Regression: with a non-empty format, composing the format from the now
+    * empty value bag would emit the literal `{text}` and re-mark it drawable.
+    */
+   BarIndicatorConfig cfg = {};
+   cfg.type = BAR_INDICATOR_CUSTOM;
+   cfg.format = "{icon} {text}";
+   std::string const raw = IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(raw.find("{text}") != std::string::npos);
+
+   /* The compose short-circuit drops the cleared output instead: not drawn. */
+   cbelt_assert(IndicatorDropClearedOutput(rt) == true);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+
+   /* A subsequent normal output clears the flag and composes again. */
+   LuaIndicatorOutput again;
+   again.valid = true;
+   again.has_text = true;
+   again.text = "back";
+   ApplyIndicatorOutput(again, rt);
+   cbelt_assert(rt.clear_requested == false);
+   cbelt_assert(IndicatorDropClearedOutput(rt) == false);
+   std::string const composed =
+       IndicatorComposeFormat(cfg, rt, &g_test_provider);
+   cbelt_assert(strcmp(composed.c_str(), " back") == 0);
+   cbelt_assert(rt.valid == true);
+   return TEST_SUCCESS;
+}
+
 CBELT_TEST(indicator_resolve_effects_output_color_precedence) {
    Clay_Color const bar_default = {
        .r = 9.0F, .g = 9.0F, .b = 9.0F, .a = 255.0F};
