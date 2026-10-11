@@ -888,7 +888,7 @@ auto IndicatorShouldPoll(bool per_frame, ULONGLONG rate_ms,
 
 auto IndicatorKeepPrevious(bool per_frame, const IndicatorRuntime &previous,
                            IndicatorRuntime &runtime) -> bool {
-   if (per_frame || runtime.valid)
+   if (per_frame || runtime.valid || runtime.clear_requested)
       return false;
    runtime = previous;
    return true;
@@ -914,6 +914,7 @@ auto IndicatorResolveEffects(const BarIndicatorConfig &cfg,
 
 void ApplyIndicatorOutput(const LuaIndicatorOutput &out,
                           IndicatorRuntime &runtime) {
+   runtime.clear_requested = out.clear;
    runtime.values.clear();
    runtime.state.clear();
    runtime.icon.clear();
@@ -1127,6 +1128,7 @@ void Bar::RefreshIndicator(int slot) {
    runtime.icon.clear();
    runtime.color = Clay_Color{};
    runtime.color_set = false;
+   runtime.clear_requested = false;
    runtime.polled = true;
    runtime.last_poll_ms = now;
 

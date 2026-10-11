@@ -187,6 +187,8 @@ struct LuaIndicatorValue {
  */
 struct LuaIndicatorOutput {
    bool valid = false; ///< output existed and returned a value
+   /// callback returned `{ clear = true }`: drop the indicator's output
+   bool clear = false;
    bool has_text = false;
    std::string text;
    bool has_state = false;

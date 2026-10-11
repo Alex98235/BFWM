@@ -57,9 +57,10 @@ struct IndicatorRuntime {
    std::vector<std::string> item_text; // workspaces: per-tab text
    std::vector<int> item_width;        // workspaces: per-tab measured width
    ULONGLONG last_poll_ms = 0;
-   bool polled = false;    // true once a provider refresh has run
-   bool valid = false;     // false => nothing to draw
-   bool color_set = false; // runtime.color came from the provider output
+   bool polled = false;          // true once a provider refresh has run
+   bool valid = false;           // false => nothing to draw
+   bool color_set = false;       // runtime.color came from the provider output
+   bool clear_requested = false; // per-poll: the callback asked to drop output
 };
 
 /**

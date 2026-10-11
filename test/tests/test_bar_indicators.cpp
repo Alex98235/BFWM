@@ -500,6 +500,40 @@ CBELT_TEST(apply_custom_output_empty_is_invalid) {
    return TEST_SUCCESS;
 }
 
+CBELT_TEST(apply_custom_output_clear_drops_runtime) {
+   LuaIndicatorOutput out;
+   out.valid = true; /* a `{ clear = true }` table carries no drawable fields */
+   out.clear = true;
+
+   IndicatorRuntime rt;
+   rt.text = "stale";
+   rt.state = "old";
+   rt.icon = "old";
+   rt.color_set = true;
+   rt.values.push_back(num_value("old", 9.0, 0));
+   rt.valid = true;
+
+   ApplyIndicatorOutput(out, rt);
+
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+   cbelt_assert(rt.state.empty());
+   cbelt_assert(rt.icon.empty());
+   cbelt_assert(rt.color_set == false);
+   cbelt_assert(rt.values.empty());
+   cbelt_assert(rt.clear_requested == true);
+
+   /* A non-clear output resets the flag so it never persists across polls. */
+   LuaIndicatorOutput plain;
+   plain.valid = true;
+   plain.has_text = true;
+   plain.text = "again";
+   ApplyIndicatorOutput(plain, rt);
+   cbelt_assert(rt.clear_requested == false);
+   cbelt_assert(rt.valid == true);
+   return TEST_SUCCESS;
+}
+
 CBELT_TEST(indicator_resolve_effects_output_color_precedence) {
    Clay_Color const bar_default = {
        .r = 9.0F, .g = 9.0F, .b = 9.0F, .a = 255.0F};
@@ -626,6 +660,35 @@ CBELT_TEST(keep_previous_restores_whole_runtime_on_polled_failure) {
    cbelt_assert(IndicatorKeepPrevious(false, no_previous, fresh) == true);
    cbelt_assert(fresh.valid == false);
    cbelt_assert(fresh.text.empty());
+   return TEST_SUCCESS;
+}
+
+CBELT_TEST(keep_previous_ignored_when_clear_requested) {
+   /* A last-good runtime that must NOT be revived after an explicit clear. */
+   IndicatorRuntime previous;
+   previous.text = "GOOD";
+   previous.valid = true;
+   previous.values.push_back(num_value("value", 42.0, 0));
+
+   /* Poll returned `{ clear = true }`: ApplyIndicatorOutput made it invalid but
+    * flagged clear_requested, which suppresses the keep-previous restore. */
+   IndicatorRuntime rt;
+   rt.clear_requested = true;
+   rt.valid = false;
+   bool const restored = IndicatorKeepPrevious(false, previous, rt);
+   cbelt_assert(restored == false);
+   cbelt_assert(rt.valid == false);
+   cbelt_assert(rt.text.empty());
+   cbelt_assert(rt.values.empty());
+
+   /* A plain nil/invalid poll still restores the last good snapshot. */
+   IndicatorRuntime plain;
+   plain.valid = false;
+   plain.clear_requested = false;
+   cbelt_assert(IndicatorKeepPrevious(false, previous, plain) == true);
+   cbelt_assert(strcmp(plain.text.c_str(), "GOOD") == 0);
+   cbelt_assert(plain.valid == true);
+   cbelt_assert(plain.values.size() == 1);
    return TEST_SUCCESS;
 }
 
