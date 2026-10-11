@@ -32,6 +32,11 @@
 Download the installer from the [releases page](https://github.com/Alex98235/BFWM/releases).
 The file is named `BFWM-Setup-<version>.exe`.
 
+## Documentation
+
+Full user documentation lives at <https://alex98235.github.io/BFWM/>
+(source in [`website/`](website/)).
+
 ## Building from Source
 
 Prerequisites (MSYS2 **UCRT64** shell):
@@ -61,8 +66,7 @@ cmake --build build --target run   # via CMake
 Runtime options:
 
 - `--no-bar`: disable the per-monitor bar.
-- `--config <path>`: path to `config.lua` (default: resolved from the exe
-  location, falling back to `../config.lua`).
+- `--config <path>`: path to `config.lua`
 
 ### Testing
 
@@ -71,13 +75,11 @@ cmake --build build --target test-run   # via CMake
 ./build/test/test_runner.exe            # or directly
 ```
 
-The test target depends on the `test/cbelt` submodule — clone with
-`git submodule update --init --recursive`.
+The test target depends on the `test/cbelt` submodule. Clone with:
 
-## Documentation
-
-Full user documentation lives at <https://alex98235.github.io/BFWM/>
-(source in [`website/`](website/)).
+```bash
+git submodule update --init --recursive
+```
 
 ## Development
 

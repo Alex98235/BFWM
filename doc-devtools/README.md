@@ -98,8 +98,7 @@ cmake --build build --target run-debug  # console debug build
 Runtime options:
 
 - `--no-bar` — disable the per-monitor bar.
-- `--config <path>` — path to `config.lua` (default: resolved from the exe
-  location, falling back to `../config.lua`).
+- `--config <path>` — path to `config.lua`.
 
 ## Testing
 
@@ -109,7 +108,11 @@ cmake --build build --target test-run   # via CMake
 ```
 
 The test target depends on the `test/cbelt` **git submodule**, so first check
-out a clone with `git submodule update --init --recursive`.
+out a clone with:
+
+```bash
+git submodule update --init --recursive
+```
 
 ## Build options
 
