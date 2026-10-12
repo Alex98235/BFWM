@@ -120,10 +120,10 @@ void ClampRectScaledToDpi(RECT *rect, RECT const *logical_rect,
    if (dpi > DpiSystem::BaseDpi()) {
       LONG const logical_w = logical_rect->right - logical_rect->left;
       LONG const logical_h = logical_rect->bottom - logical_rect->top;
-      LONG const scale = (LONG)dpi;
-      LONG const base = (LONG)DpiSystem::BaseDpi();
-      rect->right = rect->left + (LONG)(logical_w * scale / base);
-      rect->bottom = rect->top + (LONG)(logical_h * scale / base);
+      rect->right =
+          rect->left + DpiSystem::Scale(static_cast<int>(logical_w), dpi);
+      rect->bottom =
+          rect->top + DpiSystem::Scale(static_cast<int>(logical_h), dpi);
    }
    ClampToRect(*work_area, rect);
 }
