@@ -110,9 +110,14 @@ void BFWMRestoreWindowStyle(HWND hwnd, const BFWMWindowStyle *style) {
    SetWindowLong(hwnd, GWL_EXSTYLE, (LONG)style->exStyle);
 }
 
-void BFWMApplyFullscreenStyle(HWND hwnd) {
-   SetWindowLong(hwnd, GWL_STYLE,
-                 WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
+void BFWMApplyFullscreenStyle(HWND hwnd, BOOL preserve_menu) {
+   LONG style = WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+   if (preserve_menu != 0) {
+      LONG const current = GetWindowLong(hwnd, GWL_STYLE);
+      if ((current & WS_SYSMENU) != 0)
+         style |= WS_SYSMENU;
+   }
+   SetWindowLong(hwnd, GWL_STYLE, style);
    SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_TOPMOST);
 }
 

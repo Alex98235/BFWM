@@ -195,6 +195,13 @@ inline auto resize_in_direction(SharedState *shared, MainContext *main,
 // Fullscreen helpers
 // ============================================================
 
+/// Restore a window's saved style. Shared by both fullscreen-exit paths.
+inline void RestoreFullscreenStyle(Window *win) {
+   HWND hwnd = win->GetHwnd();
+   SetWindowLong(hwnd, GWL_STYLE, win->SavedStyle());
+   SetWindowLong(hwnd, GWL_EXSTYLE, win->SavedExstyle());
+}
+
 inline void EnterFullscreenForHwnd(HWND hwnd, struct SharedState *shared,
                                    struct MainContext *main, Window *win,
                                    Workspace *workspace, Monitor *mon) {
@@ -209,17 +216,7 @@ inline void EnterFullscreenForHwnd(HWND hwnd, struct SharedState *shared,
 
    RECT const fs_rect = mon->GetRect();
 
-   // New style: POPUP removes title bar, borders, and sizing grip
-   LONG new_style = WS_POPUP | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-   LONG const new_exstyle = WS_EX_TOPMOST;
-
-   // If the window had a menu, preserve it
-   if ((win->SavedStyle() & WS_SYSMENU) != 0) {
-      new_style |= WS_SYSMENU;
-   }
-
-   SetWindowLong(hwnd, GWL_STYLE, new_style);
-   SetWindowLong(hwnd, GWL_EXSTYLE, new_exstyle);
+   BFWMApplyFullscreenStyle(hwnd, TRUE);
 
    /* The monitor rect is physical; a DPI-unaware target on a scaled monitor
     * must receive it in its own logical space (see IssueRectWithDpiConversion)
@@ -256,8 +253,7 @@ inline void ExitFullscreenForHwnd(HWND hwnd, SharedState *shared,
    win->SetFullscreen(FALSE);
 
    // Restore window style
-   SetWindowLong(hwnd, GWL_STYLE, win->SavedStyle());
-   SetWindowLong(hwnd, GWL_EXSTYLE, win->SavedExstyle());
+   RestoreFullscreenStyle(win);
 
    // Make sure it's not topmost
    BFWMSetWindowZ(hwnd, BFWM_Z_NOTOPMOST);
@@ -517,8 +513,7 @@ inline void RestoreFullscreenForHwnd(Window *win) {
    if ((win == nullptr) || (IsWindow(win->GetHwnd()) == 0))
       return;
    win->SetFullscreen(FALSE);
-   SetWindowLong(win->GetHwnd(), GWL_STYLE, win->SavedStyle());
-   SetWindowLong(win->GetHwnd(), GWL_EXSTYLE, win->SavedExstyle());
+   RestoreFullscreenStyle(win);
    BFWMEnableNCRendering(win->GetHwnd());
    BFWMSetWindowPosEx(win->GetHwnd(), HWND_NOTOPMOST, win->SavedRectPtr(),
                       SWP_NOCOPYBITS | SWP_FRAMECHANGED);
