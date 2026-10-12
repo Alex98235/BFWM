@@ -231,7 +231,8 @@ inline void IssueMove(Window *win, const RECT *rect, struct SharedState *shared,
  * @param win       The window to consider
  * @param desired   The desired frame rect from the layout engine
  * @param workspace The window's workspace (engine removal on float)
- * @param ctx       The BFWM context
+ * @param shared       The BFWM shared state
+ * @param main         The main-thread context
  */
 inline void MaybeIssueMove(Window *win, const RECT *desired,
                            Workspace * /*workspace*/,

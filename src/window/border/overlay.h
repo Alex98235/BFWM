@@ -106,7 +106,8 @@ class Overlay {
     * no strip surfaces exist and every method becomes a no-op. Callers need no
     * null checks; the border simply dies and the WM survives.
     *
-    * @param ctx    The BFWM context (owner)
+    * @param shared    The BFWM shared state
+    * @param main      The main-thread context (owner)
     * @param target The HWND this ring decorates
     * @param color  Border COLORREF (0x00BBGGRR)
     * @param width  Border thickness in logical pixels
@@ -308,7 +309,8 @@ class Overlay {
     * fullscreen enters. Flushes + commits once when anything changed; no idle
     * churn.
     *
-    * @param ctx The BFWM context (owner)
+    * @param shared The BFWM shared state
+    * @param main   The main-thread context (owner)
     */
    static void OverlayReconcileAll(struct SharedState *shared,
                                    struct MainContext *main);

@@ -16,7 +16,8 @@ class Window;
  * This must be called after a window is forcefully destroyed (e.g. via
  * TerminateProcess) so that all internal registries remain consistent.
  *
- * @param ctx   The BFWM context
+ * @param shared   The BFWM shared state
+ * @param main     The main-thread context
  * @param hWnd  HWND of the terminated window
  */
 void CleanupTerminatedWindow(struct SharedState *shared,

@@ -96,7 +96,9 @@ void ClampRectWithInsets(RECT *rect, RECT const *bounds,
  * pass is applied by WorkspaceApplyLayout after this returns.
  *
  * @param workspace The workspace to place
- * @param ctx The BFWM context (moves_in_flight is recomputed each pass)
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context (moves_in_flight is recomputed each
+ * pass)
  */
 void PlacementApply(Workspace *workspace, struct SharedState *shared,
                     struct MainContext *main);
@@ -112,7 +114,8 @@ void PlacementApply(Workspace *workspace, struct SharedState *shared,
  *
  * @param win  The window to move
  * @param rect The desired frame rect
- * @param ctx  The BFWM context (unused except for API symmetry)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (unused except for API symmetry)
  */
 void PlacementIssueMove(Window *win, const RECT *rect,
                         struct SharedState *shared, struct MainContext *main);
@@ -134,7 +137,8 @@ void PlacementIssueMove(Window *win, const RECT *rect,
  * move onto their new slots, and a warning toast notifies the user (once per
  * pass) that a window refused its size.
  *
- * @param ctx The BFWM context
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context
  */
 void AdoptStuckLayouts(struct SharedState *shared, struct MainContext *main);
 

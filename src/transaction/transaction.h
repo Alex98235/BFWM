@@ -102,7 +102,8 @@ class TransactionState {
  * After commit the pending queue is cleared, the transaction is ended,
  * and all window changes happen in a single batch.
  *
- * @param ctx The BFWM context
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context
  */
 void BFWMTransactionCommit(struct SharedState *shared,
                            struct MainContext *main);
@@ -114,7 +115,9 @@ void BFWMTransactionCommit(struct SharedState *shared,
  *   - Applies internal-state tracking (no Win32 calls)
  *   - Begins a transaction, queues the appropriate operations, commits
  *
- * @param ctx The BFWM context
+ * @param shared The BFWM shared state
+ * @param worker The worker thread context
+ * @param main   The main-thread context
  */
 void DrainEventQueue(SharedState *shared, WorkerContext *worker,
                      MainContext *main);

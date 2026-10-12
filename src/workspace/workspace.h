@@ -152,7 +152,8 @@ auto CreateWorkspaceForMonitor(SharedState *shared, MainContext *main,
 /**
  * @brief Scale the logical gap/border config for a monitor's effective DPI.
  *
- * @param ctx  The BFWM context (main->dpi must be initialized)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (main->dpi must be initialized)
  * @param hmon The monitor handle to scale for
  * @return Physical-pixel gap_between / gap_edge / border_width for @p hmon
  */
@@ -167,7 +168,8 @@ auto ScaleLayoutConfigForMonitor(struct SharedState *shared,
  * given handle.  Intended to avoid duplicating this scan in multiple
  * event handlers.
  *
- * @param ctx  The BFWM context (must be non-NULL)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  * @param hwnd The window handle to look for
  * @return Workspace* Pointer to the workspace, or NULL if not found
  */
@@ -181,7 +183,8 @@ auto FindWorkspaceByHwnd(struct SharedState *shared, struct MainContext *main,
  * Otherwise, applies focus immediately.
  *
  * @param hwnd The window to focus
- * @param ctx The BFWM context
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  */
 void FocusWindow(HWND hwnd, struct SharedState *shared,
                  struct MainContext *main);
@@ -193,7 +196,8 @@ void FocusWindow(HWND hwnd, struct SharedState *shared,
  * Always applies focus immediately, regardless of transaction state.
  *
  * @param hwnd The window to focus
- * @param ctx The BFWM context
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  */
 auto FocusWindowImmediate(HWND hwnd, struct SharedState *shared,
                           struct MainContext *main) -> BOOL;
@@ -203,7 +207,8 @@ auto FocusWindowImmediate(HWND hwnd, struct SharedState *shared,
  *        calling SetForegroundWindow.
  *
  * @param hwnd The HWND that now has foreground focus
- * @param ctx  The BFWM context (updated immediately)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (updated immediately)
  */
 void UpdateFocusTracking(HWND hwnd, struct SharedState *shared,
                          struct MainContext *main);
@@ -216,7 +221,8 @@ void UpdateFocusTracking(HWND hwnd, struct SharedState *shared,
  * workspace is not already focused. Lives here so input/hooks.c does not need
  * to depend on workspace.h.
  *
- * @param ctx   The BFWM context
+ * @param shared   The BFWM shared state
+ * @param main     The main-thread context
  * @param point The cursor position at click time
  */
 void WorkspaceHandleDesktopClick(struct SharedState *shared,
@@ -229,7 +235,8 @@ void WorkspaceHandleDesktopClick(struct SharedState *shared,
  * Focuses a managed window under the cursor when its workspace is the active
  * one. Lives here so input/hooks.c does not need to depend on workspace.h.
  *
- * @param ctx   The BFWM context
+ * @param shared   The BFWM shared state
+ * @param main     The main-thread context
  * @param point The cursor position at hover time
  */
 void WorkspaceHandleMouseHover(struct SharedState *shared,
@@ -265,7 +272,8 @@ void WorkspaceActivateSimple(struct SharedState *shared,
  * No-op when the window's workspace is already the monitor's active one.
  *
  * @param hwnd The HWND whose workspace should be activated
- * @param ctx  The BFWM context
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  */
 void WorkspaceActivateForWindow(HWND hwnd, struct SharedState *shared,
                                 struct MainContext *main);
@@ -307,7 +315,8 @@ static inline void ForceDwmComposite() { DwmFlush(); }
  * whose work area contains the window's centre point.  Returns NULL if
  * the centre falls outside all monitor work areas.
  *
- * @param ctx  The BFWM context
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  * @param hwnd The window handle to locate
  * @return Workspace* Pointer to the workspace, or NULL
  */

@@ -58,7 +58,8 @@ void parse_key_string(const char *key_str, ModifierState *mods,
  * additional options from the Lua table at opts_table_idx.
  *
  * @param config          The Lua config state
- * @param ctx             The BFWM context
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
  * @param action_name     The action type name (e.g. "spawn", "focus")
  * @param opts_table_idx  Lua stack index for the options table
  * @return A newly allocated BFWMAction, or NULL on failure

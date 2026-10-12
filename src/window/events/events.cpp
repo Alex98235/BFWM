@@ -398,7 +398,8 @@ inline void CheckResizeSettle(MainContext *main, HWND hwnd,
  * Falls back: existing workspace by id → create on the monitor pinned by the
  * workspace config → create on the focused workspace's monitor.
  *
- * @param ctx The BFWM context
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context
  * @param win The managed window (rule_target_workspace must be > 0)
  * @return The rule-resolved workspace, or nullptr
  */
@@ -443,7 +444,7 @@ inline auto ResolveRuleWorkspace(SharedState *shared, MainContext *main,
  * Falls back to the focused workspace when the centre is outside every
  * monitor's work area or no active workspace covers it.
  *
- * @param ctx  The BFWM context
+ * @param main  The main-thread context
  * @param hwnd The window to hit-test
  * @return The hit-test workspace, or nullptr
  */
@@ -473,7 +474,8 @@ inline auto ResolveHitTestWorkspace(MainContext *main, HWND hwnd)
  * engine insert runs first, then the grow-array + append, and floating-window
  * clamping runs last (it may queue a move op for the clamped rect).
  *
- * @param ctx       The BFWM context
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context
  * @param workspace The target workspace
  * @param hwnd      The window handle
  * @param win       The managed window

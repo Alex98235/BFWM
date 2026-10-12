@@ -210,13 +210,15 @@ class Snackbar {
    /**
     * @brief Per-frame tick — expire old items, pull from the queue,
     *        re-lay out, and reposition the window.
-    * @param ctx The BFWM context.
+    * @param shared The BFWM shared state.
+    * @param main   The main-thread context.
     */
    static void Tick(struct SharedState *shared, struct MainContext *main);
 
    /**
     * @brief Enqueue a notification for display.
-    * @param ctx     The BFWM context.
+    * @param shared The BFWM shared state.
+    * @param main   The main-thread context.
     * @param level   Severity level.
     * @param message Wide-character message text.
     * @param force   If TRUE, always show and use forced color for level bar.

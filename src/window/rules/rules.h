@@ -138,7 +138,8 @@ auto GetWindowProcessName(HWND hwnd, char *buf, size_t buf_size) -> const
  * Iterates the global rules list and applies the first matching
  * rule's action.
  *
- * @param ctx        The BFWM context
+ * @param shared        The BFWM shared state
+ * @param main          The main-thread context
  * @param window     The window to apply rules to
  * @param class_name Window class name
  * @param title      Window title
