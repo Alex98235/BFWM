@@ -1785,30 +1785,6 @@ inline void activate_another_workspace(struct SharedState *shared,
    }
 }
 
-inline auto find_workspace_index(Monitor *mon, Workspace *workspace) -> int {
-   for (size_t j = 0; j < mon->Workspaces().size(); j++) {
-      if (mon->Workspaces()[j] == workspace)
-         return static_cast<int>(j);
-   }
-   return -1;
-}
-
-inline void remove_workspace_from_source(Monitor *mon, int ws_idx) {
-   mon->RemoveWorkspaceAt(static_cast<size_t>(ws_idx));
-}
-
-inline void add_workspace_to_destination(Monitor *dst_mon, Workspace *workspace,
-                                         BOOL was_active,
-                                         struct SharedState *shared,
-                                         struct MainContext *main) {
-   dst_mon->TrackWorkspace(workspace);
-   workspace->RecalculateRect(dst_mon, shared, main);
-   if (dst_mon->GetActiveWorkspace() == nullptr)
-      dst_mon->SetActiveWorkspace(workspace);
-   if (was_active != 0)
-      WorkspaceActivate(shared, main, dst_mon, workspace->GetIdentifier());
-}
-
 inline void create_workspace_for_empty_monitor(Monitor *mon,
                                                struct SharedState *shared,
                                                struct MainContext *main) {
@@ -1855,12 +1831,13 @@ move_workspace_to_monitor(struct SharedState *shared, struct MainContext *main,
    if (was_active != 0)
       activate_another_workspace(shared, main, mon, workspace);
 
-   int const ws_idx = find_workspace_index(mon, workspace);
-   if (ws_idx < 0)
+   if (!ReparentWorkspaceToMonitor(workspace, mon, dst_mon, shared, main))
       return;
 
-   remove_workspace_from_source(mon, ws_idx);
-   add_workspace_to_destination(dst_mon, workspace, was_active, shared, main);
+   if (dst_mon->GetActiveWorkspace() == nullptr)
+      dst_mon->SetActiveWorkspace(workspace);
+   if (was_active != 0)
+      WorkspaceActivate(shared, main, dst_mon, workspace->GetIdentifier());
    create_workspace_for_empty_monitor(mon, shared, main);
 }
 
@@ -1868,8 +1845,11 @@ inline void update_workspace_configs_on_reload(struct SharedState *shared,
                                                struct MainContext *main) {
    for (size_t m = 0; m < main->monitors->Size(); m++) {
       Monitor *mon = main->monitors->At(m);
-      for (size_t w = 0; w < mon->Workspaces().size(); w++) {
-         Workspace *workspace = mon->Workspaces()[w];
+      /* Snapshot the workspace list: move_workspace_to_monitor removes the
+       * workspace from this monitor's array, which would otherwise shift the
+       * next entry into the current slot and skip it. */
+      auto const ws_list = mon->Workspaces();
+      for (Workspace *workspace : ws_list) {
          const struct WorkspaceConfig *workspace_cfg =
              FindWorkspaceConfig(shared, main, workspace->GetIdentifier());
 

@@ -971,13 +971,7 @@ auto HandleMoveToWorkspace(SharedState *shared, MainContext *main,
       // failed layout insert), AddWindow never called FocusWindow, so
       // WorkspaceActivate took its normal path and already destroyed src_ws.
       // Only destroy when the source workspace is still tracked.
-      bool src_tracked = false;
-      for (auto *workspace : src_mon->Workspaces()) {
-         if (workspace == src_ws) {
-            src_tracked = true;
-            break;
-         }
-      }
+      bool const src_tracked = src_mon->ContainsWorkspace(src_ws);
       if (src_tracked)
          WorkspaceDestroyIfEmpty(src_mon, src_ws);
    }
@@ -1216,23 +1210,10 @@ auto HandleMoveWorkspaceToMonitor(SharedState *shared, MainContext *main,
    }
 
    // --- Step 2: move workspace between monitors ---
-   int ws_idx = -1;
-   for (size_t j = 0; j < src_mon->Workspaces().size(); j++) {
-      if (src_mon->Workspaces()[j] == workspace) {
-         ws_idx = (int)j;
-         break;
-      }
-   }
-   if (ws_idx < 0) {
+   if (!ReparentWorkspaceToMonitor(workspace, src_mon, dst_mon, shared, main)) {
       BFWMTransactionCommit(shared, main);
       return 0;
    }
-   src_mon->RemoveWorkspaceAt((size_t)ws_idx);
-
-   dst_mon->TrackWorkspace(workspace);
-
-   // Recalculate workspace rect for new monitor geometry
-   workspace->RecalculateRect(dst_mon, shared, main);
    // User explicitly moved this workspace — clear origin so auto-restore
    // on monitor reconnect does not pull it back.
    workspace->ClearOriginMonitorUid();

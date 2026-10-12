@@ -602,14 +602,7 @@ inline void RestoreDonorMonitors(struct SharedState *shared,
 
       if (other->GetActiveWorkspace() == nullptr)
          continue;
-      BOOL found = FALSE;
-      for (size_t w = 0; w < other->Workspaces().size(); w++) {
-         if (other->Workspaces()[w] == other->GetActiveWorkspace()) {
-            found = TRUE;
-            break;
-         }
-      }
-      if (found == FALSE)
+      if (!other->ContainsWorkspace(other->GetActiveWorkspace()))
          other->SetActiveWorkspace(other->Workspaces()[0]);
    }
 }

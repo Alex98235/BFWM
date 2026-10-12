@@ -69,6 +69,21 @@ class Monitor {
    }
    /** @} */
 
+   /// Linear index of a workspace in this monitor's array, or -1
+   [[nodiscard]] auto IndexOfWorkspace(Workspace *workspace) const
+       -> ptrdiff_t {
+      for (size_t i = 0; i < workspaces_.size(); i++) {
+         if (workspaces_[i] == workspace)
+            return static_cast<ptrdiff_t>(i);
+      }
+      return -1;
+   }
+
+   /// TRUE when the workspace is tracked on this monitor
+   [[nodiscard]] auto ContainsWorkspace(Workspace *workspace) const -> bool {
+      return std::ranges::find(workspaces_, workspace) != workspaces_.end();
+   }
+
    // Mutators
    void SetHandle(HMONITOR v) { handle_ = v; }
    void SetRect(RECT v) { rect_ = v; }
