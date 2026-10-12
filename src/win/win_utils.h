@@ -158,8 +158,9 @@ void BFWMRestoreWindowStyle(HWND hwnd, const BFWMWindowStyle *style);
  *
  * Removes borders and title bar for an immersive fullscreen experience.
  * @param hwnd Window handle
+ * @param preserve_menu Whether to keep the window's WS_SYSMENU flag.
  */
-void BFWMApplyFullscreenStyle(HWND hwnd);
+void BFWMApplyFullscreenStyle(HWND hwnd, BOOL preserve_menu = FALSE);
 
 /**
  * @brief Attach user data to a window via SetProp/WindowLongPtr.
