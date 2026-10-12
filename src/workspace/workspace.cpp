@@ -840,8 +840,8 @@ void WorkspaceDestroyIfEmpty(Monitor *mon, Workspace *workspace) {
    ptrdiff_t const idx = mon->IndexOfWorkspace(workspace);
    if (idx >= 0) {
       RECT const mon_rect = mon->GetRect();
-      InfoW(L"Destroying empty workspace %zu on monitor at (%ld,%ld)",
-            workspace->GetIdentifier(), mon_rect.left, mon_rect.top);
+      DebugW(L"Destroying empty workspace %zu on monitor at (%ld,%ld)",
+             workspace->GetIdentifier(), mon_rect.left, mon_rect.top);
       delete workspace;
       mon->RemoveWorkspaceAt(static_cast<size_t>(idx));
       return;
