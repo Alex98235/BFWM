@@ -377,9 +377,9 @@ void Workspace::AddWindow(struct SharedState *shared, struct MainContext *main,
 void Workspace::RemoveWindow(Window *window) {
    // Always remove from the window array — this must happen regardless of
    // layout-tree membership (auto-fullscreen windows are never inserted).
-   auto iterator = std::ranges::find(windows_, window);
-   if (iterator != windows_.end())
-      windows_.erase(iterator);
+   ptrdiff_t const idx = IndexOfWindow(window);
+   if (idx >= 0)
+      windows_.erase(windows_.begin() + idx);
 
    if (engine_ != nullptr)
       engine_->remove(window->GetHwnd());
@@ -784,10 +784,8 @@ auto FindMonitorByWorkspace(struct SharedState *shared,
    if ((shared == nullptr) || (workspace == nullptr))
       return nullptr;
    for (auto *mon : main->monitors->Monitors()) {
-      for (size_t j = 0; j < mon->Workspaces().size(); j++) {
-         if (mon->Workspaces()[j] == workspace)
-            return mon;
-      }
+      if (mon->ContainsWorkspace(workspace))
+         return mon;
    }
    return nullptr;
 }
@@ -826,15 +824,14 @@ void WorkspaceDestroyIfEmpty(Monitor *mon, Workspace *workspace) {
    if (mon->Workspaces().size() <= 1)
       return;
 
-   for (size_t j = 0; j < mon->Workspaces().size(); j++) {
-      if (mon->Workspaces()[j] == workspace) {
-         RECT const mon_rect = mon->GetRect();
-         InfoW(L"Destroying empty workspace %zu on monitor at (%ld,%ld)",
-               workspace->GetIdentifier(), mon_rect.left, mon_rect.top);
-         delete workspace;
-         mon->RemoveWorkspaceAt(j);
-         return;
-      }
+   ptrdiff_t const idx = mon->IndexOfWorkspace(workspace);
+   if (idx >= 0) {
+      RECT const mon_rect = mon->GetRect();
+      InfoW(L"Destroying empty workspace %zu on monitor at (%ld,%ld)",
+            workspace->GetIdentifier(), mon_rect.left, mon_rect.top);
+      delete workspace;
+      mon->RemoveWorkspaceAt(static_cast<size_t>(idx));
+      return;
    }
 }
 
@@ -1161,9 +1158,7 @@ void Workspace::MoveToMonitor(Monitor *target_mon, struct SharedState *shared,
       return;
 
    /* Remove from source monitor's workspace array */
-   auto const &src_workspaces = src_mon->Workspaces();
-   auto src_it = std::ranges::find(src_workspaces, this);
-   if (src_it == src_workspaces.end())
+   if (!src_mon->ContainsWorkspace(this))
       return;
    src_mon->RemoveWorkspace(this);
 

@@ -74,6 +74,15 @@ class Workspace {
    /// Recomputed in RecalculateRect.
    [[nodiscard]] auto GetUsableRect() const -> RECT { return usable_rect_; }
 
+   /// Linear index of a window in this workspace's array, or -1
+   [[nodiscard]] auto IndexOfWindow(Window *window) const -> ptrdiff_t {
+      for (size_t i = 0; i < windows_.size(); i++) {
+         if (windows_[i] == window)
+            return static_cast<ptrdiff_t>(i);
+      }
+      return -1;
+   }
+
    /// Managed windows in this workspace (read-only iteration)
    [[nodiscard]] auto Windows() const -> std::vector<Window *> const & {
       return windows_;

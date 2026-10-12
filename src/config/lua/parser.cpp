@@ -1786,11 +1786,7 @@ inline void activate_another_workspace(struct SharedState *shared,
 }
 
 inline auto find_workspace_index(Monitor *mon, Workspace *workspace) -> int {
-   for (size_t j = 0; j < mon->Workspaces().size(); j++) {
-      if (mon->Workspaces()[j] == workspace)
-         return static_cast<int>(j);
-   }
-   return -1;
+   return static_cast<int>(mon->IndexOfWorkspace(workspace));
 }
 
 inline void remove_workspace_from_source(Monitor *mon, int ws_idx) {
