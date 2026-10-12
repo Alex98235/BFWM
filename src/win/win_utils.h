@@ -64,22 +64,24 @@ auto BFWMSetWindowPos(HWND hwnd, const RECT *rect) -> BOOL;
  * @brief Issue a physical rect to a window, converting to the target's
  *        logical coordinate space when it is DPI-unaware on a scaled monitor.
  *
- * Mirrors the IssueMove conversion: for an unaware target on a scaled monitor
- * the thread is switched into the target's awareness context and the rect is
- * unscaled so the DWM composes it back to the exact physical rect. Aware
- * targets and 100%-scale destinations are issued unchanged with no context
- * switch (zero behaviour change for PM-aware windows).
+ * Shared by the placement pipeline (IssueMove) and the synchronous
+ * float/restore paths: for an unaware target on a scaled monitor the thread is
+ * switched into the target's awareness context and the rect is unscaled so the
+ * DWM composes it back to the exact physical rect. Aware targets and
+ * 100%-scale destinations are issued unchanged with no context switch.
  *
- * @param ctx   The BFWM context (DPI registry)
- * @param hwnd  The target window
- * @param hmon  The monitor the rect is in (for its DPI)
- * @param rect  The physical rect to issue
- * @param issue The Win32 call that applies the rect
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context (DPI registry)
+ * @param hwnd   The target window
+ * @param hmon   The monitor the rect is in (for its DPI)
+ * @param rect   The physical rect to issue
+ * @param issue  The Win32 call that applies the rect
+ * @return The result of @p issue
  */
-void IssueRectWithDpiConversion(struct SharedState *shared,
+auto IssueRectWithDpiConversion(struct SharedState *shared,
                                 struct MainContext *main, HWND hwnd,
                                 HMONITOR hmon, RECT rect,
-                                BOOL (*issue)(HWND, const RECT *));
+                                BOOL (*issue)(HWND, const RECT *)) -> BOOL;
 
 /**
  * @brief Z-order positions for BFWMSetWindowZ.

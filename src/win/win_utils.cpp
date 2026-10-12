@@ -30,10 +30,10 @@ auto BFWMSetWindowPos(HWND hwnd, const RECT *rect) -> BOOL {
                              SWP_NOCOPYBITS | SWP_FRAMECHANGED);
 }
 
-void IssueRectWithDpiConversion(struct SharedState *shared,
+auto IssueRectWithDpiConversion(struct SharedState *shared,
                                 struct MainContext *main, HWND hwnd,
                                 HMONITOR hmon, RECT rect,
-                                BOOL (*issue)(HWND, const RECT *)) {
+                                BOOL (*issue)(HWND, const RECT *)) -> BOOL {
    DPI_AWARENESS_CONTEXT target_ctx = GetWindowDpiAwarenessContext(hwnd);
    BOOL const unaware = static_cast<BOOL>(
        (AreDpiAwarenessContextsEqual(target_ctx,
@@ -54,9 +54,10 @@ void IssueRectWithDpiConversion(struct SharedState *shared,
          }
       }
    }
-   issue(hwnd, &rect);
+   BOOL const result = issue(hwnd, &rect);
    if (prev_ctx != nullptr)
       SetThreadDpiAwarenessContext(prev_ctx);
+   return result;
 }
 
 auto BFWMSetWindowZ(HWND hwnd, BFWMZOrder z) -> BOOL {

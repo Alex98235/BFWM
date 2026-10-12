@@ -359,7 +359,12 @@ void Workspace::AddWindow(struct SharedState *shared, struct MainContext *main,
             RECT const clamped = window->ClampTo(mon->GetWorkArea(), dpi);
             if (EqualRect(&clamped, window->SavedRectPtr()) == FALSE) {
                window->SetSavedRect(clamped);
-               BFWMSetWindowPos(window->GetHwnd(), &clamped);
+               /* A DPI-unaware target on a scaled monitor must receive the
+                * clamped rect in its own logical space or the DWM
+                * double-scales it (see IssueRectWithDpiConversion). */
+               IssueRectWithDpiConversion(shared, main, window->GetHwnd(),
+                                          mon->GetHandle(), clamped,
+                                          BFWMSetWindowPos);
                window->MarkOverlayDirty();
             }
          }
