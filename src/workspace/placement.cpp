@@ -165,24 +165,18 @@ namespace {
  * the commit-end flush syncs it only once the move has landed, so the ring is
  * snapped to the landed rect when the placement pass observes the landing.
  *
- * A DPI-unaware target on a scaled monitor is issued the rect in its own
- * (logical) coordinate space while the thread is switched into the target's
- * awareness context: the desired physical rect (already in destination-monitor
- * space — layout engines compute from the destination work area) is converted
- * to logical via DpiSystem::Unscale so the DWM composes it back to the exact
- * physical rect on the destination monitor. Aware targets and 100%-scale
- * destinations are issued unchanged with no context switch (zero behaviour
- * change for PM-aware windows).
+ * The rect is issued through IssueRectWithDpiConversion: a DPI-unaware target
+ * on a scaled monitor receives it in its own (logical) coordinate space so the
+ * DWM composes it back to the exact physical rect; aware targets and
+ * 100%-scale destinations are issued unchanged.
  *
- * @param win  The window to move
- * @param rect The desired frame rect (destination-monitor physical px)
- * @param ctx  The BFWM context (DPI registry for the destination scale)
+ * @param win    The window to move
+ * @param rect   The desired frame rect (destination-monitor physical px)
+ * @param shared The BFWM shared state
+ * @param main   The main-thread context (DPI registry for the destination)
  */
 inline void IssueMove(Window *win, const RECT *rect, struct SharedState *shared,
                       struct MainContext *main) {
-   RECT issued = *rect;
-   DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
-
    /* Cross-monitor moves arm the landing-gate trust (see MaybeIssueMove):
     * once the window demonstrably reaches the destination monitor, the app
     * owns its post-DPI size (aware terminals re-lay-out in WM_DPICHANGED),
@@ -192,46 +186,15 @@ inline void IssueMove(Window *win, const RECT *rect, struct SharedState *shared,
     * unscaling. */
    HMONITOR src_hmon =
        MonitorFromWindow(win->GetHwnd(), MONITOR_DEFAULTTONEAREST);
-   HMONITOR dst_hmon = MonitorFromRect(&issued, MONITOR_DEFAULTTONEAREST);
+   HMONITOR dst_hmon = MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST);
    BOOL const cross_monitor = static_cast<BOOL>(src_hmon != dst_hmon);
 
-   DPI_AWARENESS_CONTEXT target_ctx =
-       GetWindowDpiAwarenessContext(win->GetHwnd());
-   BOOL const unaware = static_cast<BOOL>(
-       (AreDpiAwarenessContextsEqual(target_ctx,
-                                     DPI_AWARENESS_CONTEXT_UNAWARE) != 0) ||
-       (AreDpiAwarenessContextsEqual(
-            target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) != 0));
-   if ((unaware == TRUE) && (shared != nullptr) && (main->dpi != nullptr)) {
-      /* The desired rect is already destination physical px. Passing it from
-       * a PMv2-aware thread makes the system reinterpret it against the
-       * monitor the window is still on (the source), so a cross-monitor move
-       * scales the window by the ratio of the two scales. Issue the logical
-       * rect (physical / dest_scale) inside the target's own awareness
-       * context instead: the DWM then composes it back to the exact physical
-       * rect on the destination monitor. */
-      UINT const dest_dpi = main->dpi->GetDpi(dst_hmon);
-      float const scale = (float)dest_dpi / (float)DpiSystem::BaseDpi();
-      if (scale > 1.0F) {
-         prev_ctx = SetThreadDpiAwarenessContext(target_ctx);
-         if (prev_ctx != nullptr) {
-            /* Switch succeeded: issue the rect in the target's logical
-             * coordinate space (physical / dest_scale, rounded half-up) so
-             * the DWM composes it back to the exact physical rect. On
-             * failure (prev_ctx == nullptr) the physical rect and the PMv2
-             * thread context are kept — best-effort, no worse than the
-             * pre-fix behaviour. */
-            issued.left = DpiSystem::Unscale(rect->left, dest_dpi);
-            issued.top = DpiSystem::Unscale(rect->top, dest_dpi);
-            issued.right = DpiSystem::Unscale(rect->right, dest_dpi);
-            issued.bottom = DpiSystem::Unscale(rect->bottom, dest_dpi);
-         }
-      }
-   }
-
-   BFWMApplyLayoutPosition(win->GetHwnd(), &issued);
-   if (prev_ctx != nullptr)
-      SetThreadDpiAwarenessContext(prev_ctx);
+   /* Issue the destination-physical rect in the target's own coordinate space
+    * when it is DPI-unaware on a scaled monitor — shared with every other
+    * rect-issue path (see IssueRectWithDpiConversion). Aware targets and
+    * 100%-scale destinations are issued unchanged with no context switch. */
+   IssueRectWithDpiConversion(shared, main, win->GetHwnd(), dst_hmon, *rect,
+                              BFWMApplyLayoutPosition);
 
    if (cross_monitor == TRUE) {
       /* Arm the landing-gate trust (see MaybeIssueMove). Do NOT reset

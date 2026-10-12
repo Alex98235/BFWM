@@ -162,7 +162,17 @@ inline auto resize_in_direction(SharedState *shared, MainContext *main,
          }
       }
 
-      BOOL const result = BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
+      /* A DPI-unaware target on a scaled monitor must receive the clamped rect
+       * in its own logical space or the DWM double-scales it (see
+       * IssueRectWithDpiConversion). */
+      BOOL result = FALSE;
+      if (mon != nullptr) {
+         result = IssueRectWithDpiConversion(
+             shared, main, win->GetHwnd(), mon->GetHandle(),
+             *win->SavedRectPtr(), BFWMSetWindowPos);
+      } else {
+         result = BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
+      }
       win->MarkOverlayDirty();
       return static_cast<int>(result == 0);
    }
@@ -705,6 +715,7 @@ auto HandleMoveWindow(SharedState *shared, MainContext *main,
    HWND focused = nullptr;
    Workspace *workspace = nullptr;
    Window *win = nullptr;
+   Monitor *clamp_mon = nullptr;
    {
       ScopedLock const lock(main->lock);
       focused = main->focused_hwnd;
@@ -735,19 +746,28 @@ auto HandleMoveWindow(SharedState *shared, MainContext *main,
          OffsetRect(win->SavedRectPtr(), delta_x, delta_y);
 
          // Clamp to monitor work area so the window stays fully visible
-         Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
-         if (mon != nullptr) {
+         clamp_mon = FindMonitorByWorkspace(shared, main, workspace);
+         if (clamp_mon != nullptr) {
             UINT const dpi = (main->dpi != nullptr)
-                                 ? main->dpi->GetDpi(mon->GetHandle())
+                                 ? main->dpi->GetDpi(clamp_mon->GetHandle())
                                  : DpiSystem::BaseDpi();
-            RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
+            RECT const clamped = win->ClampTo(clamp_mon->GetWorkArea(), dpi);
             win->SetSavedRect(clamped);
          }
       }
    }
 
    if ((win != nullptr) && (win->IsFloating() != 0)) {
-      BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
+      /* A DPI-unaware target on a scaled monitor must receive the clamped rect
+       * in its own logical space or the DWM double-scales it (see
+       * IssueRectWithDpiConversion). */
+      if (clamp_mon != nullptr) {
+         IssueRectWithDpiConversion(shared, main, win->GetHwnd(),
+                                    clamp_mon->GetHandle(),
+                                    *win->SavedRectPtr(), BFWMSetWindowPos);
+      } else {
+         BFWMSetWindowPos(win->GetHwnd(), win->SavedRectPtr());
+      }
       win->MarkOverlayDirty();
       return 0;
    }
