@@ -155,7 +155,7 @@ inline auto resize_in_direction(SharedState *shared, MainContext *main,
          {
             ScopedLock const lock(main->lock);
             UINT const dpi = (main->dpi != nullptr)
-                                 ? main->dpi->GetDpi(mon->GetHandle())
+                                 ? main->dpi->GetDpiOrDefault(mon->GetHandle())
                                  : DpiSystem::BaseDpi();
             RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
             win->SetSavedRect(clamped);
@@ -310,11 +310,9 @@ inline void GetPreferredFloatRect(HWND hwnd, Workspace *workspace,
        (AreDpiAwarenessContextsEqual(
             target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
 
-   UINT dpi = ((main->dpi != nullptr) && (mon != nullptr))
-                  ? main->dpi->GetDpi(mon->GetHandle())
-                  : DpiSystem::BaseDpi();
-   if (dpi == 0)
-      dpi = DpiSystem::BaseDpi();
+   UINT const dpi = ((main->dpi != nullptr) && (mon != nullptr))
+                        ? main->dpi->GetDpiOrDefault(mon->GetHandle())
+                        : DpiSystem::BaseDpi();
 
    /* Comparison space: physical for aware targets, logical for unaware ones.
     * The 90%/60% thresholds are applied in the same space as the norm. */
@@ -460,16 +458,6 @@ inline auto CenterFloatingWindowOnMonitor(Window *win, Monitor *dst_mon,
       win->MarkOverlayDirty();
       win->SetSavedRect(r);
    }
-}
-
-inline auto NameToLayoutType(const char *name) -> LayoutType {
-   if (strcmpi_portable(name, "dwindle") == 0)
-      return DWINDLE;
-   if (strcmpi_portable(name, "monocle") == 0)
-      return MONOCLE;
-   if (strcmpi_portable(name, "master") == 0)
-      return MASTER;
-   return LAYOUT_NONE;
 }
 
 inline auto SwitchWorkspaceLayout(SharedState *shared, MainContext *main,
@@ -743,9 +731,10 @@ auto HandleMoveWindow(SharedState *shared, MainContext *main,
          // Clamp to monitor work area so the window stays fully visible
          clamp_mon = FindMonitorByWorkspace(shared, main, workspace);
          if (clamp_mon != nullptr) {
-            UINT const dpi = (main->dpi != nullptr)
-                                 ? main->dpi->GetDpi(clamp_mon->GetHandle())
-                                 : DpiSystem::BaseDpi();
+            UINT const dpi =
+                (main->dpi != nullptr)
+                    ? main->dpi->GetDpiOrDefault(clamp_mon->GetHandle())
+                    : DpiSystem::BaseDpi();
             RECT const clamped = win->ClampTo(clamp_mon->GetWorkArea(), dpi);
             win->SetSavedRect(clamped);
          }
@@ -1000,9 +989,7 @@ auto HandleMoveToWorkspace(SharedState *shared, MainContext *main,
 
    // Ensure the moved window is not cloaked — ApplyLayout's
    // re-cloak logic may have cloaked it when the source became empty.
-   BOOL is_cloaked = FALSE;
-   DwmGetWindowAttribute(win->GetHwnd(), DWMWA_CLOAKED, &is_cloaked,
-                         sizeof(is_cloaked));
+   BOOL const is_cloaked = BFWMIsWindowCloaked(win->GetHwnd());
    if (is_cloaked != 0) {
       SetWindowCloakState(win->GetHwnd(), FALSE);
       win->SetCloaked(FALSE);
@@ -1303,7 +1290,7 @@ void CheckPendingKills(SharedState *shared, MainContext *main) {
       if (GetTickCount() - s_pending_kill_times[index] >= KILL_TIMEOUT_MS) {
          // If the window handled WM_CLOSE by hiding itself (tray app),
          // don't force-kill — that would trigger a restart cycle.
-         if ((IsWindowVisible(hwnd) == 0) || (IsIconic(hwnd) != 0)) {
+         if (BFWMIsWindowShown(hwnd) == FALSE) {
             s_pending_kills[index] = s_pending_kills[--s_pending_kill_count];
             continue;
          }

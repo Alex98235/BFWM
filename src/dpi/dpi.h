@@ -147,6 +147,17 @@ class DpiSystem {
    [[nodiscard]] auto GetDpi(HMONITOR hmon) const -> UINT;
 
    /**
+    * @brief Look up a monitor's effective DPI, falling back to BaseDpi().
+    *
+    * The null-dpi guard (dpi != 0 ? dpi : BaseDpi()) is folded in so the
+    * callers of the common pattern can drop their own ternary.
+    *
+    * @param hmon Monitor handle
+    * @return The monitor's DPI, or BaseDpi() when unknown
+    */
+   [[nodiscard]] auto GetDpiOrDefault(HMONITOR hmon) const -> UINT;
+
+   /**
     * @brief Look up a monitor's scale factor (dpi / 96.0f).
     *
     * @param hmon Monitor handle
@@ -162,6 +173,15 @@ class DpiSystem {
     * @return Scaled physical value
     */
    auto ScaleForMonitor(HMONITOR hmon, int logical) const -> int;
+
+   /**
+    * @brief Inverse scale all four fields of a physical RECT to logical pixels.
+    *
+    * @param physical Physical rectangle
+    * @param dpi      Source DPI
+    * @return Unscaled logical rectangle
+    */
+   static auto UnscaleRect(RECT physical, UINT dpi) -> RECT;
 
  private:
    /// Registry entry: monitor handle + effective DPI

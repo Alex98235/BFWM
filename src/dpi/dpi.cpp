@@ -87,9 +87,24 @@ auto DpiSystem::GetScale(HMONITOR hmon) const -> float {
    return (float)GetDpi(hmon) / BaseDpi();
 }
 
+auto DpiSystem::GetDpiOrDefault(HMONITOR hmon) const -> UINT {
+   UINT const dpi = GetDpi(hmon);
+   return (dpi != 0) ? dpi : BaseDpi();
+}
+
 auto DpiSystem::ScaleForMonitor(HMONITOR hmon, int logical) const -> int {
    UINT const dpi = GetDpi(hmon);
    if (dpi == 0)
       return logical; // unknown monitor — identity (no scaling)
    return Scale(logical, dpi);
+}
+
+auto DpiSystem::UnscaleRect(RECT physical, UINT dpi) -> RECT {
+   RECT unscaled = {
+       .left = Unscale(physical.left, dpi),
+       .top = Unscale(physical.top, dpi),
+       .right = Unscale(physical.right, dpi),
+       .bottom = Unscale(physical.bottom, dpi),
+   };
+   return unscaled;
 }

@@ -183,4 +183,18 @@ auto BFWMGetWindowData(HWND hwnd) -> void *;
  */
 auto BFWMEnableNCRendering(HWND hwnd) -> BOOL;
 
+/**
+ * @brief TRUE when DWM reports the window as cloaked.
+ * @param hwnd Window handle
+ * @return TRUE when cloaked
+ */
+auto BFWMIsWindowCloaked(HWND hwnd) -> BOOL;
+
+/**
+ * @brief TRUE when the window is visible and not minimized.
+ * @param hwnd Window handle
+ * @return TRUE when visible and not iconic
+ */
+auto BFWMIsWindowShown(HWND hwnd) -> BOOL;
+
 #endif
