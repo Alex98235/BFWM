@@ -78,8 +78,7 @@ inline void LowerFullscreenWindows(HWND hwnd, Workspace *hwnd_workspace,
    for (auto *w : hwnd_workspace->Windows()) {
       if ((w->IsFullscreen() == FALSE) &&
           (w->IsUnmanagedFullscreen() == FALSE) &&
-          (IsWindowVisible(w->GetHwnd()) == TRUE) &&
-          (IsIconic(w->GetHwnd()) == FALSE)) {
+          BFWMIsWindowShown(w->GetHwnd()) == TRUE) {
          BFWMSetWindowZ(w->GetHwnd(), BFWM_Z_TOP);
       }
    }
@@ -354,7 +353,7 @@ void Workspace::AddWindow(struct SharedState *shared, struct MainContext *main,
          Monitor *mon = FindMonitorByWorkspace(shared, main, this);
          if (mon != nullptr) {
             UINT const dpi = (shared != nullptr && main->dpi != nullptr)
-                                 ? main->dpi->GetDpi(mon->GetHandle())
+                                 ? main->dpi->GetDpiOrDefault(mon->GetHandle())
                                  : DpiSystem::BaseDpi();
             RECT const clamped = window->ClampTo(mon->GetWorkArea(), dpi);
             if (EqualRect(&clamped, window->SavedRectPtr()) == FALSE) {
@@ -1040,8 +1039,7 @@ void RestoreDesktopState(struct SharedState *shared, struct MainContext *main) {
             if (IsWindowVisible(h) == TRUE)
                BorderManagerSetInactive(shared, main, h);
             BOOL is_cloaked = FALSE;
-            DwmGetWindowAttribute(h, DWMWA_CLOAKED, &is_cloaked,
-                                  sizeof(is_cloaked));
+            is_cloaked = BFWMIsWindowCloaked(h);
             if (is_cloaked == TRUE) {
                SetWindowCloakState(h, FALSE);
                win->SetCloaked(FALSE);
@@ -1096,8 +1094,9 @@ void Workspace::RecalculateRect(Monitor *mon, struct SharedState *shared,
    RECT new_rect = mon->GetWorkArea();
    /* bar_cfg margins are logical config values; scale them to the monitor's
     * physical pixels. mon->GetBarHeight() is already physical. */
-   UINT const dpi = (main->dpi != nullptr) ? main->dpi->GetDpi(mon->GetHandle())
-                                           : DpiSystem::BaseDpi();
+   UINT const dpi = (main->dpi != nullptr)
+                        ? main->dpi->GetDpiOrDefault(mon->GetHandle())
+                        : DpiSystem::BaseDpi();
    new_rect.top += DpiSystem::Scale(shared->config.bar_cfg.margin.top, dpi) +
                    mon->GetBarHeight() +
                    DpiSystem::Scale(shared->config.bar_cfg.margin.bottom, dpi);

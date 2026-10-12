@@ -285,7 +285,7 @@ void Snackbar::TickNotifications() {
    const SnackbarConfig *cfg = &shared->config.snackbar;
    if (cfg->enabled == 0) {
       if (window_visible != 0) {
-         ShowWindow(hwnd, SW_HIDE);
+         BFWMHideWindow(hwnd);
          window_visible = FALSE;
       }
       return;
@@ -809,7 +809,7 @@ void Snackbar::UpdateWindow() {
    const SnackbarConfig *cfg = &shared->config.snackbar;
    if (active_count == 0) {
       if (window_visible != 0) {
-         ShowWindow(hwnd, SW_HIDE);
+         BFWMHideWindow(hwnd);
          window_visible = FALSE;
       }
       return;

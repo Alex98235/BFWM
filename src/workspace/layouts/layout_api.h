@@ -11,6 +11,7 @@
 #define BFWM_LAYOUT_API_H
 
 #include "../../core/bfwm_def.h"
+#include "../../core/portable.h"
 #include <windows.h>
 
 // ------------------------------------------------------------------
@@ -101,6 +102,17 @@ class LayoutEngine {
 /** Layout type of an engine, or LAYOUT_NONE when the engine is null. */
 static inline auto EngineType(const LayoutEngine *engine) -> LayoutType {
    return (engine != nullptr) ? engine->type() : LAYOUT_NONE;
+}
+
+/** Layout type from a config name, or LAYOUT_NONE when unknown. */
+static inline auto NameToLayoutType(const char *name) -> LayoutType {
+   if (strcmpi_portable(name, "dwindle") == 0)
+      return DWINDLE;
+   if (strcmpi_portable(name, "monocle") == 0)
+      return MONOCLE;
+   if (strcmpi_portable(name, "master") == 0)
+      return MASTER;
+   return LAYOUT_NONE;
 }
 
 #endif /* BFWM_LAYOUT_API_H */

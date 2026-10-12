@@ -1,6 +1,7 @@
 #include "filter.h"
 #include "../core/main_context.h"
 #include "../core/shared_state.h"
+#include "../win/win_utils.h"
 #include "../window/rules/rules.h"
 #include <array>
 #include <cstring>
@@ -216,9 +217,7 @@ auto IsManageableWindow(struct SharedState *shared, struct MainContext *main,
    // windows are DWM-cloaked yet still manageable, and must register so
    // they can be tiled on first restore.
    if (skip_cloak_check == FALSE) {
-      BOOL is_cloaked = FALSE;
-      DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &is_cloaked,
-                            sizeof(is_cloaked));
+      BOOL const is_cloaked = BFWMIsWindowCloaked(hwnd);
       if (is_cloaked == TRUE)
          return false;
    }

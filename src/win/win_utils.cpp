@@ -47,10 +47,7 @@ auto IssueRectWithDpiConversion(struct SharedState *shared,
       if ((dpi != 0) && (scale > 1.0F)) {
          prev_ctx = SetThreadDpiAwarenessContext(target_ctx);
          if (prev_ctx != nullptr) {
-            rect.left = DpiSystem::Unscale(rect.left, dpi);
-            rect.top = DpiSystem::Unscale(rect.top, dpi);
-            rect.right = DpiSystem::Unscale(rect.right, dpi);
-            rect.bottom = DpiSystem::Unscale(rect.bottom, dpi);
+            rect = DpiSystem::UnscaleRect(rect, dpi);
          }
       }
    }
@@ -133,4 +130,17 @@ auto BFWMEnableNCRendering(HWND hwnd) -> BOOL {
    DWORD nc_policy = DWMNCRP_ENABLED;
    return SUCCEEDED(DwmSetWindowAttribute(hwnd, DWMWA_NCRENDERING_POLICY,
                                           &nc_policy, sizeof(nc_policy)));
+}
+
+auto BFWMIsWindowCloaked(HWND hwnd) -> BOOL {
+   DWORD cloaked = 0;
+   if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked,
+                                       sizeof(cloaked))))
+      return static_cast<BOOL>(cloaked != 0);
+   return FALSE;
+}
+
+auto BFWMIsWindowShown(HWND hwnd) -> BOOL {
+   return static_cast<BOOL>((IsWindowVisible(hwnd) != 0) &&
+                            (IsIconic(hwnd) == 0));
 }

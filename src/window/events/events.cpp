@@ -493,7 +493,7 @@ inline void InsertWindowIntoWorkspace(SharedState *shared, MainContext *main,
       Monitor *mon = FindMonitorByWorkspace(shared, main, workspace);
       if (mon != nullptr) {
          UINT const dpi = (main->dpi != nullptr)
-                              ? main->dpi->GetDpi(mon->GetHandle())
+                              ? main->dpi->GetDpiOrDefault(mon->GetHandle())
                               : DpiSystem::BaseDpi();
          RECT const clamped = win->ClampTo(mon->GetWorkArea(), dpi);
          if (EqualRect(&clamped, win->SavedRectPtr()) == FALSE) {
@@ -611,7 +611,7 @@ inline void HandleWindowReRegistered(HWND hwnd, struct SharedState *shared,
          // Don't re-add a window that's still minimized or hidden —
          // it was likely removed by HandleMinimizeStart / HandleObjectHide
          // and a spurious foreground event arrived before restore.
-         if ((IsIconic(hwnd) == TRUE) || (IsWindowVisible(hwnd) == FALSE))
+         if (BFWMIsWindowShown(hwnd) == FALSE)
             return;
 
          target_ws = main->focused_workspace;
@@ -708,10 +708,11 @@ void HandleFloatingMove(SharedState *&shared, MainContext *&main, HWND &hwnd,
          cand.reserve(mons.size());
          size_t src_idx = 0;
          for (size_t i = 0; i < mons.size(); i++) {
-            cand.push_back({.rect = mons[i]->GetRect(),
-                            .dpi = (main->dpi != nullptr)
-                                       ? main->dpi->GetDpi(mons[i]->GetHandle())
-                                       : DpiSystem::BaseDpi()});
+            cand.push_back(
+                {.rect = mons[i]->GetRect(),
+                 .dpi = (main->dpi != nullptr)
+                            ? main->dpi->GetDpiOrDefault(mons[i]->GetHandle())
+                            : DpiSystem::BaseDpi()});
             if (mons[i] == current_mon) {
                src_idx = i;
             }
@@ -735,9 +736,10 @@ void HandleFloatingMove(SharedState *&shared, MainContext *&main, HWND &hwnd,
       rws = FindWorkspaceByHwnd(shared, main, hwnd);
       Monitor *clamp_mon = FindMonitorByWorkspace(shared, main, rws);
       if (clamp_mon != nullptr) {
-         UINT const dpi = (shared != nullptr && main->dpi != nullptr)
-                              ? main->dpi->GetDpi(clamp_mon->GetHandle())
-                              : DpiSystem::BaseDpi();
+         UINT const dpi =
+             (shared != nullptr && main->dpi != nullptr)
+                 ? main->dpi->GetDpiOrDefault(clamp_mon->GetHandle())
+                 : DpiSystem::BaseDpi();
          RECT const clamped = float_win->ClampTo(clamp_mon->GetWorkArea(), dpi);
          if (EqualRect(&clamped, float_win->SavedRectPtr()) == FALSE) {
             float_win->SetSavedRect(clamped);

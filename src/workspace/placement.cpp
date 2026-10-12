@@ -415,12 +415,10 @@ void PlacementApply(Workspace *workspace, struct SharedState *shared,
       HWND hwnd = workspace->Windows()[i]->GetHwnd();
       if (IsWindowManagedByLayout(workspace->Windows()[i]) == FALSE)
          continue;
-      if ((IsWindowVisible(hwnd) == FALSE) || IsIconic(hwnd) == TRUE)
+      if (BFWMIsWindowShown(hwnd) == FALSE)
          continue;
 
-      BOOL is_cloaked = FALSE;
-      DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &is_cloaked,
-                            sizeof(is_cloaked));
+      BOOL const is_cloaked = BFWMIsWindowCloaked(hwnd);
       if (is_cloaked == TRUE)
          continue;
 

@@ -31,6 +31,7 @@
 
 #include "../../dpi/dpi.h"
 #include "../../logging/logger.h"
+#include "../../win/win_utils.h"
 #include "../../workspace/placement.h"
 #include "../fullscreen/detect.h"
 
@@ -214,8 +215,7 @@ auto Overlay::Init() -> bool {
       }
       this->user_data[index].ovl = this;
       this->user_data[index].index = index;
-      SetWindowLongPtrW(surf->hwnd, GWLP_USERDATA,
-                        (LONG_PTR) & this->user_data[index]);
+      BFWMSetWindowData(surf->hwnd, &this->user_data[index]);
 
       BOOL exclude = TRUE;
       DwmSetWindowAttribute(surf->hwnd, DWMWA_EXCLUDED_FROM_PEEK, &exclude,
@@ -271,8 +271,7 @@ auto CALLBACK Overlay::overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
       PAINTSTRUCT paint;
       BeginPaint(hwnd, &paint);
       EndPaint(hwnd, &paint);
-      auto *user_data =
-          (OverlayUserData *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+      auto *user_data = (OverlayUserData *)BFWMGetWindowData(hwnd);
       if ((user_data != nullptr) && (user_data->ovl != nullptr)) {
          user_data->ovl->overlay_paint_strip_surface(
              &user_data->ovl->surfaces[user_data->index]);
@@ -286,8 +285,7 @@ auto CALLBACK Overlay::overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
        * flush recomputes stroke/radius and re-uploads with the new DPI. No
        * immediate repaint: rings converge at the next commit flush (or the
        * periodic reconcile backstop). */
-      auto *user_data =
-          (OverlayUserData *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+      auto *user_data = (OverlayUserData *)BFWMGetWindowData(hwnd);
       if ((user_data != nullptr) && (user_data->ovl != nullptr)) {
          user_data->ovl->OverlayMarkDirty();
       }
@@ -429,10 +427,10 @@ void Overlay::OverlayReconcile(BOOL suppress, BOOL force) {
     * deliberately, to avoid a DWM call per ring per commit. Conservative on
     * failure: treat as cloaked so a ring never shows over an unknown target
     * state. */
-   DWORD cloaked = 0;
    BOOL cloaked_flag = FALSE;
    if ((ring_visible == FALSE) && (target_visible == TRUE) &&
        (target_iconic == FALSE) && (suppress == FALSE)) {
+      DWORD cloaked = 0;
       if (SUCCEEDED(DwmGetWindowAttribute(this->target, DWMWA_CLOAKED, &cloaked,
                                           sizeof cloaked))) {
          cloaked_flag = static_cast<BOOL>(cloaked == TRUE);
@@ -1236,8 +1234,8 @@ void Overlay::overlay_sync_position(BOOL suppress) {
 
    /* Desired visibility is keyed on cloak state, not IsWindowVisible. */
    BOOL const shown = static_cast<BOOL>(
-       (gate_cloaked == 0U) && (IsWindowVisible(this->target) != FALSE) &&
-       (IsIconic(this->target) == FALSE) && (suppress == 0));
+       (gate_cloaked == 0U) && (BFWMIsWindowShown(this->target) != FALSE) &&
+       (suppress == 0));
 
    if (shown == 0) {
       overlay_hide_ring();

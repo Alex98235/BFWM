@@ -296,9 +296,6 @@ inline auto parse_window_rules(LuaConfig *config, struct SharedState *shared,
    return count;
 }
 
-// Forward declarations
-static auto parse_layout_name(const char *name) -> LayoutType;
-
 // ---------------------------------------------------------------------------
 // Workspace config parser (BFWM.workspaces)
 // ---------------------------------------------------------------------------
@@ -324,7 +321,7 @@ inline void parse_workspace_options(WorkspaceConfig *workspace_cfg,
    lua_getfield(lua_state, opts_idx, "layout");
    if (lua_isstring(lua_state, -1) != 0) {
       const char *layout_name = lua_tostring(lua_state, -1);
-      LayoutType const layout_type = parse_layout_name(layout_name);
+      LayoutType const layout_type = NameToLayoutType(layout_name);
       if (layout_type != LAYOUT_NONE) {
          workspace_cfg->layout = layout_type;
          workspace_cfg->has_layout = TRUE;
@@ -565,16 +562,6 @@ inline auto parse_keybinds(LuaConfig *config, struct SharedState *shared,
 // ---------------------------------------------------------------------------
 // Settings parser (reads BFWM.{gap_between, gap_edge, border_color, ...})
 // ---------------------------------------------------------------------------
-
-inline auto parse_layout_name(const char *name) -> LayoutType {
-   if (strcmpi_portable(name, "dwindle") == 0)
-      return DWINDLE;
-   if (strcmpi_portable(name, "monocle") == 0)
-      return MONOCLE;
-   if (strcmpi_portable(name, "master") == 0)
-      return MASTER;
-   return LAYOUT_NONE;
-}
 
 // NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 const std::array<std::string, 18> known_BFWM_keys = {
@@ -1507,7 +1494,7 @@ inline void parse_settings(lua_State *lua_state, struct SharedState *shared,
    lua_getfield(lua_state, -1, "layout");
    if (lua_isstring(lua_state, -1) != 0) {
       const char *s = lua_tostring(lua_state, -1);
-      LayoutType const layout_type = parse_layout_name(s);
+      LayoutType const layout_type = NameToLayoutType(s);
       if (layout_type != LAYOUT_NONE) {
          shared->config.default_layout = layout_type;
       } else {
