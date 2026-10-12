@@ -212,13 +212,15 @@ class Bar {
 
    /**
     * @brief Request a redraw of every bar across all monitors.
-    * @param ctx The BFWM context
+    * @param shared The BFWM shared state
+    * @param main   The main-thread context
     */
    static void UpdateAll(struct SharedState *shared, struct MainContext *main);
 
    /**
     * @brief Reset all system-status poll timers (e.g. after resume).
-    * @param ctx The BFWM context
+    * @param shared The BFWM shared state
+    * @param main   The main-thread context
     */
    static void ResetPollTimers(struct SharedState *shared,
                                struct MainContext *main);

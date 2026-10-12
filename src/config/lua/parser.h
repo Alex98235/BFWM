@@ -212,7 +212,8 @@ class KeybindDictionary;
  * settings into shared->config, and populates the keybind dictionary.
  *
  * @param config      The Lua config state
- * @param ctx         The BFWM context (settings + keybinds are written here)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (settings + keybinds are written here)
  * @param config_path Path to config.lua (e.g. aconfig.luaa)
  * @return true on success, false on failure
  */
@@ -223,7 +224,8 @@ auto LuaConfigLoad(LuaConfig *config, struct SharedState *shared,
  * @brief Reload the configuration (re-parse config.lua).
  *
  * @param config The Lua config state
- * @param ctx    The BFWM context (settings + keybinds are updated here)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (settings + keybinds are updated here)
  * @return true on success
  */
 auto LuaConfigReload(LuaConfig *config, struct SharedState *shared,
@@ -241,7 +243,8 @@ void LuaConfigFree(LuaConfig *config);
  * Used by ActionCustom to invoke user-defined callbacks.
  *
  * @param config    The Lua config state
- * @param ctx       The BFWM context (for snackbar notifications)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (for snackbar notifications)
  * @param func_name Name of the Lua function to call
  * @return true if the function was found and called successfully
  */
@@ -258,7 +261,8 @@ auto LuaConfigCall(LuaConfig *config, struct SharedState *shared,
  * Warn) per function name.
  *
  * @param config The Lua config state
- * @param ctx    The BFWM context (unused today; reserved)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (unused today; reserved)
  * @param func   Global function name (the indicator's `on_click`)
  * @param id     The indicator's `id`
  * @param button Mouse button name
@@ -280,7 +284,8 @@ auto LuaConfigCallClick(LuaConfig *config, struct SharedState *shared,
  * Warn) per function name.
  *
  * @param config The Lua config state
- * @param ctx    The BFWM context (unused today; reserved)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (unused today; reserved)
  * @param func   Global function name (the indicator's `on_scroll`)
  * @param id     The indicator's `id`
  * @param dir    Scroll direction ("up"|"down")
@@ -304,7 +309,8 @@ auto LuaConfigCallScroll(LuaConfig *config, struct SharedState *shared,
  * is balanced on every path.
  *
  * @param config The Lua config state
- * @param ctx    The BFWM context (unused today; reserved)
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context (unused today; reserved)
  * @param func   Global function name (the indicator's `output`)
  * @param id     The indicator's `id` (passed as the sole argument)
  * @param out    Filled on success; left `valid=false` otherwise

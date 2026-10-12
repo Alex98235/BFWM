@@ -209,7 +209,8 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
  * Searches across all monitors for the nearest workspace in the specified
  * direction. For DirNext/DirPrev, cycles through the monitors in order.
  *
- * @param ctx       The BFWM context
+ * @param shared       The BFWM shared state
+ * @param main         The main-thread context
  * @param direction Direction to search
  * (DirLeft/DirRight/DirUp/Down/DirNext/DirPrev)
  * @return Workspace* Pointer to the neighbouring workspace, or NULL
@@ -223,7 +224,8 @@ auto FindNeighbouringWorkspace(struct SharedState *shared,
  *
  * Convenience that chains FindWorkspaceByHwnd + FindMonitorByWorkspace.
  *
- * @param ctx  The BFWM context
+ * @param shared       The BFWM shared state
+ * @param main         The main-thread context
  * @param hwnd The window handle
  * @return Monitor* Pointer to the monitor, or NULL if the window
  *         is not managed or not found on any workspace.

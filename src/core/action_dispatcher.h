@@ -33,7 +33,8 @@
  * Implementations receive the application context (for access to Lua, window
  * manager, workspace, etc.) and the action to execute.
  *
- * @param ctx   Application context (never NULL).
+ * @param shared   The BFWM shared state (never NULL).
+ * @param main     The main-thread context.
  * @param action The action to handle (never NULL).
  * @return 0 on success, non-zero on failure.
  */
@@ -54,7 +55,8 @@ void ActionDispatcherRegister(BFWMActionType type, ActionHandler handler);
 /**
  * @brief Dispatch a single action to its registered handler.
  *
- * @param ctx    Application context.
+ * @param shared   The BFWM shared state.
+ * @param main     The main-thread context.
  * @param action The action to execute.
  * @return 0 on success, non-zero if no handler was registered or the handler
  *         returned an error.
