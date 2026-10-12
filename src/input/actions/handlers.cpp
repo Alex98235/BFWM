@@ -1210,17 +1210,10 @@ auto HandleMoveWorkspaceToMonitor(SharedState *shared, MainContext *main,
    }
 
    // --- Step 2: move workspace between monitors ---
-   ptrdiff_t const ws_idx = src_mon->IndexOfWorkspace(workspace);
-   if (ws_idx < 0) {
+   if (!ReparentWorkspaceToMonitor(workspace, src_mon, dst_mon, shared, main)) {
       BFWMTransactionCommit(shared, main);
       return 0;
    }
-   src_mon->RemoveWorkspaceAt(static_cast<size_t>(ws_idx));
-
-   dst_mon->TrackWorkspace(workspace);
-
-   // Recalculate workspace rect for new monitor geometry
-   workspace->RecalculateRect(dst_mon, shared, main);
    // User explicitly moved this workspace — clear origin so auto-restore
    // on monitor reconnect does not pull it back.
    workspace->ClearOriginMonitorUid();

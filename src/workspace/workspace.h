@@ -270,6 +270,13 @@ auto FindMonitorByWorkspace(struct SharedState *shared,
                             struct MainContext *main, Workspace *workspace)
     -> Monitor *;
 
+/** Reparent a workspace onto dst_mon: remove it from src_mon's array, track it
+ *  on dst_mon, and recompute its rect. Returns false when the workspace is not
+ *  tracked on src_mon. No activation, transaction, or origin handling. */
+auto ReparentWorkspaceToMonitor(Workspace *workspace, Monitor *src_mon,
+                                Monitor *dst_mon, struct SharedState *shared,
+                                struct MainContext *main) -> bool;
+
 auto FindWorkspaceOnMonitor(const Monitor *mon, size_t identifier)
     -> Workspace *;
 

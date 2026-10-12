@@ -790,6 +790,19 @@ auto FindMonitorByWorkspace(struct SharedState *shared,
    return nullptr;
 }
 
+auto ReparentWorkspaceToMonitor(Workspace *workspace, Monitor *src_mon,
+                                Monitor *dst_mon, struct SharedState *shared,
+                                struct MainContext *main) -> bool {
+   ptrdiff_t const idx = src_mon->IndexOfWorkspace(workspace);
+   if (idx < 0)
+      return false;
+
+   src_mon->RemoveWorkspaceAt(static_cast<size_t>(idx));
+   dst_mon->TrackWorkspace(workspace);
+   workspace->RecalculateRect(dst_mon, shared, main);
+   return true;
+}
+
 auto FindWorkspaceOnMonitor(const Monitor *mon, size_t identifier)
     -> Workspace * {
    if (mon == nullptr)
