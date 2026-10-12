@@ -1845,8 +1845,11 @@ inline void update_workspace_configs_on_reload(struct SharedState *shared,
                                                struct MainContext *main) {
    for (size_t m = 0; m < main->monitors->Size(); m++) {
       Monitor *mon = main->monitors->At(m);
-      for (size_t w = 0; w < mon->Workspaces().size(); w++) {
-         Workspace *workspace = mon->Workspaces()[w];
+      /* Snapshot the workspace list: move_workspace_to_monitor removes the
+       * workspace from this monitor's array, which would otherwise shift the
+       * next entry into the current slot and skip it. */
+      auto const ws_list = mon->Workspaces();
+      for (Workspace *workspace : ws_list) {
          const struct WorkspaceConfig *workspace_cfg =
              FindWorkspaceConfig(shared, main, workspace->GetIdentifier());
 
