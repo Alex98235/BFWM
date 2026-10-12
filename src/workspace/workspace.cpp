@@ -723,22 +723,11 @@ auto ResolveTargetWorkspace(struct SharedState *shared,
 
    POINT const centre = {.x = center_x, .y = center_y};
 
-   BOOL found = FALSE;
-   for (auto *mon : main->monitors->Monitors()) {
-      if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr))
-         continue;
-
-      RECT const mon_rect = mon->GetRect();
-      if (PtInRect(&mon_rect, centre) == TRUE) {
-         target_workspace = mon->GetActiveWorkspace();
-         found = TRUE;
-         break;
-      }
-   }
-
-   // If window center isn't on any monitor, try the window corners
-   if (found == FALSE) {
-      // Check if any corner of the window is on a monitor
+   Monitor *const mon = FindMonitorByPoint(shared, main, centre);
+   if ((mon != nullptr) && (mon->GetActiveWorkspace() != nullptr)) {
+      target_workspace = mon->GetActiveWorkspace();
+   } else {
+      // If window center isn't on any monitor, try the window corners
       std::array<POINT, 4> corners = {
           {
               {.x = win_rect.left, .y = win_rect.top},
@@ -749,19 +738,13 @@ auto ResolveTargetWorkspace(struct SharedState *shared,
       };
 
       for (int i = 0; i < 4; i++) {
-         for (auto *mon : main->monitors->Monitors()) {
-            if ((mon == nullptr) || (mon->GetActiveWorkspace() == nullptr))
-               continue;
-
-            RECT const mon_rect = mon->GetRect();
-            if (PtInRect(&mon_rect, corners[i]) == TRUE) {
-               target_workspace = mon->GetActiveWorkspace();
-               found = TRUE;
-               break;
-            }
-         }
-         if (found == TRUE)
+         Monitor *const corner_mon =
+             FindMonitorByPoint(shared, main, corners[i]);
+         if ((corner_mon != nullptr) &&
+             (corner_mon->GetActiveWorkspace() != nullptr)) {
+            target_workspace = corner_mon->GetActiveWorkspace();
             break;
+         }
       }
    }
 
@@ -775,6 +758,20 @@ auto FindMonitorByPoint(struct SharedState * /*shared*/,
 
    for (size_t i = 0; i < monitor_count; i++) {
       if (PointIntersectsRect(point, monitors[i]->GetRect()) == TRUE)
+         return monitors[i];
+   }
+
+   return nullptr;
+}
+
+auto FindMonitorByWorkAreaPoint(struct SharedState * /*shared*/,
+                                struct MainContext *main, POINT point)
+    -> Monitor * {
+   auto const &monitors = main->monitors->Monitors();
+   size_t const monitor_count = monitors.size();
+
+   for (size_t i = 0; i < monitor_count; i++) {
+      if (PointIntersectsRect(point, monitors[i]->GetWorkArea()) == TRUE)
          return monitors[i];
    }
 

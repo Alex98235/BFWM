@@ -274,6 +274,17 @@ auto FindMonitorByDisplayNumber(struct SharedState *shared,
    return nullptr;
 }
 
+auto FindMonitorByHandle(struct SharedState *shared, struct MainContext *main,
+                         HMONITOR handle) -> Monitor * {
+   if (shared == nullptr)
+      return nullptr;
+   for (auto *monitor : main->monitors->Monitors()) {
+      if (monitor->GetHandle() == handle)
+         return monitor;
+   }
+   return nullptr;
+}
+
 namespace {
 
 inline auto FindNextPrevMonitor(Monitor *const *monitors, size_t mon_count,

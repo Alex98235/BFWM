@@ -448,23 +448,24 @@ inline auto ResolveRuleWorkspace(SharedState *shared, MainContext *main,
  * @param hwnd The window to hit-test
  * @return The hit-test workspace, or nullptr
  */
-inline auto ResolveHitTestWorkspace(MainContext *main, HWND hwnd)
+inline auto ResolveWorkAreaWorkspaceAtCentre(HWND hwnd, MainContext *main)
     -> Workspace * {
    Workspace *target_ws = main->focused_workspace;
    RECT win_rect;
-   if (GetWindowRect(hwnd, &win_rect) == TRUE) {
-      POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
-                            .y = (win_rect.top + win_rect.bottom) / 2};
-      for (Monitor *mon : main->monitors->Monitors()) {
-         RECT const mon_work_area = mon->GetWorkArea();
-         if ((PtInRect(&mon_work_area, centre) == TRUE) &&
-             (mon->GetActiveWorkspace() != nullptr)) {
-            target_ws = mon->GetActiveWorkspace();
-            break;
-         }
-      }
-   }
+   if (GetWindowRect(hwnd, &win_rect) == FALSE)
+      return target_ws;
+
+   POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
+                         .y = (win_rect.top + win_rect.bottom) / 2};
+   Monitor *const mon = FindMonitorByWorkAreaPoint(nullptr, main, centre);
+   if ((mon != nullptr) && (mon->GetActiveWorkspace() != nullptr))
+      target_ws = mon->GetActiveWorkspace();
    return target_ws;
+}
+
+inline auto ResolveHitTestWorkspace(MainContext *main, HWND hwnd)
+    -> Workspace * {
+   return ResolveWorkAreaWorkspaceAtCentre(hwnd, main);
 }
 
 /**
@@ -549,22 +550,7 @@ inline auto ResolveRuleTargetWorkspace(Window *win, struct SharedState *shared,
 
 inline auto ResolveDefaultTargetWorkspace(HWND hwnd, struct MainContext *main)
     -> Workspace * {
-   Workspace *target_ws = main->focused_workspace;
-   RECT win_rect;
-   if (GetWindowRect(hwnd, &win_rect) == FALSE)
-      return target_ws;
-
-   POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
-                         .y = (win_rect.top + win_rect.bottom) / 2};
-   for (Monitor *mon : main->monitors->Monitors()) {
-      RECT const mon_work_area = mon->GetWorkArea();
-      if ((PtInRect(&mon_work_area, centre) == TRUE) &&
-          (mon->GetActiveWorkspace() != nullptr)) {
-         target_ws = mon->GetActiveWorkspace();
-         break;
-      }
-   }
-   return target_ws;
+   return ResolveWorkAreaWorkspaceAtCentre(hwnd, main);
 }
 
 inline void HandleWindowReRegistered(HWND hwnd, struct SharedState *shared,
@@ -619,14 +605,10 @@ inline void HandleWindowReRegistered(HWND hwnd, struct SharedState *shared,
          if (GetWindowRect(hwnd, &win_rect) == TRUE) {
             POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                                   .y = (win_rect.top + win_rect.bottom) / 2};
-            for (Monitor *mon : main->monitors->Monitors()) {
-               RECT const mon_work_area = mon->GetWorkArea();
-               if ((PtInRect(&mon_work_area, centre) == TRUE) &&
-                   (mon->GetActiveWorkspace() != nullptr)) {
-                  target_ws = mon->GetActiveWorkspace();
-                  break;
-               }
-            }
+            Monitor *const mon =
+                FindMonitorByWorkAreaPoint(nullptr, main, centre);
+            if ((mon != nullptr) && (mon->GetActiveWorkspace() != nullptr))
+               target_ws = mon->GetActiveWorkspace();
          }
 
          if (target_ws != nullptr) {
@@ -1026,13 +1008,9 @@ void ProcessMinimizeEnd(SharedState *shared, MainContext *main, HWND hwnd) {
       if (GetWindowRect(hwnd, &win_rect) == TRUE) {
          POINT const centre = {.x = (win_rect.left + win_rect.right) / 2,
                                .y = (win_rect.top + win_rect.bottom) / 2};
-         for (Monitor *mon : main->monitors->Monitors()) {
-            RECT const mon_work_area = mon->GetWorkArea();
-            if (PtInRect(&mon_work_area, centre) == TRUE) {
-               target_ws = mon->GetActiveWorkspace();
-               break;
-            }
-         }
+         Monitor *const mon = FindMonitorByWorkAreaPoint(nullptr, main, centre);
+         if (mon != nullptr)
+            target_ws = mon->GetActiveWorkspace();
       }
 
       if (target_ws != nullptr) {

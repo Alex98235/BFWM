@@ -368,12 +368,7 @@ auto DpiRoundingTolerance(struct SharedState *shared, struct MainContext *main,
    if ((shared == nullptr) || (main->dpi == nullptr))
       return 0;
    /* Aware (PMv1/PMv2/system) targets land at the exact physical rect. */
-   DPI_AWARENESS_CONTEXT awareness = GetWindowDpiAwarenessContext(hwnd);
-   BOOL const unaware = static_cast<BOOL>(
-       (AreDpiAwarenessContextsEqual(awareness,
-                                     DPI_AWARENESS_CONTEXT_UNAWARE) != 0) ||
-       (AreDpiAwarenessContextsEqual(
-            awareness, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) != 0));
+   BOOL const unaware = BFWMIsWindowDpiUnaware(hwnd);
    if (unaware == FALSE)
       return 0;
    /* Strict at 100%: the logical round-trip is exact, so a tolerance here

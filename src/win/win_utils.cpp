@@ -34,12 +34,8 @@ auto IssueRectWithDpiConversion(struct SharedState *shared,
                                 struct MainContext *main, HWND hwnd,
                                 HMONITOR hmon, RECT rect,
                                 BOOL (*issue)(HWND, const RECT *)) -> BOOL {
+   BOOL const unaware = BFWMIsWindowDpiUnaware(hwnd);
    DPI_AWARENESS_CONTEXT target_ctx = GetWindowDpiAwarenessContext(hwnd);
-   BOOL const unaware = static_cast<BOOL>(
-       (AreDpiAwarenessContextsEqual(target_ctx,
-                                     DPI_AWARENESS_CONTEXT_UNAWARE) == TRUE) ||
-       (AreDpiAwarenessContextsEqual(
-            target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
    DPI_AWARENESS_CONTEXT prev_ctx = nullptr;
    if ((unaware == TRUE) && (shared != nullptr) && (main->dpi != nullptr)) {
       UINT const dpi = main->dpi->GetDpi(hmon);
@@ -143,4 +139,13 @@ auto BFWMIsWindowCloaked(HWND hwnd) -> BOOL {
 auto BFWMIsWindowShown(HWND hwnd) -> BOOL {
    return static_cast<BOOL>((IsWindowVisible(hwnd) != 0) &&
                             (IsIconic(hwnd) == 0));
+}
+
+auto BFWMIsWindowDpiUnaware(HWND hwnd) -> BOOL {
+   DPI_AWARENESS_CONTEXT ctx = GetWindowDpiAwarenessContext(hwnd);
+   return static_cast<BOOL>(
+       (AreDpiAwarenessContextsEqual(ctx, DPI_AWARENESS_CONTEXT_UNAWARE) ==
+        TRUE) ||
+       (AreDpiAwarenessContextsEqual(
+            ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
 }

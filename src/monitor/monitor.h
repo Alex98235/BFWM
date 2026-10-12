@@ -241,6 +241,17 @@ auto FindMonitorByDisplayNumber(struct SharedState *shared,
                                 struct MainContext *main, UINT display_number)
     -> Monitor *;
 
+/**
+ * @brief Find a monitor by its HMONITOR handle.
+ *
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
+ * @param handle The HMONITOR to look for
+ * @return Monitor* with the matching handle, or nullptr
+ */
+auto FindMonitorByHandle(struct SharedState *shared, struct MainContext *main,
+                         HMONITOR handle) -> Monitor *;
+
 void ReconcileMonitors(struct SharedState *shared, struct MainContext *main);
 
 #endif

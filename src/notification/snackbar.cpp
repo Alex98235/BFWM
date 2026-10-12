@@ -569,10 +569,9 @@ auto Snackbar::FindMonitor() -> const Monitor * {
    if (cfg->monitor == 0) {
       POINT const zero = {.x = 0, .y = 0};
       HMONITOR primary = MonitorFromPoint(zero, MONITOR_DEFAULTTOPRIMARY);
-      for (const auto &monitor : main->monitors->Monitors()) {
-         if (monitor->GetHandle() == primary)
-            return monitor;
-      }
+      const Monitor *primary_mon = FindMonitorByHandle(shared, main, primary);
+      if (primary_mon != nullptr)
+         return primary_mon;
    } else if (cfg->monitor == -1 && (main->focused_workspace != nullptr)) {
       return FindMonitorByWorkspace(shared, main, main->focused_workspace);
    } else if (cfg->monitor > 0) {
