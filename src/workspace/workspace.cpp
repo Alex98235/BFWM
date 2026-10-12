@@ -16,10 +16,10 @@
 #include "../window/focus.h"
 #include "../window/fullscreen/detect.h"
 #include "../window/window.h"
-#include "layouts/dwindle/dwindle_vtable.h"
+#include "layouts/dwindle/dwindle.h"
 #include "layouts/layout_api.h"
-#include "layouts/master/master_vtable.h"
-#include "layouts/monocle/monocle_vtable.h"
+#include "layouts/master/master.h"
+#include "layouts/monocle/monocle.h"
 #include "placement.h"
 #include <algorithm>
 #include <cstddef>

@@ -6,6 +6,7 @@ Checks: >
   misc-*,
   -misc-no-recursion,
   -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
   readability-*,
   modernize-*,
 

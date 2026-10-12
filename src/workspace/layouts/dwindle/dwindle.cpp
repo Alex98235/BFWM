@@ -2,10 +2,7 @@
 #include "../../../core/bfwm_def.h"
 #include "../../../logging/logger.h"
 #include "../../../math/rect.h"
-#include "../../../memory/safe.h"
-#include "../layout_api.h"
 #include "dwindle_tree.h"
-#include <algorithm>
 #include <climits>
 #include <cstdlib>
 #include <minwindef.h>
@@ -15,74 +12,28 @@ enum { LEAVES_MAX = 256 };
 #define SPLIT_RATIO_MIN 0.1
 #define SPLIT_RATIO_MAX 0.9
 
-auto DwindleLayoutCreate(RECT workspace_rect, double split_ratio)
-    -> DwindleLayout * {
-   auto *layout = (DwindleLayout *)safe_malloc(
-       sizeof(DwindleLayout), "Could not allocate space for dwindle layout");
-
-   layout->workspace_rect = workspace_rect;
-
-   split_ratio = std::min(split_ratio, 1.0);
-   split_ratio = std::max(split_ratio, 0.0);
-
-   layout->split_ratio = split_ratio;
-   layout->root = nullptr;
-   layout->window_count = 0;
-   layout->gap_between = 0;
-   layout->gap_edge = 0;
-   layout->border_width = 0;
-
-   return layout;
-}
-
+// ---------------------------------------------------------------------------
+// File-scoped helpers
+// ---------------------------------------------------------------------------
 namespace {
-
 /// Per-side frame inset for a leaf: border_width on every side, plus half the
-/// between-gap on any side that faces a sibling. A side whose node edge lies on
-/// the workspace boundary faces no sibling — gap_edge already spaced the
-/// workspace rect there — so it gets no between-gap inset. This keeps
-/// gap_between strictly between adjacent windows and gap_edge at the boundary.
-inline void WindowSideInsets(const DwindleLayout *layout,
-                             const DwindleNode *node, int *left, int *top,
-                             int *right, int *bottom) {
-   int const half = layout->gap_between / 2;
-   int const border = layout->border_width;
-   *left =
-       border + ((node->rect.left > layout->workspace_rect.left) ? half : 0);
-   *top = border + ((node->rect.top > layout->workspace_rect.top) ? half : 0);
-   *right =
-       border + ((node->rect.right < layout->workspace_rect.right) ? half : 0);
-   *bottom = border +
-             ((node->rect.bottom < layout->workspace_rect.bottom) ? half : 0);
+/// between-gap on any side that faces a sibling.  Uses workspace_rect to
+/// detect boundary edges.
+void WindowSideInsetsImpl(const RECT &workspace_rect, int gap_between,
+                          int border_width, const DwindleNode *node, int *left,
+                          int *top, int *right, int *bottom) {
+   int const half = gap_between / 2;
+   int const border = border_width;
+   *left = border + ((node->rect.left > workspace_rect.left) ? half : 0);
+   *top = border + ((node->rect.top > workspace_rect.top) ? half : 0);
+   *right = border + ((node->rect.right < workspace_rect.right) ? half : 0);
+   *bottom = border + ((node->rect.bottom < workspace_rect.bottom) ? half : 0);
+}
 }
 
-} // namespace
-
-auto DwindleGetWindowRect(DwindleLayout *layout, HWND hwnd, RECT *out_rect)
-    -> bool {
-   if ((layout == nullptr) || (hwnd == nullptr))
-      return false;
-
-   DwindleNode *node = FindNodeByWindow(layout->root, hwnd);
-   if (node == nullptr) {
-      Debug("No node with window handle: %p found", hwnd);
-      return false;
-   }
-
-   *out_rect = node->rect;
-
-   int left;
-   int top;
-   int right;
-   int bottom;
-   WindowSideInsets(layout, node, &left, &top, &right, &bottom);
-   out_rect->left += left;
-   out_rect->top += top;
-   out_rect->right -= right;
-   out_rect->bottom -= bottom;
-
-   return true;
-}
+// ---------------------------------------------------------------------------
+// SplitRectangle (exposed for testing)
+// ---------------------------------------------------------------------------
 
 #ifdef BFWM_BUILD_TESTING
 void
@@ -101,14 +52,13 @@ SplitRectangle(RECT *parent, BOOL horizontal, double ratio, RECT *first,
 
    int split_point;
    if (horizontal == TRUE) {
-      // Left/right split
-      split_point =
-          parent->left + (int)((parent->right - parent->left) * ratio);
+      split_point = parent->left +
+                    static_cast<int>((parent->right - parent->left) * ratio);
       first->right = split_point;
       second->left = split_point;
    } else {
-      // Top/bottom split
-      split_point = parent->top + (int)((parent->bottom - parent->top) * ratio);
+      split_point = parent->top +
+                    static_cast<int>((parent->bottom - parent->top) * ratio);
       first->bottom = split_point;
       second->top = split_point;
    }
@@ -117,18 +67,32 @@ SplitRectangle(RECT *parent, BOOL horizontal, double ratio, RECT *first,
 }
 #endif
 
-namespace {
+// ---------------------------------------------------------------------------
+// DwindleEngine
+// ---------------------------------------------------------------------------
 
-inline void ReplaceNode(DwindleLayout *layout, DwindleNode *old_node,
-                        DwindleNode *new_node) {
-   // Case 1: old_node is the root
-   if (layout->root == old_node) {
-      layout->root = new_node;
+void DwindleEngine::RecalculatePositions(DwindleNode *node) {
+   if ((node == nullptr) || (node->is_leaf == TRUE))
+      return;
+
+   RECT left_rect;
+   RECT right_rect;
+   SplitRectangle(&node->rect, node->split_horizontal, node->split_ratio,
+                  &left_rect, &right_rect);
+
+   node->first->rect = left_rect;
+   node->second->rect = right_rect;
+
+   RecalculatePositions(node->first);
+   RecalculatePositions(node->second);
+}
+
+void DwindleEngine::ReplaceNode(DwindleNode *old_node, DwindleNode *new_node) {
+   if (root == old_node) {
+      root = new_node;
       return;
    }
-
-   // Case 2: old_node is a child of some parent
-   DwindleNode *parent = FindParent(layout->root, old_node);
+   DwindleNode *parent = FindParent(root, old_node);
    if (parent != nullptr) {
       if (parent->first == old_node) {
          parent->first = new_node;
@@ -140,29 +104,11 @@ inline void ReplaceNode(DwindleLayout *layout, DwindleNode *old_node,
    }
 }
 
-inline void RecalculatePositions(DwindleNode *node) {
-   if ((node == nullptr) || (node->is_leaf == TRUE))
-      return;
-
-   // Split this node's rectangle between children
-   RECT left_rect;
-   RECT right_rect;
-   SplitRectangle(&node->rect, node->split_horizontal, node->split_ratio,
-                  &left_rect, &right_rect);
-
-   node->first->rect = left_rect;
-   node->second->rect = right_rect;
-
-   // Recurse down the tree
-   RecalculatePositions(node->first);
-   RecalculatePositions(node->second);
-}
-
-inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
-                                       RECT new_rect, BOOL *width_changed,
-                                       BOOL *height_changed, int inset_left,
-                                       int inset_top, int inset_right,
-                                       int inset_bottom) -> BOOL {
+auto DwindleEngine::UpdateAncestorRatio(DwindleNode *parent, HWND hwnd,
+                                        RECT new_rect, BOOL *width_changed,
+                                        BOOL *height_changed, int inset_left,
+                                        int inset_top, int inset_right,
+                                        int inset_bottom) -> BOOL {
    BOOL match = FALSE;
    if (((*width_changed) == TRUE) && (parent->split_horizontal == TRUE)) {
       match = TRUE;
@@ -179,27 +125,26 @@ inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
        static_cast<BOOL>(FindNodeByWindow(parent->first, hwnd) != nullptr);
 
    if (parent->split_horizontal == TRUE) {
-      double const container_w = parent->rect.right - parent->rect.left;
+      auto const container_w =
+          static_cast<double>(parent->rect.right - parent->rect.left);
       if (container_w <= 0.0)
          return FALSE;
-      /* The split line sits at the leaf's sibling-facing edge; that side's
-       * frame inset separates the requested frame edge from the node edge the
-       * ratio is computed from. */
       int const inset = (leaf_in_first == TRUE) ? inset_right : inset_left;
       double const split_pos =
           (leaf_in_first == TRUE)
-              ? (double)(new_rect.right + inset - parent->rect.left)
-              : (double)(new_rect.left - inset - parent->rect.left);
+              ? static_cast<double>(new_rect.right + inset - parent->rect.left)
+              : static_cast<double>(new_rect.left - inset - parent->rect.left);
       parent->split_ratio = split_pos / container_w;
    } else {
-      double const container_h = parent->rect.bottom - parent->rect.top;
+      auto const container_h =
+          static_cast<double>(parent->rect.bottom - parent->rect.top);
       if (container_h <= 0.0)
          return FALSE;
       int const inset = (leaf_in_first == TRUE) ? inset_bottom : inset_top;
       double const split_pos =
           (leaf_in_first == TRUE)
-              ? (double)(new_rect.bottom + inset - parent->rect.top)
-              : (double)(new_rect.top - inset - parent->rect.top);
+              ? static_cast<double>(new_rect.bottom + inset - parent->rect.top)
+              : static_cast<double>(new_rect.top - inset - parent->rect.top);
       parent->split_ratio = split_pos / container_h;
    }
 
@@ -210,45 +155,22 @@ inline auto UpdateDwindleAncestorRatio(DwindleNode *parent, HWND hwnd,
    return TRUE;
 }
 
-} // namespace
-
-void DwindleRecalculate(DwindleLayout *layout) {
-   if (layout == nullptr)
-      return;
-   if (layout->root != nullptr)
-      layout->root->rect = layout->workspace_rect;
-   RecalculatePositions(layout->root);
-}
-
-auto DwindleInsertWindow(DwindleLayout *layout, HWND new_window,
-                         HWND focus_window) -> bool {
-   if (layout == nullptr)
-      return false;
-
+auto DwindleEngine::insert(HWND new_window, HWND focus_window) -> bool {
    // If the window is already in the tree, remove it first and fall
-   // through to the normal insert. This dedups (no second leaf) and
-   // reconciles (the window is re-inserted exactly once at the focus
-   // position). Without this, a duplicate insert leaves a stale node
-   // whose space is never filled after re-tiling — a permanent gap.
-   // DwindleRemoveWindow decrements window_count and recalculates
-   // positions; the insert below increments it back.
-   if (FindNodeByWindow(layout->root, new_window) != nullptr) {
-      DwindleRemoveWindow(layout, new_window);
+   // through to the normal insert.
+   if (FindNodeByWindow(root, new_window) != nullptr) {
+      remove(new_window);
    }
 
-   // special case for first window
-   if (layout->window_count == 0) {
-      layout->root = CreateLeafNode(new_window, layout->workspace_rect);
-      layout->window_count = 1;
+   if (window_count == 0) {
+      root = CreateLeafNode(new_window, workspace_rect);
+      window_count = 1;
       return true;
    }
 
-   DwindleNode *focus_node = FindNodeByWindow(layout->root, focus_window);
+   DwindleNode *focus_node = FindNodeByWindow(root, focus_window);
    if (focus_node == nullptr) {
-      // Hint window not in tree — split the last leaf (rightmost/
-      // bottommost in the tree) so the new window lands at the edge
-      // rather than unpredictably inside the layout.
-      DwindleNode *last = FindLastLeaf(layout->root);
+      DwindleNode *last = FindLastLeaf(root);
       if (last == nullptr)
          return false;
       focus_node = last;
@@ -259,14 +181,13 @@ auto DwindleInsertWindow(DwindleLayout *layout, HWND new_window,
    BOOL const horz = static_cast<BOOL>(width > height);
 
    DwindleNode *parent =
-       CreateContainerNode(focus_node->rect, horz, layout->split_ratio);
+       CreateContainerNode(focus_node->rect, horz, split_ratio);
    if (parent == nullptr)
       return false;
 
    RECT left_rect;
    RECT right_rect;
-   SplitRectangle(&parent->rect, horz, layout->split_ratio, &left_rect,
-                  &right_rect);
+   SplitRectangle(&parent->rect, horz, split_ratio, &left_rect, &right_rect);
 
    parent->first = focus_node;
    parent->first->rect = left_rect;
@@ -276,74 +197,79 @@ auto DwindleInsertWindow(DwindleLayout *layout, HWND new_window,
       return false;
    }
 
-   ReplaceNode(layout, focus_node, parent);
-
-   layout->window_count++;
+   ReplaceNode(focus_node, parent);
+   window_count++;
    return true;
 }
 
-auto DwindleRemoveWindow(DwindleLayout *layout, HWND window) -> bool {
-   if (layout == nullptr)
-      return false;
-
-   DwindleNode *node = FindNodeByWindow(layout->root, window);
+auto DwindleEngine::remove(HWND window) -> bool {
+   DwindleNode *node = FindNodeByWindow(root, window);
    if ((node == nullptr) || (node->is_leaf == FALSE))
       return false;
 
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
    if (parent == nullptr) {
-      // Last window - just free it
-      free(layout->root);
-      layout->root = nullptr;
-      layout->window_count = 0;
+      free(root);
+      root = nullptr;
+      window_count = 0;
       return true;
    }
 
-   // Determine which child is being removed and which survives
    DwindleNode *survivor =
        (parent->first == node) ? parent->second : parent->first;
-
-   // The survivor takes the full space of the container
    survivor->rect = parent->rect;
 
-   // Replace parent with survivor in the tree
-   ReplaceNode(layout, parent, survivor);
+   ReplaceNode(parent, survivor);
 
-   // The survivor now occupies a rect of different dimensions than
-   // before (it inherited the parent's rect).  Re-evaluate its split
-   // orientation so the subtree is laid out sensibly under the new
-   // aspect ratio — without this a container promoted from a tall
-   // subspace into a wide one keeps its old vertical split, producing
-   // short-wide strips instead of a normal dwindle arrangement.
    if (survivor->is_leaf == FALSE) {
       int const w = survivor->rect.right - survivor->rect.left;
       int const h = survivor->rect.bottom - survivor->rect.top;
       survivor->split_horizontal = static_cast<BOOL>(w > h);
    }
 
-   // Clean up - free the removed window's node AND the parent container
    parent->first = nullptr;
    parent->second = nullptr;
    free(node);
    free(parent);
-   layout->window_count--;
+   window_count--;
 
-   // Recalculate positions
-   RecalculatePositions(layout->root);
+   RecalculatePositions(root);
    return true;
 }
 
-auto DwindleGetNeighbor(DwindleLayout *layout, HWND hwnd,
-                        BFWMDirection direction) -> HWND {
-   if (layout == nullptr)
-      return nullptr;
+auto DwindleEngine::get_rect(HWND hwnd, RECT *out_rect) -> bool {
+   if (hwnd == nullptr)
+      return false;
 
-   DwindleNode *source = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *node = FindNodeByWindow(root, hwnd);
+   if (node == nullptr) {
+      Debug("No node with window handle: %p found", hwnd);
+      return false;
+   }
+
+   *out_rect = node->rect;
+
+   int left;
+   int top;
+   int right;
+   int bottom;
+   WindowSideInsetsImpl(workspace_rect, gap_between, border_width, node, &left,
+                        &top, &right, &bottom);
+   out_rect->left += left;
+   out_rect->top += top;
+   out_rect->right -= right;
+   out_rect->bottom -= bottom;
+
+   return true;
+}
+
+auto DwindleEngine::get_neighbor(HWND hwnd, BFWMDirection direction) -> HWND {
+   DwindleNode *source = FindNodeByWindow(root, hwnd);
    if (source == nullptr)
       return nullptr;
 
    std::array<DwindleNode *, LEAVES_MAX> leaves = {};
-   int const count = CollectLeafNodes(layout->root, leaves.data(), LEAVES_MAX);
+   int const count = CollectLeafNodes(root, leaves.data(), LEAVES_MAX);
 
    RECT const src = source->rect;
    HWND best = nullptr;
@@ -360,23 +286,18 @@ auto DwindleGetNeighbor(DwindleLayout *layout, HWND hwnd,
          best = leaves[i]->hwnd;
       }
    }
-
    return best;
 }
 
-auto DwindleGetClosestWindow(DwindleLayout *layout, HWND reference) -> HWND {
-   if ((layout == nullptr) || layout->window_count == 0 ||
-       (layout->root == nullptr))
+auto DwindleEngine::get_closest_window(HWND reference) -> HWND {
+   if (window_count == 0 || root == nullptr)
       return nullptr;
 
-   // If reference is non-nullptr and exists in tree, find closest by
-   // Euclidean center-to-center distance.
    if (reference != nullptr) {
-      DwindleNode *ref_node = FindNodeByWindow(layout->root, reference);
+      DwindleNode *ref_node = FindNodeByWindow(root, reference);
       if (ref_node != nullptr) {
          std::array<DwindleNode *, LEAVES_MAX> leaves = {};
-         int const count =
-             CollectLeafNodes(layout->root, leaves.data(), LEAVES_MAX);
+         int const count = CollectLeafNodes(root, leaves.data(), LEAVES_MAX);
 
          int const cx1 = (ref_node->rect.left + ref_node->rect.right) / 2;
          int const cy1 = (ref_node->rect.top + ref_node->rect.bottom) / 2;
@@ -399,28 +320,26 @@ auto DwindleGetClosestWindow(DwindleLayout *layout, HWND reference) -> HWND {
                best = leaves[i]->hwnd;
             }
          }
-
          return best;
       }
    }
 
-   // Fallback: reference was nullptr or not found in the tree
-   DwindleNode *leaf = FindFirstLeaf(layout->root);
+   // Fallback
+   DwindleNode *leaf = FindFirstLeaf(root);
    return (leaf != nullptr) ? leaf->hwnd : nullptr;
 }
 
-auto DwindleResizeWindow(DwindleLayout *layout, HWND hwnd,
-                         BFWMDirection direction, int pixels) -> bool {
-   if ((layout == nullptr) || (layout->root == nullptr))
+auto DwindleEngine::resize_window(HWND hwnd, BFWMDirection direction,
+                                  int pixels) -> bool {
+   if (root == nullptr)
       return false;
 
-   DwindleNode *leaf = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *leaf = FindNodeByWindow(root, hwnd);
    if ((leaf == nullptr) || (leaf->is_leaf == 0))
       return false;
 
-   // Walk up the tree to find the nearest ancestor with matching split
    DwindleNode *node = leaf;
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
 
    while (parent != nullptr) {
       BOOL match = FALSE;
@@ -434,20 +353,14 @@ auto DwindleResizeWindow(DwindleLayout *layout, HWND hwnd,
       if (match == TRUE) {
          double const total_dim =
              (parent->split_horizontal != 0)
-                 ? (double)(parent->rect.right - parent->rect.left)
-                 : (double)(parent->rect.bottom - parent->rect.top);
+                 ? static_cast<double>(parent->rect.right - parent->rect.left)
+                 : static_cast<double>(parent->rect.bottom - parent->rect.top);
 
          if (total_dim <= 0.0)
             return false;
 
-         // Convert pixel delta to a ratio delta
-         double const delta = (double)pixels / total_dim;
+         double const delta = static_cast<double>(pixels) / total_dim;
 
-         // Move the split line in the direction pressed.
-         // DirRight/DirDown increase the ratio (split line moves right/down).
-         // DirLeft/DirUp decrease the ratio (split line moves left/up).
-         // The focused window grows if it is on the expanding side of the
-         // split and shrinks if it is on the contracting side.
          switch (direction) {
          case DirRight:
          case DirDown:
@@ -466,23 +379,21 @@ auto DwindleResizeWindow(DwindleLayout *layout, HWND hwnd,
          if (parent->split_ratio > SPLIT_RATIO_MAX)
             parent->split_ratio = SPLIT_RATIO_MAX;
 
-         RecalculatePositions(layout->root);
+         RecalculatePositions(root);
          return true;
       }
 
       node = parent;
-      parent = FindParent(layout->root, node);
+      parent = FindParent(root, node);
    }
-
    return false;
 }
 
-auto DwindleResizeWindowToRect(DwindleLayout *layout, HWND hwnd, RECT new_rect)
-    -> bool {
-   if ((layout == nullptr) || (layout->root == nullptr))
+auto DwindleEngine::resize_window_to_rect(HWND hwnd, RECT new_rect) -> bool {
+   if (root == nullptr)
       return false;
 
-   DwindleNode *leaf = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *leaf = FindNodeByWindow(root, hwnd);
    if ((leaf == nullptr) || (leaf->is_leaf == FALSE))
       return false;
 
@@ -490,8 +401,8 @@ auto DwindleResizeWindowToRect(DwindleLayout *layout, HWND hwnd, RECT new_rect)
    int inset_top;
    int inset_right;
    int inset_bottom;
-   WindowSideInsets(layout, leaf, &inset_left, &inset_top, &inset_right,
-                    &inset_bottom);
+   WindowSideInsetsImpl(workspace_rect, gap_between, border_width, leaf,
+                        &inset_left, &inset_top, &inset_right, &inset_bottom);
    int const tiled_w =
        (leaf->rect.right - leaf->rect.left) - inset_left - inset_right;
    int const tiled_h =
@@ -506,45 +417,43 @@ auto DwindleResizeWindowToRect(DwindleLayout *layout, HWND hwnd, RECT new_rect)
       return false;
 
    DwindleNode *node = leaf;
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
    BOOL updated = FALSE;
 
    while (parent != nullptr) {
-      if (UpdateDwindleAncestorRatio(parent, hwnd, new_rect, &width_changed,
-                                     &height_changed, inset_left, inset_top,
-                                     inset_right, inset_bottom) == TRUE) {
+      if (UpdateAncestorRatio(parent, hwnd, new_rect, &width_changed,
+                              &height_changed, inset_left, inset_top,
+                              inset_right, inset_bottom) == TRUE) {
          updated = TRUE;
          if ((width_changed == FALSE) && (height_changed == FALSE))
             break;
       }
       node = parent;
-      parent = FindParent(layout->root, node);
+      parent = FindParent(root, node);
    }
 
    if (updated == TRUE) {
-      RecalculatePositions(layout->root);
+      RecalculatePositions(root);
       return true;
    }
    return false;
 }
 
-auto DwindleMoveWindow(DwindleLayout *layout, HWND hwnd,
-                       BFWMDirection direction) -> bool {
-   if ((layout == nullptr) || (layout->root == nullptr))
+auto DwindleEngine::move_window(HWND hwnd, BFWMDirection direction) -> bool {
+   if (root == nullptr)
       return false;
 
-   HWND neighbor = DwindleGetNeighbor(layout, hwnd, direction);
+   HWND neighbor = get_neighbor(hwnd, direction);
    if (neighbor != nullptr) {
-      DwindleNode *node_a = FindNodeByWindow(layout->root, hwnd);
-      DwindleNode *node_b = FindNodeByWindow(layout->root, neighbor);
+      DwindleNode *node_a = FindNodeByWindow(root, hwnd);
+      DwindleNode *node_b = FindNodeByWindow(root, neighbor);
       if ((node_a == nullptr) || (node_b == nullptr))
          return false;
 
-      DwindleNode *parent_a = FindParent(layout->root, node_a);
-      DwindleNode *parent_b = FindParent(layout->root, node_b);
+      DwindleNode *parent_a = FindParent(root, node_a);
+      DwindleNode *parent_b = FindParent(root, node_b);
 
       if (parent_a != nullptr && parent_a == parent_b) {
-         // Same parent: swap HWNDs but keep each window's screen dimensions.
          HWND temp = node_a->hwnd;
          node_a->hwnd = node_b->hwnd;
          node_b->hwnd = temp;
@@ -556,47 +465,37 @@ auto DwindleMoveWindow(DwindleLayout *layout, HWND hwnd,
          int const total = (parent_a->split_horizontal == TRUE)
                                ? (parent_a->rect.right - parent_a->rect.left)
                                : (parent_a->rect.bottom - parent_a->rect.top);
-         parent_a->split_ratio = (double)second_size / (double)total;
+         parent_a->split_ratio = static_cast<double>(second_size) / total;
 
-         RecalculatePositions(layout->root);
+         RecalculatePositions(root);
          return true;
       }
 
-      // Different parents: remove from current position and re-insert
-      // at the neighbor's position, splitting the neighbor's space.
-      // This reshapes the tree topology with each cross-branch move.
-      if (!DwindleRemoveWindow(layout, hwnd)) {
+      if (!remove(hwnd)) {
          Error("DwindleMoveWindow: failed to remove window %p", hwnd);
          return false;
       }
-
-      if (!DwindleInsertWindow(layout, hwnd, neighbor)) {
+      if (!insert(hwnd, neighbor)) {
          Error("DwindleMoveWindow: remove ok but re-insert at %p failed",
                neighbor);
          return false;
       }
-
       return true;
    }
 
-   // No geometric neighbor — try restructuring the parent split so the
-   // window can move in an orthogonal direction.  If the movement is
-   // parallel to the parent's split it is a genuine edge → workspace move.
-   DwindleNode *node = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *node = FindNodeByWindow(root, hwnd);
    if ((node == nullptr) || (node->is_leaf == FALSE))
       return false;
 
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
    if (parent == nullptr)
       return false;
 
    BOOL const dir_horz =
        static_cast<BOOL>(direction == DirLeft || direction == DirRight);
    if (dir_horz == parent->split_horizontal)
-      return false; // parallel direction → genuine edge
+      return false;
 
-   // Restructure: toggle parent's split, put the moving window on the
-   // leading edge, and toggle the sibling subtree's split as well.
    parent->split_horizontal =
        static_cast<BOOL>(parent->split_horizontal == FALSE);
 
@@ -621,78 +520,61 @@ auto DwindleMoveWindow(DwindleLayout *layout, HWND hwnd,
       }
    }
 
-   RecalculatePositions(layout->root);
+   RecalculatePositions(root);
    return true;
 }
 
-auto DwindleToggleSplit(DwindleLayout *layout, HWND hwnd) -> bool {
-   if ((layout == nullptr) || (layout->root == nullptr))
+auto DwindleEngine::toggle_split(HWND hwnd) -> bool {
+   if (root == nullptr)
       return false;
 
-   DwindleNode *node = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *node = FindNodeByWindow(root, hwnd);
    if ((node == nullptr) || (node->is_leaf == FALSE))
       return false;
 
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
    if (parent == nullptr)
       return false;
 
    parent->split_horizontal =
        static_cast<BOOL>(parent->split_horizontal == FALSE);
-   RecalculatePositions(layout->root);
+   RecalculatePositions(root);
    return true;
 }
 
-auto DwindleSwapSplit(DwindleLayout *layout, HWND hwnd) -> bool {
-   if ((layout == nullptr) || (layout->root == nullptr))
+auto DwindleEngine::swap_split(HWND hwnd) -> bool {
+   if (root == nullptr)
       return false;
 
-   DwindleNode *node = FindNodeByWindow(layout->root, hwnd);
+   DwindleNode *node = FindNodeByWindow(root, hwnd);
    if ((node == nullptr) || (node->is_leaf == 0))
       return false;
 
-   DwindleNode *parent = FindParent(layout->root, node);
+   DwindleNode *parent = FindParent(root, node);
    if (parent == nullptr)
       return false;
 
    DwindleNode *tmp = parent->first;
    parent->first = parent->second;
    parent->second = tmp;
-   RecalculatePositions(layout->root);
+   RecalculatePositions(root);
    return true;
 }
 
-void DwindleLayoutFree(DwindleLayout *layout) {
-   if (layout == nullptr)
-      return;
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
 
-   FreeTree(layout->root);
-
-   free(layout);
-   layout = nullptr;
-}
-
-void DwindleLayoutSetGaps(DwindleLayout *layout, int gap_between,
-                          int gap_edge) {
-   if (layout == nullptr)
-      return;
-   layout->gap_between = gap_between;
-   layout->gap_edge = gap_edge;
-}
-
-void DwindleLayoutApplyConfig(DwindleLayout *dwindle_layout,
-                              LayoutConfig config) {
-   if (dwindle_layout == nullptr)
-      return;
-   dwindle_layout->gap_between = config.gap_between;
-   dwindle_layout->gap_edge = config.gap_edge;
-   dwindle_layout->border_width =
-       config.border_width > 0 ? config.border_width : 0;
-   RECT r = config.workspace_rect;
-   r.left += dwindle_layout->gap_edge;
-   r.top += dwindle_layout->gap_edge;
-   r.right -= dwindle_layout->gap_edge;
-   r.bottom -= dwindle_layout->gap_edge;
-   dwindle_layout->workspace_rect = r;
-   DwindleRecalculate(dwindle_layout);
+auto DwindleLayoutEngineCreate(RECT workspace_rect, int gap_between,
+                               int gap_edge, int border_width)
+    -> std::unique_ptr<LayoutEngine> {
+   auto engine = std::make_unique<DwindleEngine>();
+   LayoutConfig const cfg = {
+       .gap_between = gap_between,
+       .gap_edge = gap_edge,
+       .border_width = border_width,
+       .workspace_rect = workspace_rect,
+   };
+   engine->apply_config(cfg);
+   return engine;
 }

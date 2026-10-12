@@ -30,52 +30,49 @@ inline auto scaled(int logical, UINT dpi) -> int {
  * ========================================================================= */
 
 CBELT_TEST(monocle_insets_100_percent) {
-   MonocleLayout *ml = MonocleLayoutCreate(kWorkspace);
+   auto ml = std::make_unique<MonocleEngine>();
    LayoutConfig cfg = {0, scaled(6, 96), scaled(2, 96), kWorkspace};
-   MonocleLayoutApplyConfig(ml, cfg);
+   ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(MonocleGetWindowRect(ml, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
    cbelt_assert_equal((LONG)8, out.left);
    cbelt_assert_equal((LONG)8, out.top);
    cbelt_assert_equal((LONG)1912, out.right);
    cbelt_assert_equal((LONG)1072, out.bottom);
 
-   MonocleLayoutFree(ml);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(monocle_insets_150_percent) {
-   MonocleLayout *ml = MonocleLayoutCreate(kWorkspace);
+   auto ml = std::make_unique<MonocleEngine>();
    LayoutConfig cfg = {0, scaled(6, 144), scaled(2, 144), kWorkspace};
-   MonocleLayoutApplyConfig(ml, cfg);
+   ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(MonocleGetWindowRect(ml, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
    /* 6 logical -> 9, 2 logical -> 3: inset 12 per edge */
    cbelt_assert_equal((LONG)12, out.left);
    cbelt_assert_equal((LONG)12, out.top);
    cbelt_assert_equal((LONG)1908, out.right);
    cbelt_assert_equal((LONG)1068, out.bottom);
 
-   MonocleLayoutFree(ml);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(monocle_insets_200_percent) {
-   MonocleLayout *ml = MonocleLayoutCreate(kWorkspace);
+   auto ml = std::make_unique<MonocleEngine>();
    LayoutConfig cfg = {0, scaled(6, 192), scaled(2, 192), kWorkspace};
-   MonocleLayoutApplyConfig(ml, cfg);
+   ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(MonocleGetWindowRect(ml, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
    /* 6 logical -> 12, 2 logical -> 4: inset 16 per edge */
    cbelt_assert_equal((LONG)16, out.left);
    cbelt_assert_equal((LONG)16, out.top);
    cbelt_assert_equal((LONG)1904, out.right);
    cbelt_assert_equal((LONG)1064, out.bottom);
 
-   MonocleLayoutFree(ml);
    return TEST_SUCCESS;
 }
 
@@ -84,59 +81,56 @@ CBELT_TEST(monocle_insets_200_percent) {
  * ========================================================================= */
 
 CBELT_TEST(dwindle_single_insets_100_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
+   auto dl = std::make_unique<DwindleEngine>();
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 96), 0, scaled(2, 96), kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: every edge is a workspace boundary -> border only (2) */
    cbelt_assert_equal((LONG)2, out.left);
    cbelt_assert_equal((LONG)2, out.top);
    cbelt_assert_equal((LONG)1918, out.right);
    cbelt_assert_equal((LONG)1078, out.bottom);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(dwindle_single_insets_150_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
+   auto dl = std::make_unique<DwindleEngine>();
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 144), 0, scaled(2, 144), kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: boundary edges -> border only (3) */
    cbelt_assert_equal((LONG)3, out.left);
    cbelt_assert_equal((LONG)3, out.top);
    cbelt_assert_equal((LONG)1917, out.right);
    cbelt_assert_equal((LONG)1077, out.bottom);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(dwindle_single_insets_200_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
+   auto dl = std::make_unique<DwindleEngine>();
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 192), 0, scaled(2, 192), kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: boundary edges -> border only (4) */
    cbelt_assert_equal((LONG)4, out.left);
    cbelt_assert_equal((LONG)4, out.top);
    cbelt_assert_equal((LONG)1916, out.right);
    cbelt_assert_equal((LONG)1076, out.bottom);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }
 
@@ -145,22 +139,21 @@ CBELT_TEST(dwindle_single_insets_200_percent) {
  * ========================================================================= */
 
 CBELT_TEST(dwindle_edge_gap_150_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
+   auto dl = std::make_unique<DwindleEngine>();
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 144), scaled(6, 144), scaled(2, 144),
                        kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &out));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* workspace inset by edge 9; single window -> boundary edges get border 3 */
    cbelt_assert_equal((LONG)12, out.left);
    cbelt_assert_equal((LONG)12, out.top);
    cbelt_assert_equal((LONG)1908, out.right);
    cbelt_assert_equal((LONG)1068, out.bottom);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }
 
@@ -169,18 +162,18 @@ CBELT_TEST(dwindle_edge_gap_150_percent) {
  * ========================================================================= */
 
 CBELT_TEST(dwindle_two_window_split_insets_150_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(2),
-                                    reinterpret_cast<HWND>(1)));
+   auto dl = std::make_unique<DwindleEngine>();
    LayoutConfig cfg = {scaled(6, 144), 0, scaled(2, 144), kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(1)));
 
    RECT r1;
    RECT r2;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &r1));
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(2), &r2));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
 
    /* split at 960; boundary edges border 3, the shared seam gap/2 4 + border 3
     */
@@ -198,23 +191,22 @@ CBELT_TEST(dwindle_two_window_split_insets_150_percent) {
     */
    cbelt_assert_equal((LONG)14, r2.left - r1.right);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(dwindle_two_window_split_insets_200_percent) {
-   DwindleLayout *dl = DwindleLayoutCreate(kWorkspace, 0.5);
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(1),
-                                    reinterpret_cast<HWND>(0)));
-   cbelt_assert(DwindleInsertWindow(dl, reinterpret_cast<HWND>(2),
-                                    reinterpret_cast<HWND>(1)));
+   auto dl = std::make_unique<DwindleEngine>();
    LayoutConfig cfg = {scaled(6, 192), 0, scaled(2, 192), kWorkspace};
-   DwindleLayoutApplyConfig(dl, cfg);
+   dl->apply_config(cfg);
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
+   cbelt_assert(
+       dl->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(1)));
 
    RECT r1;
    RECT r2;
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(1), &r1));
-   cbelt_assert(DwindleGetWindowRect(dl, reinterpret_cast<HWND>(2), &r2));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
+   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
 
    /* split at 960; boundary edges border 4, the shared seam gap/2 6 + border 4
     */
@@ -228,10 +220,7 @@ CBELT_TEST(dwindle_two_window_split_insets_200_percent) {
    cbelt_assert_equal((LONG)1916, r2.right);
    cbelt_assert_equal((LONG)1076, r2.bottom);
 
-   /* visual gap = 2 * (gap/2 + border) = scaled gap (12) + 2 * scaled border
-    * (8) */
    cbelt_assert_equal((LONG)20, r2.left - r1.right);
 
-   DwindleLayoutFree(dl);
    return TEST_SUCCESS;
 }

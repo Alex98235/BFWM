@@ -1,22 +1,18 @@
 #include "master.h"
 #include "../../../core/bfwm_def.h"
-#include "../layout_api.h"
+#include "../layout_base.h"
 #include <algorithm>
-#include <utility>
 #include <vector>
 #include <windef.h>
 
 namespace {
-
-/// Default share of the region given to the master column (half).
-constexpr double kDefaultMasterFactor = 0.5;
 
 /**
  * @brief Split a region into `count` equal-height vertical slices.
  *
  * Each slice spans the full width of `region`; slices are stacked top to
  * bottom with `gap` pixels between them. The last slice absorbs any
- * rounding remainder. If count == 1, out[0] = region unchanged.
+ * rounding remainder.
  */
 void SplitVertical(RECT region, int count, int gap, std::vector<RECT> &out) {
    out.clear();
@@ -35,7 +31,6 @@ void SplitVertical(RECT region, int count, int gap, std::vector<RECT> &out) {
       RECT r = region;
       r.top = y;
       if (i == count - 1) {
-         // Last slice absorbs the rounding remainder.
          r.bottom = region.bottom;
       } else {
          r.bottom = y + slice_h;
@@ -47,102 +42,25 @@ void SplitVertical(RECT region, int count, int gap, std::vector<RECT> &out) {
 
 } // namespace
 
-auto MasterLayoutCreate(RECT workspace_rect) -> MasterLayout * {
-   auto *master_layout = new MasterLayout;
-   master_layout->workspace_rect = workspace_rect;
-   master_layout->gap_between = 0;
-   master_layout->gap_edge = 0;
-   master_layout->border_width = 0;
-   master_layout->master_count = 1;
-   master_layout->master_factor = kDefaultMasterFactor;
-   master_layout->tiled_rect = workspace_rect;
-   master_layout->selected_hwnd = nullptr;
-   return master_layout;
-}
+// ---------------------------------------------------------------------------
+// MasterEngine
+// ---------------------------------------------------------------------------
 
-auto MasterInsertWindow(MasterLayout *layout, HWND window, HWND focus) -> bool {
-   (void)focus;
-   if (layout == nullptr)
+auto MasterEngine::get_rect(HWND hwnd, RECT *out_rect) -> bool {
+   if (out_rect == nullptr)
       return false;
 
-   // No-op if the window is already present — a duplicate entry would
-   // otherwise leave stale space after re-tiling.
-   if (std::ranges::find(layout->windows, window) != layout->windows.end()) {
-      return true;
-   }
-
-   layout->windows.push_back(window);
-   if (layout->selected_hwnd == nullptr)
-      layout->selected_hwnd = window;
-   return true;
-}
-
-auto MasterRemoveWindow(MasterLayout *layout, HWND window) -> bool {
-   if (layout == nullptr)
-      return false;
-
-   for (size_t i = 0; i < layout->windows.size(); i++) {
-      if (layout->windows[i] == window) {
-         bool const was_selected =
-             (layout->windows[i] == layout->selected_hwnd);
-         layout->windows.erase(layout->windows.begin() +
-                               static_cast<ptrdiff_t>(i));
-         if (was_selected) {
-            if (layout->windows.empty()) {
-               layout->selected_hwnd = nullptr;
-            } else {
-               layout->selected_hwnd =
-                   layout->windows[i % layout->windows.size()];
-            }
-         }
-         return true;
-      }
-   }
-   return false;
-}
-
-void MasterRecalculate(MasterLayout *layout) {
-   if (layout == nullptr)
-      return;
-
-   int const edge = layout->gap_edge;
-   RECT r = layout->workspace_rect;
-   r.left += edge;
-   r.top += edge;
-   r.right -= edge;
-   r.bottom -= edge;
-   if (layout->border_width > 0) {
-      r.left += layout->border_width;
-      r.top += layout->border_width;
-      r.right -= layout->border_width;
-      r.bottom -= layout->border_width;
-   }
-   layout->tiled_rect = r;
-}
-
-auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
-    -> bool {
-   if ((layout == nullptr) || (out_rect == nullptr))
-      return false;
-
-   int idx = -1;
-   for (size_t i = 0; i < layout->windows.size(); i++) {
-      if (layout->windows[i] == hwnd) {
-         idx = static_cast<int>(i);
-         break;
-      }
-   }
+   int const idx = FindIndex(hwnd);
    if (idx < 0)
       return false;
 
-   size_t const n = layout->windows.size();
-   int const master_count = layout->master_count > 0 ? layout->master_count : 1;
+   size_t const n = windows.size();
+   int const mcnt = master_count > 0 ? master_count : 1;
 
-   if (std::cmp_less_equal(n, master_count)) {
+   if (std::cmp_less_equal(n, mcnt)) {
       // Everything is a master: split the whole tiled area.
       std::vector<RECT> slices;
-      SplitVertical(layout->tiled_rect, static_cast<int>(n),
-                    layout->gap_between, slices);
+      SplitVertical(tiled_rect, static_cast<int>(n), gap_between, slices);
       if (static_cast<size_t>(idx) < slices.size()) {
          *out_rect = slices[static_cast<size_t>(idx)];
          return true;
@@ -151,25 +69,23 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
    }
 
    int const master_w =
-       static_cast<int>((layout->tiled_rect.right - layout->tiled_rect.left) *
-                        layout->master_factor);
+       static_cast<int>((tiled_rect.right - tiled_rect.left) * master_factor);
    RECT const master_region = {
-       .left = layout->tiled_rect.left,
-       .top = layout->tiled_rect.top,
-       .right = layout->tiled_rect.left + master_w,
-       .bottom = layout->tiled_rect.bottom,
+       .left = tiled_rect.left,
+       .top = tiled_rect.top,
+       .right = tiled_rect.left + master_w,
+       .bottom = tiled_rect.bottom,
    };
    RECT const stack_region = {
-       .left = master_region.right + layout->gap_between,
-       .top = layout->tiled_rect.top,
-       .right = layout->tiled_rect.right,
-       .bottom = layout->tiled_rect.bottom,
+       .left = master_region.right + gap_between,
+       .top = tiled_rect.top,
+       .right = tiled_rect.right,
+       .bottom = tiled_rect.bottom,
    };
 
-   if (idx < master_count) {
-      // This window is a master.
+   if (idx < mcnt) {
       std::vector<RECT> slices;
-      SplitVertical(master_region, master_count, layout->gap_between, slices);
+      SplitVertical(master_region, mcnt, gap_between, slices);
       if (static_cast<size_t>(idx) < slices.size()) {
          *out_rect = slices[static_cast<size_t>(idx)];
          return true;
@@ -177,11 +93,10 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
       return false;
    }
 
-   // This window is in the stack.
-   int const stack_count = static_cast<int>(n) - master_count;
+   int const stack_count = static_cast<int>(n) - mcnt;
    std::vector<RECT> slices;
-   SplitVertical(stack_region, stack_count, layout->gap_between, slices);
-   auto const sidx = static_cast<size_t>(idx - master_count);
+   SplitVertical(stack_region, stack_count, gap_between, slices);
+   auto const sidx = static_cast<size_t>(idx - mcnt);
    if (sidx < slices.size()) {
       *out_rect = slices[sidx];
       return true;
@@ -189,67 +104,18 @@ auto MasterGetWindowRect(MasterLayout *layout, HWND hwnd, RECT *out_rect)
    return false;
 }
 
-auto MasterMoveWindow(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
-    -> bool {
-   if ((layout == nullptr) || layout->windows.size() < 2)
-      return false;
-
-   int idx = -1;
-   for (size_t i = 0; i < layout->windows.size(); i++) {
-      if (layout->windows[i] == hwnd) {
-         idx = static_cast<int>(i);
-         break;
-      }
-   }
-   if (idx < 0)
-      return false;
-
-   int swap_idx = -1;
-   switch (direction) {
-   case DirPrev:
-      swap_idx =
-          (idx == 0) ? static_cast<int>(layout->windows.size()) - 1 : idx - 1;
-      break;
-   case DirNext:
-      swap_idx =
-          (idx == static_cast<int>(layout->windows.size()) - 1) ? 0 : idx + 1;
-      break;
-   case DirLeft:
-   case DirRight:
-   case DirUp:
-   case DirDown:
-      break;
-   }
-
-   if (swap_idx < 0 || std::cmp_greater_equal(swap_idx, layout->windows.size()))
-      return false;
-
-   HWND tmp = layout->windows[idx];
-   layout->windows[idx] = layout->windows[swap_idx];
-   layout->windows[swap_idx] = tmp;
-   return true;
-}
-
-auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
-    -> HWND {
-   if ((layout == nullptr) || layout->windows.empty())
+auto MasterEngine::get_neighbor(HWND hwnd, BFWMDirection direction) -> HWND {
+   if (windows.empty())
       return nullptr;
 
-   int idx = -1;
-   for (size_t i = 0; i < layout->windows.size(); i++) {
-      if (layout->windows[i] == hwnd) {
-         idx = static_cast<int>(i);
-         break;
-      }
-   }
+   int const idx = FindIndex(hwnd);
    if (idx < 0)
       return nullptr;
 
-   int const master_count = layout->master_count > 0 ? layout->master_count : 1;
-   bool const is_master = idx < master_count;
-   int const sidx = idx - master_count;
-   int const stack_count =
-       static_cast<int>(layout->windows.size()) - master_count;
+   int const mcnt = master_count > 0 ? master_count : 1;
+   bool const is_master = idx < mcnt;
+   int const sidx = idx - mcnt;
+   int const stack_cnt = static_cast<int>(windows.size()) - mcnt;
 
    switch (direction) {
    case DirLeft:
@@ -257,93 +123,37 @@ auto MasterGetNeighbor(MasterLayout *layout, HWND hwnd, BFWMDirection direction)
       // Left of the master is the outer edge; the stack sits to the right.
       if (is_master)
          return nullptr;
-      return layout->windows[0];
+      return windows[0];
    case DirRight:
    case DirNext:
       // Right of the stack is the outer edge; the master sits to the left.
       if (!is_master)
          return nullptr;
-      return (stack_count > 0) ? layout->windows[master_count] : nullptr;
+      return (stack_cnt > 0) ? windows[mcnt] : nullptr;
    case DirUp:
-      if (is_master) {
-         return (master_count > 1 && idx > 0) ? layout->windows[idx - 1]
-                                              : nullptr;
-      }
-      return (sidx > 0) ? layout->windows[idx - 1] : nullptr;
+      if (is_master)
+         return (mcnt > 1 && idx > 0) ? windows[idx - 1] : nullptr;
+      return (sidx > 0) ? windows[idx - 1] : nullptr;
    case DirDown:
-      if (is_master) {
-         return (master_count > 1 && idx < master_count - 1)
-                    ? layout->windows[idx + 1]
-                    : nullptr;
-      }
-      return (sidx < stack_count - 1) ? layout->windows[idx + 1] : nullptr;
+      if (is_master)
+         return (mcnt > 1 && idx < mcnt - 1) ? windows[idx + 1] : nullptr;
+      return (sidx < stack_cnt - 1) ? windows[idx + 1] : nullptr;
    }
    return nullptr;
 }
 
-auto MasterGetClosestWindow(MasterLayout *layout, HWND reference) -> HWND {
-   if ((layout == nullptr) || layout->windows.empty())
-      return nullptr;
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
 
-   if (reference != nullptr) {
-      for (size_t i = 0; i < layout->windows.size(); i++) {
-         if (layout->windows[i] == reference)
-            return layout->windows[(i + 1) % layout->windows.size()];
-      }
-   }
-
-   // Default: return the currently-selected window. Fall back to the first
-   // window if selection is unset/stale.
-   if (layout->selected_hwnd != nullptr) {
-      for (size_t i = 0; i < layout->windows.size(); i++) {
-         if (layout->windows[i] == layout->selected_hwnd)
-            return layout->selected_hwnd;
-      }
-   }
-   return layout->windows[0];
-}
-
-auto MasterResizeWindow(MasterLayout *layout, HWND hwnd,
-                        BFWMDirection direction, int pixels) -> bool {
-   (void)layout;
-   (void)hwnd;
-   (void)direction;
-   (void)pixels;
-   return false;
-}
-
-auto MasterResizeWindowToRect(MasterLayout *layout, HWND hwnd, RECT new_rect)
-    -> bool {
-   (void)layout;
-   (void)hwnd;
-   (void)new_rect;
-   return false;
-}
-
-auto MasterToggleSplit(MasterLayout *layout, HWND hwnd) -> bool {
-   (void)layout;
-   (void)hwnd;
-   return false;
-}
-
-auto MasterSwapSplit(MasterLayout *layout, HWND hwnd) -> bool {
-   (void)layout;
-   (void)hwnd;
-   return false;
-}
-
-void MasterLayoutFree(MasterLayout *layout) {
-   if (layout == nullptr)
-      return;
-   delete layout;
-}
-
-void MasterLayoutApplyConfig(MasterLayout *layout, LayoutConfig config) {
-   if (layout == nullptr)
-      return;
-   layout->gap_between = config.gap_between;
-   layout->gap_edge = config.gap_edge;
-   layout->border_width = config.border_width > 0 ? config.border_width : 0;
-   layout->workspace_rect = config.workspace_rect;
-   MasterRecalculate(layout);
+auto MasterLayoutEngineCreate(RECT workspace_rect, int gap_between,
+                              int gap_edge, int border_width)
+    -> std::unique_ptr<LayoutEngine> {
+   auto engine = std::make_unique<MasterEngine>();
+   LayoutConfig const cfg = {.gap_between = gap_between,
+                             .gap_edge = gap_edge,
+                             .border_width = border_width,
+                             .workspace_rect = workspace_rect};
+   engine->apply_config(cfg);
+   return engine;
 }
