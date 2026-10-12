@@ -156,11 +156,8 @@ set(WORKSPACE_SOURCES
     src/workspace/placement.cpp
     src/workspace/layouts/dwindle/dwindle.cpp
     src/workspace/layouts/dwindle/dwindle_tree.cpp
-    src/workspace/layouts/dwindle/dwindle_vtable.cpp
     src/workspace/layouts/monocle/monocle.cpp
-    src/workspace/layouts/monocle/monocle_vtable.cpp
     src/workspace/layouts/master/master.cpp
-    src/workspace/layouts/master/master_vtable.cpp
 )
 
 # Combine all library sources (everything except main.cpp)
