@@ -197,4 +197,12 @@ auto BFWMIsWindowCloaked(HWND hwnd) -> BOOL;
  */
 auto BFWMIsWindowShown(HWND hwnd) -> BOOL;
 
+/**
+ * @brief TRUE when the window's DPI awareness context is unaware (or
+ * GDI-scaled).
+ * @param hwnd Window handle
+ * @return TRUE when the window does not scale for DPI
+ */
+auto BFWMIsWindowDpiUnaware(HWND hwnd) -> BOOL;
+
 #endif

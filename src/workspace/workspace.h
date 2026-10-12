@@ -245,6 +245,18 @@ void WorkspaceHandleMouseHover(struct SharedState *shared,
 auto FindMonitorByPoint(struct SharedState *shared, struct MainContext *main,
                         POINT point) -> Monitor *;
 
+/**
+ * @brief Find the monitor whose WORK AREA contains the point, or nullptr.
+ *
+ * @param shared  The BFWM shared state
+ * @param main    The main-thread context
+ * @param point The point to locate
+ * @return Monitor* containing the point in its work area, or nullptr
+ */
+auto FindMonitorByWorkAreaPoint(struct SharedState *shared,
+                                struct MainContext *main, POINT point)
+    -> Monitor *;
+
 auto FindMonitorByWorkspace(struct SharedState *shared,
                             struct MainContext *main, Workspace *workspace)
     -> Monitor *;

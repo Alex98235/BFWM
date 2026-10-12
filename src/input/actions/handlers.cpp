@@ -303,12 +303,7 @@ inline void GetPreferredFloatRect(HWND hwnd, Workspace *workspace,
     * (the heuristic's intent for the common unaware case) — unscale the
     * physical area, compare against the (logical) norm, then scale the chosen
     * logical size back to physical for the move. */
-   DPI_AWARENESS_CONTEXT target_ctx = GetWindowDpiAwarenessContext(hwnd);
-   BOOL const unaware = static_cast<BOOL>(
-       (AreDpiAwarenessContextsEqual(target_ctx,
-                                     DPI_AWARENESS_CONTEXT_UNAWARE) == TRUE) ||
-       (AreDpiAwarenessContextsEqual(
-            target_ctx, DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED) == TRUE));
+   BOOL const unaware = BFWMIsWindowDpiUnaware(hwnd);
 
    UINT const dpi = ((main->dpi != nullptr) && (mon != nullptr))
                         ? main->dpi->GetDpiOrDefault(mon->GetHandle())
