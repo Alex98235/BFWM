@@ -580,6 +580,22 @@ inline void ShutdownBFWM(SharedState *shared, MainContext *main) {
    /* The Logger singleton flushes and closes its log file on destruction. */
 }
 
+/// Attach to console if AND ONLY IF this process was launched from a
+/// console/terminal. The shell does not wait for BFWM however, so all
+/// output gets mangled with the prompt that follows...
+inline void TryAttachParentConsole() {
+   // If std handles are already valid (redirected to a file/pipe), leave them.
+   HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+   if (out != nullptr && out != INVALID_HANDLE_VALUE)
+      return;
+
+   if (AttachConsole(ATTACH_PARENT_PROCESS) == FALSE)
+      return;
+
+   freopen("CONOUT$", "w", stdout);
+   freopen("CONOUT$", "w", stderr);
+   freopen("CONIN$", "r", stdin);
+}
 } // namespace
 
 auto main(int argc, char *argv[]) -> int {
@@ -591,6 +607,7 @@ auto main(int argc, char *argv[]) -> int {
    BOOL const dpi_aware = DpiSystem::Init();
    DWORD const dpi_init_error = (dpi_aware == FALSE) ? GetLastError() : 0;
 
+   TryAttachParentConsole();
    InitLogger();
 
    if (dpi_aware == FALSE) {
