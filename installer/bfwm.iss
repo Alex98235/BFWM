@@ -37,6 +37,9 @@ Name: "autostart"; Description: "Start {#MyAppName} automatically when I log in"
 
 [Files]
 Source: "..\build\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Third-party license notices (Lua, Clay, GCC runtimes, winpthreads) — the
+; MIT/zlib licenses require them to accompany binary distributions.
+Source: "..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\config.lua"; DestDir: "{userappdata}\BFWM"; DestName: "config.lua"; Flags: onlyifdoesntexist uninsneveruninstall
 
 [Registry]
