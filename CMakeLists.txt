@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.15)
 project(BFWM CXX)
 
+# Statically link the MinGW runtimes (libgcc, libstdc++, winpthread) so the
+# shipped BFWM.exe has no dependency on libgcc_s_seh-1.dll, libstdc++-6.dll
+# or libwinpthread-1.dll, which don't exist on plain Windows installs.
+# These are linker-only flags: on the compile line clang ignores them
+# ("argument unused during compilation"), so they must go through
+# add_link_options. -static-libgcc/-static-libstdc++ are redundant when
+# -static is present but kept as belt-and-braces. The MSVCRT/UCRT stays
+# dynamically linked (inbox on Windows 10+), as do all system DLLs.
+if(MINGW OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_link_options(-static -static-libgcc -static-libstdc++)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
