@@ -176,6 +176,39 @@ def _git(*args: str) -> str:
     return proc.stdout
 
 
+def _diff_hunks(staged: bool = True) -> dict[str, set[int]]:
+    """Parse git diff to get changed line numbers per file.
+
+    Returns ``{absolute_file_path: set_of_changed_line_numbers}``.
+    Used to filter clang-tidy findings to only lines the user actually
+    touched, avoiding pre-existing findings in unchanged regions.
+    """
+    cmd = ["diff", "--cached", "--unified=0"] if staged else ["diff", "--unified=0", "HEAD"]
+    raw = _git(*cmd)
+    if not raw.strip():
+        return {}
+
+    hunks: dict[str, set[int]] = {}
+    current_file: str | None = None
+
+    for line in raw.splitlines():
+        if line.startswith("--- a/") or line.startswith("+++ b/"):
+            path = line[6:]
+            current_file = str(_abs(path))
+            if current_file not in hunks:
+                hunks[current_file] = set()
+        elif line.startswith("@@"):
+            m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
+            if m:
+                start = int(m.group(1))
+                count = int(m.group(2)) if m.group(2) else 1
+                if current_file and current_file in hunks:
+                    for i in range(start, start + count):
+                        hunks[current_file].add(i)
+
+    return hunks
+
+
 def changed_files(staged: bool) -> list[str]:
     if staged:
         out = _git("diff", "--cached", "--name-only", "--diff-filter=ACM")
@@ -610,6 +643,15 @@ def run_hook() -> int:
     # clang-tidy's -header-filter reports pre-existing findings in every
     # header the translation unit includes (dpi.h, sync.h, logger.h, etc.).
     filtered = [d for d in result["diagnostics"] if _in_scope(d["file"], scope)]
+    n_pre_hunk = len(filtered)
+
+    # Further filter to only lines the user's diff touched — avoids
+    # blocking the commit on pre-existing findings in unchanged code.
+    hunks = _diff_hunks(staged=True)
+    if hunks:
+        filtered = [d for d in filtered if d["file"] in hunks and d["line"] in hunks[d["file"]]]
+
+    n_hunk_filtered = n_pre_hunk - len(filtered)
 
     problems = bool(filtered) or not fmt["ok"]
     if not problems:
@@ -618,7 +660,15 @@ def run_hook() -> int:
     print("", file=sys.stderr)
     print("bfwm-tidy: commit blocked", file=sys.stderr)
     if filtered:
-        print(f"  clang-tidy: {len(filtered)} finding(s) ({len(result['diagnostics'])} total, {len(result['diagnostics']) - len(filtered)} filtered)", file=sys.stderr)
+        n_total = len(result["diagnostics"])
+        n_scope_filtered = n_total - n_pre_hunk
+        parts = [f"  clang-tidy: {len(filtered)} finding(s)"]
+        if n_scope_filtered:
+            parts.append(f"({n_total} total, {n_scope_filtered} scope-filtered")
+            if n_hunk_filtered:
+                parts[-1] += f", {n_hunk_filtered} hunk-filtered"
+            parts[-1] += ")"
+        print(" ".join(parts), file=sys.stderr)
         for diag in filtered[:20]:
             location = f"{diag['file']}:{diag['line']}:{diag['column']}"
             check = f" [{diag['check']}]" if diag["check"] else ""
@@ -777,6 +827,15 @@ def main(argv: list[str] | None = None) -> int:
             result["diagnostics"] = [
                 d for d in result["diagnostics"] if _in_scope(d["file"], scope)
             ]
+            # Hunk-level filter: only report findings on lines the user
+            # actually changed, not pre-existing issues in unchanged regions.
+            hunks = _diff_hunks(staged=True)
+            if hunks:
+                result["diagnostics"] = [
+                    d
+                    for d in result["diagnostics"]
+                    if d["file"] in hunks and d["line"] in hunks[d["file"]]
+                ]
             result["clean"] = not result["diagnostics"]
         _emit(result)
         if args.fail_on_findings and not result["clean"]:
