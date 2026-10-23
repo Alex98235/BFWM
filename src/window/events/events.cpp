@@ -139,10 +139,6 @@ if (IsManageableWindow(shared, main, hwnd, startup)) {
    // the Window.
    if (IsExcludedByRules(shared, main, class_name_a.data(), title_a.data(),
                          process)) {
-      Debug("Window excluded by rules: hwnd=%p class=%s title=%s "
-            "process=%s",
-            reinterpret_cast<void *>(hwnd), class_name_a.data(), title_a.data(),
-            (process != nullptr) ? process : "(null)");
       return REGISTER_SKIPPED;
    }
 
