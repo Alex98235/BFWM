@@ -176,7 +176,7 @@ inline void PresentBars(SharedState *shared, MainContext *main) {
 }
 
 inline void DispatchKeybind(SharedState *shared, MainContext *main,
-                            Keystroke *queued) {
+                            Keystroke const *queued) {
    const KBDLLHOOKSTRUCT *key = &queued->key;
 
    if (key->vkCode == VK_CONTROL || key->vkCode == VK_SHIFT ||
@@ -184,7 +184,7 @@ inline void DispatchKeybind(SharedState *shared, MainContext *main,
       return; // skip bare modifiers
    }
 
-   auto *actions = KBDFind(shared->keybinds, *queued);
+   auto const *actions = KBDFind(shared->keybinds, *queued);
    if (actions == nullptr)
       return;
 
@@ -497,6 +497,12 @@ inline void MainLoop(SharedState *shared, WorkerContext *worker,
       if (GetTickCount64() >= overlay_reconcile_deadline &&
           main->resize_hwnd == nullptr && (main->suspended == FALSE)) {
          Overlay::OverlayReconcileAll(shared, main);
+         /* Periodic harvest of windows that were DWM-cloaked at creation and
+          * missed registration (e.g. GPU-accelerated terminals like Rio).
+          * EnumWindows is O(n) in top-level windows, so it shares the 500 ms
+          * cadence of the reconcile tick.  Newly registered windows will have
+          * their overlays reconciled on the next tick. */
+         HarvestMissedWindows(shared, main);
          overlay_reconcile_deadline = GetTickCount64() + RECONCILE_INTERVAL_MS;
       }
       ProcessKeystrokes(shared, worker, main);
@@ -536,7 +542,7 @@ inline void MainLoop(SharedState *shared, WorkerContext *worker,
           * PlacementApply issues the rescaled window moves. Active-only scope
           * mirrors ReloadConfig / PushGapConfigToAllWorkspaces. */
          for (size_t i = 0; i < main->monitors->Size(); i++) {
-            Monitor *mon = main->monitors->At(i);
+            Monitor const *mon = main->monitors->At(i);
             Workspace *active = mon->GetActiveWorkspace();
             if (active != nullptr)
                active->ApplyLayout(shared, main);

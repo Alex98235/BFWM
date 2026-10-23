@@ -56,7 +56,7 @@ enum WindowTriggerReturnType {
    NO_CLASS,
    REGISTER_SKIPPED,
    WINDOW_ALREADY_REGISTERED,
-   REGISTER_SUCCESSFUL
+   REGISTER_SUCCESSFUL,
 };
 
 /**
@@ -149,5 +149,25 @@ void ProcessCreateOrForeground(SharedState *shared, MainContext *main,
  * @param main   Main-thread context
  */
 void RefreshFullscreenStates(SharedState *shared, MainContext *main);
+
+/**
+ * @brief Periodic harvest of windows that were DWM-cloaked at creation
+ *        but have since become manageable.
+ *
+ * GPU-accelerated terminals like Rio create a window before their rendering
+ * pipeline is ready; DWM holds it cloaked during init, so
+ * IsManageableWindow's cloak check rejects it at EVENT_OBJECT_CREATE time.
+ * DWM uncloaks the window later without firing any event BFWM subscribes
+ * to — the window stays invisible until a subsequent EVENT_SYSTEM_FOREGROUND
+ * triggers registration.
+ *
+ * This function is called from the main loop's periodic tick. It runs
+ * EnumWindows and attempts registration + workspace assignment for every
+ * top-level window. Already-registered windows are skipped (no-op);
+ * still-cloaked windows are correctly rejected; windows that became
+ * manageable since the last pass (e.g. Rio after GPU init) are registered
+ * and tiled.
+ */
+void HarvestMissedWindows(struct SharedState *shared, struct MainContext *main);
 
 #endif

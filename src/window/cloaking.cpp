@@ -42,8 +42,8 @@ struct IApplicationViewCollection;
 // GetViewForHwnd lives at vtable slot 6 (3 IUnknown + 3 custom).
 struct IApplicationViewCollectionVtbl {
    // IUnknown (slots 0-2)
-   HRESULT(STDMETHODCALLTYPE *QueryInterface)(IApplicationViewCollection *This,
-                                              REFIID riid, void **ppvObject);
+   HRESULT(STDMETHODCALLTYPE *QueryInterface)
+   (IApplicationViewCollection *This, REFIID riid, void **ppvObject);
    ULONG(STDMETHODCALLTYPE *AddRef)(IApplicationViewCollection *This);
    ULONG(STDMETHODCALLTYPE *Release)(IApplicationViewCollection *This);
    // undocumented custom methods (slots 3-5)
@@ -51,9 +51,8 @@ struct IApplicationViewCollectionVtbl {
    HRESULT(STDMETHODCALLTYPE *Reserved4)(IApplicationViewCollection *This);
    HRESULT(STDMETHODCALLTYPE *Reserved5)(IApplicationViewCollection *This);
    // slot 6
-   HRESULT(STDMETHODCALLTYPE *GetViewForHwnd)(IApplicationViewCollection *This,
-                                              HWND hwnd,
-                                              IApplicationView **ppView);
+   HRESULT(STDMETHODCALLTYPE *GetViewForHwnd)
+   (IApplicationViewCollection *This, HWND hwnd, IApplicationView **ppView);
 };
 struct IApplicationViewCollection {
    const IApplicationViewCollectionVtbl *lpVtbl;
@@ -62,8 +61,8 @@ struct IApplicationViewCollection {
 // SetCloak lives at vtable slot 12 (3 IUnknown + 3 IInspectable + 6 custom).
 struct IApplicationViewVtbl {
    // IUnknown (slots 0-2)
-   HRESULT(STDMETHODCALLTYPE *QueryInterface)(IApplicationView *This,
-                                              REFIID riid, void **ppvObject);
+   HRESULT(STDMETHODCALLTYPE *QueryInterface)
+   (IApplicationView *This, REFIID riid, void **ppvObject);
    ULONG(STDMETHODCALLTYPE *AddRef)(IApplicationView *This);
    ULONG(STDMETHODCALLTYPE *Release)(IApplicationView *This);
    // IInspectable (slots 3-5)
@@ -78,8 +77,8 @@ struct IApplicationViewVtbl {
    HRESULT(STDMETHODCALLTYPE *Reserved10)(IApplicationView *This);
    HRESULT(STDMETHODCALLTYPE *Reserved11)(IApplicationView *This);
    // slot 12
-   HRESULT(STDMETHODCALLTYPE *SetCloak)(IApplicationView *This, DWORD arg1,
-                                        DWORD arg2);
+   HRESULT(STDMETHODCALLTYPE *SetCloak)
+   (IApplicationView *This, DWORD arg1, DWORD arg2);
 };
 struct IApplicationView {
    const IApplicationViewVtbl *lpVtbl;
