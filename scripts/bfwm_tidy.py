@@ -262,7 +262,13 @@ def _tus_for_headers(headers: set[Path], included_by: dict[Path, set[Path]]) -> 
 def resolve_targets(
     diff: bool, staged: bool = True, explicit: list[str] | None = None
 ) -> dict[str, list[str]]:
-    """Return the tidy and format target sets (absolute paths)."""
+    """Return the tidy and format target sets (absolute paths).
+
+    The returned ``scope`` key lists every changed file (absolute) — callers
+    can use it to filter diagnostics to only the files the user touched,
+    avoiding noise from pre-existing findings in headers pulled in by the
+    translation unit.
+    """
     tus_in_db = _db_tus()
 
     if explicit:
@@ -272,7 +278,7 @@ def resolve_targets(
     else:
         all_tidy = sorted(str(p) for p in tus_in_db if _in_source_tree(p))
         all_fmt = sorted(str(p) for p in _iter_source_files())
-        return {"tidy": all_tidy, "format": all_fmt}
+        return {"tidy": all_tidy, "format": all_fmt, "scope": []}
 
     tidy: set[Path] = set()
     fmt: set[Path] = set()
@@ -293,7 +299,11 @@ def resolve_targets(
             if tu in tus_in_db and _in_source_tree(tu):
                 tidy.add(tu)
 
-    return {"tidy": sorted(str(p) for p in tidy), "format": sorted(str(p) for p in fmt)}
+    return {
+        "tidy": sorted(str(p) for p in tidy),
+        "format": sorted(str(p) for p in fmt),
+        "scope": sorted(str(p) for p in changed),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -580,23 +590,36 @@ def status() -> dict:
 # --------------------------------------------------------------------------
 
 
+def _in_scope(diag_file: str, scope: set[str]) -> bool:
+    """True when *diag_file* (a path from a clang-tidy diagnostic) is one
+    of the files in *scope* (absolute paths from the diff)."""
+    norm = os.path.normcase(os.path.normpath(diag_file))
+    return any(os.path.normcase(os.path.normpath(s)) == norm for s in scope)
+
+
 def run_hook() -> int:
     targets = resolve_targets(diff=True, staged=True)
     if not targets["tidy"] and not targets["format"]:
         return 0
 
+    scope = set(targets["scope"])
     result = analyze(targets["tidy"], jobs=DEFAULT_JOBS)
     fmt = format_files(targets["format"], check=True)
 
-    problems = bool(result["diagnostics"]) or not fmt["ok"]
+    # Only show diagnostics for files the user actually changed — otherwise
+    # clang-tidy's -header-filter reports pre-existing findings in every
+    # header the translation unit includes (dpi.h, sync.h, logger.h, etc.).
+    filtered = [d for d in result["diagnostics"] if _in_scope(d["file"], scope)]
+
+    problems = bool(filtered) or not fmt["ok"]
     if not problems:
         return 0
 
     print("", file=sys.stderr)
     print("bfwm-tidy: commit blocked", file=sys.stderr)
-    if result["diagnostics"]:
-        print(f"  clang-tidy: {len(result['diagnostics'])} finding(s)", file=sys.stderr)
-        for diag in result["diagnostics"][:20]:
+    if filtered:
+        print(f"  clang-tidy: {len(filtered)} finding(s) ({len(result['diagnostics'])} total, {len(result['diagnostics']) - len(filtered)} filtered)", file=sys.stderr)
+        for diag in filtered[:20]:
             location = f"{diag['file']}:{diag['line']}:{diag['column']}"
             check = f" [{diag['check']}]" if diag["check"] else ""
             print(f"    {location}: {diag['message']}{check}", file=sys.stderr)
@@ -650,9 +673,17 @@ def build_mcp_server():
         diff=true (default) limits to staged files and maps changed headers to
         the translation units that include them. Returns diagnostics plus a
         fix-list for `apply_fixes`. `clean` is true when nothing was reported.
+
+        Only diagnostics touching files in the diff scope are reported —
+        pre-existing findings in headers pulled in by the translation unit
+        (e.g. dpi.h, sync.h, logger.h) are filtered out.
         """
         targets = resolve_targets(diff=diff, staged=staged, explicit=files)
-        return analyze(targets["tidy"])
+        result = analyze(targets["tidy"])
+        scope = set(targets["scope"])
+        result["diagnostics"] = [d for d in result["diagnostics"] if _in_scope(d["file"], scope)]
+        result["clean"] = not result["diagnostics"]
+        return result
 
     @server.tool()
     def apply_fixes_tool(session: str | None = None) -> dict:
@@ -741,6 +772,12 @@ def main(argv: list[str] | None = None) -> int:
         all_files = not args.diff
         targets = resolve_targets(diff=not all_files, staged=True)
         result = analyze(targets["tidy"], jobs=args.jobs)
+        if args.diff and targets["scope"]:
+            scope = set(targets["scope"])
+            result["diagnostics"] = [
+                d for d in result["diagnostics"] if _in_scope(d["file"], scope)
+            ]
+            result["clean"] = not result["diagnostics"]
         _emit(result)
         if args.fail_on_findings and not result["clean"]:
             return 1
