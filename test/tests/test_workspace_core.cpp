@@ -43,13 +43,13 @@ CBELT_TEST(create_and_destroy_workspace) {
    RECT rect = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    Workspace *ws = new Workspace(1, L"Main", DWINDLE, rect, 0, 0, 0);
 
-   cbelt_assert(ws != nullptr);
+   cbelt_assert_not_null(ws);
    // Intentional: test fixture, never freed.
    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-   cbelt_assert(ws->GetIdentifier() == 1);
+   cbelt_assert_true(1 == ws->GetIdentifier());
    cbelt_assert(ws->GetName() == L"Main");
-   cbelt_assert(ws->IsEmpty());
-   cbelt_assert(ws->IsActive() == FALSE);
+   cbelt_assert_true(ws->IsEmpty());
+   cbelt_assert_false(ws->IsActive());
 
    delete ws;
    return TEST_SUCCESS;
@@ -61,13 +61,13 @@ CBELT_TEST(create_workspace_with_different_ids) {
    Workspace *ws2 =
        new Workspace(42, L"Answer", DWINDLE, RECT{0, 0, 800, 600}, 0, 0, 0);
 
-   cbelt_assert(ws1 != nullptr);
-   cbelt_assert(ws2 != nullptr);
+   cbelt_assert_not_null(ws1);
+   cbelt_assert_not_null(ws2);
    // Intentional: test fixture, never freed.
    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-   cbelt_assert(ws1->GetIdentifier() == 0);
-   cbelt_assert(ws2->GetIdentifier() == 42);
-   cbelt_assert(ws1 != ws2);
+   cbelt_assert_true(0 == ws1->GetIdentifier());
+   cbelt_assert_true(42 == ws2->GetIdentifier());
+   cbelt_assert_not_equal(ws2, ws1);
 
    delete ws1;
    delete ws2;
@@ -84,7 +84,7 @@ CBELT_TEST(contains_window_in_empty_workspace) {
        new Workspace(1, L"Empty", DWINDLE, RECT{0, 0, 1920, 1080}, 0, 0, 0);
 
    bool found = ws->ContainsWindow(reinterpret_cast<HWND>(1));
-   cbelt_assert(found == false);
+   cbelt_assert_false(found);
 
    delete ws;
    return TEST_SUCCESS;
@@ -99,8 +99,8 @@ CBELT_TEST(contains_window_with_one_window) {
 
    ws->TrackWindow(win);
 
-   cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(42)) == true);
-   cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(99)) == false);
+   cbelt_assert_true(ws->ContainsWindow(reinterpret_cast<HWND>(42)));
+   cbelt_assert_false(ws->ContainsWindow(reinterpret_cast<HWND>(99)));
 
    ws->ClearWindows();
    delete ws;
@@ -120,11 +120,11 @@ CBELT_TEST(contains_window_with_multiple_windows) {
    }
 
    for (int i = 0; i < 4; i++) {
-      cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(
-                       static_cast<intptr_t>(100 + i))) == true);
+      cbelt_assert_true(ws->ContainsWindow(
+          reinterpret_cast<HWND>(static_cast<intptr_t>(100 + i))));
    }
 
-   cbelt_assert(ws->ContainsWindow(reinterpret_cast<HWND>(999)) == false);
+   cbelt_assert_false(ws->ContainsWindow(reinterpret_cast<HWND>(999)));
 
    ws->ClearWindows();
    delete ws;
@@ -153,7 +153,7 @@ CBELT_TEST(find_workspace_by_hwnd_found) {
 
    Workspace *result =
        FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(42));
-   cbelt_assert(result == ws);
+   cbelt_assert_true(ws == result);
 
    release_ws_windows(ws);
    delete ws;
@@ -179,7 +179,7 @@ CBELT_TEST(find_workspace_by_hwnd_not_found) {
 
    Workspace *result =
        FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(99));
-   cbelt_assert(result == nullptr);
+   cbelt_assert_null(result);
 
    release_ws_windows(ws);
    delete ws;
@@ -210,12 +210,12 @@ CBELT_TEST(find_workspace_by_hwnd_multiple_monitors) {
    main.monitors->Add(&m1);
    main.monitors->Add(&m2);
 
-   cbelt_assert(
-       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(10)) == ws1);
-   cbelt_assert(
-       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(20)) == ws2);
-   cbelt_assert(FindWorkspaceByHwnd(&shared, &main,
-                                    reinterpret_cast<HWND>(30)) == nullptr);
+   cbelt_assert_true(
+       ws1 == FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(10)));
+   cbelt_assert_true(
+       ws2 == FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(20)));
+   cbelt_assert_null(
+       FindWorkspaceByHwnd(&shared, &main, reinterpret_cast<HWND>(30)));
 
    release_ws_windows(ws1);
    release_ws_windows(ws2);
@@ -244,9 +244,9 @@ CBELT_TEST(find_workspace_by_id_found) {
 
    main.monitors->Add(mon_ptr);
 
-   cbelt_assert(FindWorkspaceById(&shared, &main, 5) == ws1);
-   cbelt_assert(FindWorkspaceById(&shared, &main, 10) == ws2);
-   cbelt_assert(FindWorkspaceById(&shared, &main, 99) == nullptr);
+   cbelt_assert_true(ws1 == FindWorkspaceById(&shared, &main, 5));
+   cbelt_assert_true(ws2 == FindWorkspaceById(&shared, &main, 10));
+   cbelt_assert_null(FindWorkspaceById(&shared, &main, 99));
 
    delete ws1;
    delete ws2;
@@ -255,7 +255,7 @@ CBELT_TEST(find_workspace_by_id_found) {
 }
 
 CBELT_TEST(find_workspace_by_id_null_ctx) {
-   cbelt_assert(FindWorkspaceById(nullptr, nullptr, 1) == nullptr);
+   cbelt_assert_null(FindWorkspaceById(nullptr, nullptr, 1));
    return TEST_SUCCESS;
 }
 
@@ -272,9 +272,9 @@ CBELT_TEST(find_workspace_on_monitor_found) {
    mon.TrackWorkspace(ws1);
    mon.TrackWorkspace(ws2);
 
-   cbelt_assert(FindWorkspaceOnMonitor(&mon, 1) == ws1);
-   cbelt_assert(FindWorkspaceOnMonitor(&mon, 2) == ws2);
-   cbelt_assert(FindWorkspaceOnMonitor(&mon, 3) == nullptr);
+   cbelt_assert_true(ws1 == FindWorkspaceOnMonitor(&mon, 1));
+   cbelt_assert_true(ws2 == FindWorkspaceOnMonitor(&mon, 2));
+   cbelt_assert_null(FindWorkspaceOnMonitor(&mon, 3));
 
    delete ws1;
    delete ws2;
@@ -282,7 +282,7 @@ CBELT_TEST(find_workspace_on_monitor_found) {
 }
 
 CBELT_TEST(find_workspace_on_monitor_null) {
-   cbelt_assert(FindWorkspaceOnMonitor(nullptr, 1) == nullptr);
+   cbelt_assert_null(FindWorkspaceOnMonitor(nullptr, 1));
    return TEST_SUCCESS;
 }
 
@@ -306,9 +306,9 @@ CBELT_TEST(find_monitor_by_workspace_found) {
    main.monitors->Add(&m1);
    main.monitors->Add(&m2);
 
-   cbelt_assert(FindMonitorByWorkspace(&shared, &main, ws1) == &m1);
-   cbelt_assert(FindMonitorByWorkspace(&shared, &main, ws2) == &m2);
-   cbelt_assert(FindMonitorByWorkspace(&shared, &main, nullptr) == nullptr);
+   cbelt_assert_true(&m1 == FindMonitorByWorkspace(&shared, &main, ws1));
+   cbelt_assert_true(&m2 == FindMonitorByWorkspace(&shared, &main, ws2));
+   cbelt_assert_null(FindMonitorByWorkspace(&shared, &main, nullptr));
 
    delete ws1;
    delete ws2;
@@ -332,9 +332,11 @@ CBELT_TEST(find_monitor_by_point_inside) {
    main.monitors->Add(&m1);
    main.monitors->Add(&m2);
 
-   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{400, 300}) == &m1);
-   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{1200, 300}) == &m2);
-   cbelt_assert(FindMonitorByPoint(&shared, &main, POINT{-50, -50}) == nullptr);
+   cbelt_assert_true(&m1 ==
+                     FindMonitorByPoint(&shared, &main, POINT{400, 300}));
+   cbelt_assert_true(&m2 ==
+                     FindMonitorByPoint(&shared, &main, POINT{1200, 300}));
+   cbelt_assert_null(FindMonitorByPoint(&shared, &main, POINT{-50, -50}));
 
    free_test_monitors(&main);
    return TEST_SUCCESS;
@@ -354,8 +356,8 @@ CBELT_TEST(destroy_if_empty_destroys) {
    mon.TrackWorkspace(ws_other);
 
    WorkspaceDestroyIfEmpty(&mon, ws);
-   cbelt_assert(mon.Workspaces().size() == 1);
-   cbelt_assert(mon.Workspaces()[0] == ws_other);
+   cbelt_assert_true(1 == mon.Workspaces().size());
+   cbelt_assert_true(ws_other == mon.Workspaces()[0]);
 
    delete ws_other;
    return TEST_SUCCESS;
@@ -371,8 +373,8 @@ CBELT_TEST(destroy_if_empty_keeps_nonempty) {
    mon.TrackWorkspace(ws);
 
    WorkspaceDestroyIfEmpty(&mon, ws);
-   cbelt_assert(mon.Workspaces().size() == 1);
-   cbelt_assert(mon.Workspaces()[0] == ws);
+   cbelt_assert_true(1 == mon.Workspaces().size());
+   cbelt_assert_true(ws == mon.Workspaces()[0]);
 
    release_ws_windows(ws);
    delete ws;

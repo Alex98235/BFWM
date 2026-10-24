@@ -115,7 +115,7 @@ CBELT_TEST(strip_rects_match_reference) {
       reference_rects(&combos[i].frame, combos[i].stroke, combos[i].radius,
                       combos[i].margin, &want);
       for (int k = 0; k < 4; k++) {
-         cbelt_assert(rects_equal(&got[k], &want[k]));
+         cbelt_assert_true(rects_equal(&got[k], &want[k]));
       }
    }
    return TEST_SUCCESS;
@@ -142,48 +142,48 @@ CBELT_TEST(corner_and_band_containment) {
       const LONG my = (Top + Bottom) / 2;
 
       /* top edge line + caps live in TOP */
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP], Left + rt, Top));
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP], Right - rt, Top));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP],
-                                 Left + rt - half, Top));
-      cbelt_assert(
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP],
+                                      Left + rt - half, Top));
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP], mx, Top + half));
       /* bottom edge line lives in BOTTOM */
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
-                                 Left + rt, Bottom));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
-                                 Right - rt, Bottom));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM], mx,
-                                 Bottom - half));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
+                                      Left + rt, Bottom));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
+                                      Right - rt, Bottom));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
+                                      mx, Bottom - half));
       /* side runs live in LEFT/RIGHT */
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT], Left, Top + rt));
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT], Left + half, my));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT], Right,
-                                 Top + rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
-                                 Right - half, my));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
+                                      Right, Top + rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
+                                      Right - half, my));
 
       /* arc/line tangent points: in BOTH the edge strip and the side strip */
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP], Left, Top + rt));
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT], Left, Top + rt));
-      cbelt_assert(
+      cbelt_assert_true(
           rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP], Right, Top + rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT], Right,
-                                 Top + rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM], Left,
-                                 Bottom - rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT], Left,
-                                 Bottom - rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM], Right,
-                                 Bottom - rt));
-      cbelt_assert(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT], Right,
-                                 Bottom - rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
+                                      Right, Top + rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
+                                      Left, Bottom - rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT],
+                                      Left, Bottom - rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
+                                      Right, Bottom - rt));
+      cbelt_assert_true(rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
+                                      Right, Bottom - rt));
    }
    return TEST_SUCCESS;
 }
@@ -200,14 +200,14 @@ CBELT_TEST(corner_squares_overlap_by_at_least_two) {
       const RECT *bottom = &strips[Overlay::OVERLAY_STRIP_BOTTOM];
       const RECT *left = &strips[Overlay::OVERLAY_STRIP_LEFT];
       const RECT *right = &strips[Overlay::OVERLAY_STRIP_RIGHT];
-      cbelt_assert(overlap_width(top, left) >= 2);
-      cbelt_assert(overlap_height(top, left) >= 2);
-      cbelt_assert(overlap_width(top, right) >= 2);
-      cbelt_assert(overlap_height(top, right) >= 2);
-      cbelt_assert(overlap_width(bottom, left) >= 2);
-      cbelt_assert(overlap_height(bottom, left) >= 2);
-      cbelt_assert(overlap_width(bottom, right) >= 2);
-      cbelt_assert(overlap_height(bottom, right) >= 2);
+      cbelt_assert_true(overlap_width(top, left) >= 2);
+      cbelt_assert_true(overlap_height(top, left) >= 2);
+      cbelt_assert_true(overlap_width(top, right) >= 2);
+      cbelt_assert_true(overlap_height(top, right) >= 2);
+      cbelt_assert_true(overlap_width(bottom, left) >= 2);
+      cbelt_assert_true(overlap_height(bottom, left) >= 2);
+      cbelt_assert_true(overlap_width(bottom, right) >= 2);
+      cbelt_assert_true(overlap_height(bottom, right) >= 2);
    }
    return TEST_SUCCESS;
 }
@@ -221,18 +221,19 @@ CBELT_TEST(edge_strip_dimensions_match_spec) {
    const float radius = 8.0F;
    Overlay::OverlayComputeStripRects(&f, 2.0F, radius, 3, &strips);
 
-   cbelt_assert_equal((LONG)15, strips[Overlay::OVERLAY_STRIP_TOP].bottom -
-                                    strips[Overlay::OVERLAY_STRIP_TOP].top);
-   cbelt_assert_equal((LONG)15, strips[Overlay::OVERLAY_STRIP_BOTTOM].bottom -
-                                    strips[Overlay::OVERLAY_STRIP_BOTTOM].top);
-   cbelt_assert_equal(f.left - 4, strips[Overlay::OVERLAY_STRIP_TOP].left);
-   cbelt_assert_equal(f.right + 4, strips[Overlay::OVERLAY_STRIP_TOP].right);
-   cbelt_assert_equal((LONG)10, strips[Overlay::OVERLAY_STRIP_LEFT].right -
-                                    strips[Overlay::OVERLAY_STRIP_LEFT].left);
-   cbelt_assert_equal((LONG)10, strips[Overlay::OVERLAY_STRIP_RIGHT].right -
-                                    strips[Overlay::OVERLAY_STRIP_RIGHT].left);
-   cbelt_assert_equal(f.top - 4, strips[Overlay::OVERLAY_STRIP_LEFT].top);
-   cbelt_assert_equal(f.bottom + 4, strips[Overlay::OVERLAY_STRIP_LEFT].bottom);
+   cbelt_assert_true((LONG)15 == strips[Overlay::OVERLAY_STRIP_TOP].bottom -
+                                     strips[Overlay::OVERLAY_STRIP_TOP].top);
+   cbelt_assert_true((LONG)15 == strips[Overlay::OVERLAY_STRIP_BOTTOM].bottom -
+                                     strips[Overlay::OVERLAY_STRIP_BOTTOM].top);
+   cbelt_assert_true(f.left - 4 == strips[Overlay::OVERLAY_STRIP_TOP].left);
+   cbelt_assert_true(f.right + 4 == strips[Overlay::OVERLAY_STRIP_TOP].right);
+   cbelt_assert_true((LONG)10 == strips[Overlay::OVERLAY_STRIP_LEFT].right -
+                                     strips[Overlay::OVERLAY_STRIP_LEFT].left);
+   cbelt_assert_true((LONG)10 == strips[Overlay::OVERLAY_STRIP_RIGHT].right -
+                                     strips[Overlay::OVERLAY_STRIP_RIGHT].left);
+   cbelt_assert_true(f.top - 4 == strips[Overlay::OVERLAY_STRIP_LEFT].top);
+   cbelt_assert_true(f.bottom + 4 ==
+                     strips[Overlay::OVERLAY_STRIP_LEFT].bottom);
    return TEST_SUCCESS;
 }
 
@@ -268,8 +269,8 @@ CBELT_TEST(well_formed_across_parameter_sweep) {
                   std::array<RECT, 4> raw = {};
                   Overlay::OverlayComputeStripRects(&f, s, r, m, &raw);
                   for (int k = 0; k < 4; k++) {
-                     cbelt_assert(raw[k].left < raw[k].right);
-                     cbelt_assert(raw[k].top < raw[k].bottom);
+                     cbelt_assert_true(raw[k].left < raw[k].right);
+                     cbelt_assert_true(raw[k].top < raw[k].bottom);
                   }
 
                   /* containment for the caller-clamped radius */
@@ -278,27 +279,27 @@ CBELT_TEST(well_formed_across_parameter_sweep) {
                   const LONG rt = (LONG)r_eff;
                   std::array<RECT, 4> strips = {};
                   Overlay::OverlayComputeStripRects(&f, s, r_eff, m, &strips);
-                  cbelt_assert(rect_contains(
+                  cbelt_assert_true(rect_contains(
                       &strips[Overlay::OVERLAY_STRIP_TOP], f.left, f.top + rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT],
                                     f.left, f.top + rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_TOP],
                                     f.right, f.top + rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
                                     f.right, f.top + rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
                                     f.left, f.bottom - rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_LEFT],
                                     f.left, f.bottom - rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_BOTTOM],
                                     f.right, f.bottom - rt));
-                  cbelt_assert(
+                  cbelt_assert_true(
                       rect_contains(&strips[Overlay::OVERLAY_STRIP_RIGHT],
                                     f.right, f.bottom - rt));
                }

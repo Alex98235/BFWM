@@ -14,10 +14,10 @@ namespace {
 
 inline auto ExpectRect(long l, long t, long r, long b, RECT const &got)
     -> TestResult {
-   cbelt_assert_equal(l, (long)got.left);
-   cbelt_assert_equal(t, (long)got.top);
-   cbelt_assert_equal(r, (long)got.right);
-   cbelt_assert_equal(b, (long)got.bottom);
+   cbelt_assert_true(l == (long)got.left);
+   cbelt_assert_true(t == (long)got.top);
+   cbelt_assert_true(r == (long)got.right);
+   cbelt_assert_true(b == (long)got.bottom);
    return TEST_SUCCESS;
 }
 

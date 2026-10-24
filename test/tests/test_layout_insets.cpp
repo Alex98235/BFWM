@@ -35,11 +35,11 @@ CBELT_TEST(monocle_insets_100_percent) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
-   cbelt_assert_equal((LONG)8, out.left);
-   cbelt_assert_equal((LONG)8, out.top);
-   cbelt_assert_equal((LONG)1912, out.right);
-   cbelt_assert_equal((LONG)1072, out.bottom);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true((LONG)8 == out.left);
+   cbelt_assert_true((LONG)8 == out.top);
+   cbelt_assert_true((LONG)1912 == out.right);
+   cbelt_assert_true((LONG)1072 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -50,12 +50,12 @@ CBELT_TEST(monocle_insets_150_percent) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
    /* 6 logical -> 9, 2 logical -> 3: inset 12 per edge */
-   cbelt_assert_equal((LONG)12, out.left);
-   cbelt_assert_equal((LONG)12, out.top);
-   cbelt_assert_equal((LONG)1908, out.right);
-   cbelt_assert_equal((LONG)1068, out.bottom);
+   cbelt_assert_true((LONG)12 == out.left);
+   cbelt_assert_true((LONG)12 == out.top);
+   cbelt_assert_true((LONG)1908 == out.right);
+   cbelt_assert_true((LONG)1068 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -66,12 +66,12 @@ CBELT_TEST(monocle_insets_200_percent) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
    /* 6 logical -> 12, 2 logical -> 4: inset 16 per edge */
-   cbelt_assert_equal((LONG)16, out.left);
-   cbelt_assert_equal((LONG)16, out.top);
-   cbelt_assert_equal((LONG)1904, out.right);
-   cbelt_assert_equal((LONG)1064, out.bottom);
+   cbelt_assert_true((LONG)16 == out.left);
+   cbelt_assert_true((LONG)16 == out.top);
+   cbelt_assert_true((LONG)1904 == out.right);
+   cbelt_assert_true((LONG)1064 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -82,54 +82,54 @@ CBELT_TEST(monocle_insets_200_percent) {
 
 CBELT_TEST(dwindle_single_insets_100_percent) {
    auto dl = std::make_unique<DwindleEngine>();
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 96), 0, scaled(2, 96), kWorkspace};
    dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: every edge is a workspace boundary -> border only (2) */
-   cbelt_assert_equal((LONG)2, out.left);
-   cbelt_assert_equal((LONG)2, out.top);
-   cbelt_assert_equal((LONG)1918, out.right);
-   cbelt_assert_equal((LONG)1078, out.bottom);
+   cbelt_assert_true((LONG)2 == out.left);
+   cbelt_assert_true((LONG)2 == out.top);
+   cbelt_assert_true((LONG)1918 == out.right);
+   cbelt_assert_true((LONG)1078 == out.bottom);
 
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(dwindle_single_insets_150_percent) {
    auto dl = std::make_unique<DwindleEngine>();
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 144), 0, scaled(2, 144), kWorkspace};
    dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: boundary edges -> border only (3) */
-   cbelt_assert_equal((LONG)3, out.left);
-   cbelt_assert_equal((LONG)3, out.top);
-   cbelt_assert_equal((LONG)1917, out.right);
-   cbelt_assert_equal((LONG)1077, out.bottom);
+   cbelt_assert_true((LONG)3 == out.left);
+   cbelt_assert_true((LONG)3 == out.top);
+   cbelt_assert_true((LONG)1917 == out.right);
+   cbelt_assert_true((LONG)1077 == out.bottom);
 
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(dwindle_single_insets_200_percent) {
    auto dl = std::make_unique<DwindleEngine>();
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 192), 0, scaled(2, 192), kWorkspace};
    dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* single window: boundary edges -> border only (4) */
-   cbelt_assert_equal((LONG)4, out.left);
-   cbelt_assert_equal((LONG)4, out.top);
-   cbelt_assert_equal((LONG)1916, out.right);
-   cbelt_assert_equal((LONG)1076, out.bottom);
+   cbelt_assert_true((LONG)4 == out.left);
+   cbelt_assert_true((LONG)4 == out.top);
+   cbelt_assert_true((LONG)1916 == out.right);
+   cbelt_assert_true((LONG)1076 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -140,19 +140,19 @@ CBELT_TEST(dwindle_single_insets_200_percent) {
 
 CBELT_TEST(dwindle_edge_gap_150_percent) {
    auto dl = std::make_unique<DwindleEngine>();
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
    LayoutConfig cfg = {scaled(6, 144), scaled(6, 144), scaled(2, 144),
                        kWorkspace};
    dl->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &out));
    /* workspace inset by edge 9; single window -> boundary edges get border 3 */
-   cbelt_assert_equal((LONG)12, out.left);
-   cbelt_assert_equal((LONG)12, out.top);
-   cbelt_assert_equal((LONG)1908, out.right);
-   cbelt_assert_equal((LONG)1068, out.bottom);
+   cbelt_assert_true((LONG)12 == out.left);
+   cbelt_assert_true((LONG)12 == out.top);
+   cbelt_assert_true((LONG)1908 == out.right);
+   cbelt_assert_true((LONG)1068 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -165,31 +165,31 @@ CBELT_TEST(dwindle_two_window_split_insets_150_percent) {
    auto dl = std::make_unique<DwindleEngine>();
    LayoutConfig cfg = {scaled(6, 144), 0, scaled(2, 144), kWorkspace};
    dl->apply_config(cfg);
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(1)));
 
    RECT r1;
    RECT r2;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
 
    /* split at 960; boundary edges border 3, the shared seam gap/2 4 + border 3
     */
-   cbelt_assert_equal((LONG)3, r1.left);
-   cbelt_assert_equal((LONG)3, r1.top);
-   cbelt_assert_equal((LONG)953, r1.right);
-   cbelt_assert_equal((LONG)1077, r1.bottom);
+   cbelt_assert_true((LONG)3 == r1.left);
+   cbelt_assert_true((LONG)3 == r1.top);
+   cbelt_assert_true((LONG)953 == r1.right);
+   cbelt_assert_true((LONG)1077 == r1.bottom);
 
-   cbelt_assert_equal((LONG)967, r2.left);
-   cbelt_assert_equal((LONG)3, r2.top);
-   cbelt_assert_equal((LONG)1917, r2.right);
-   cbelt_assert_equal((LONG)1077, r2.bottom);
+   cbelt_assert_true((LONG)967 == r2.left);
+   cbelt_assert_true((LONG)3 == r2.top);
+   cbelt_assert_true((LONG)1917 == r2.right);
+   cbelt_assert_true((LONG)1077 == r2.bottom);
 
    /* visual gap = 2 * (gap/2 + border) = scaled gap (8) + 2 * scaled border (6)
     */
-   cbelt_assert_equal((LONG)14, r2.left - r1.right);
+   cbelt_assert_true((LONG)14 == r2.left - r1.right);
 
    return TEST_SUCCESS;
 }
@@ -198,29 +198,29 @@ CBELT_TEST(dwindle_two_window_split_insets_200_percent) {
    auto dl = std::make_unique<DwindleEngine>();
    LayoutConfig cfg = {scaled(6, 192), 0, scaled(2, 192), kWorkspace};
    dl->apply_config(cfg);
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
-   cbelt_assert(
+   cbelt_assert_true(
        dl->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(1)));
 
    RECT r1;
    RECT r2;
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
-   cbelt_assert(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(1), &r1));
+   cbelt_assert_true(dl->get_rect(reinterpret_cast<HWND>(2), &r2));
 
    /* split at 960; boundary edges border 4, the shared seam gap/2 6 + border 4
     */
-   cbelt_assert_equal((LONG)4, r1.left);
-   cbelt_assert_equal((LONG)4, r1.top);
-   cbelt_assert_equal((LONG)950, r1.right);
-   cbelt_assert_equal((LONG)1076, r1.bottom);
+   cbelt_assert_true((LONG)4 == r1.left);
+   cbelt_assert_true((LONG)4 == r1.top);
+   cbelt_assert_true((LONG)950 == r1.right);
+   cbelt_assert_true((LONG)1076 == r1.bottom);
 
-   cbelt_assert_equal((LONG)970, r2.left);
-   cbelt_assert_equal((LONG)4, r2.top);
-   cbelt_assert_equal((LONG)1916, r2.right);
-   cbelt_assert_equal((LONG)1076, r2.bottom);
+   cbelt_assert_true((LONG)970 == r2.left);
+   cbelt_assert_true((LONG)4 == r2.top);
+   cbelt_assert_true((LONG)1916 == r2.right);
+   cbelt_assert_true((LONG)1076 == r2.bottom);
 
-   cbelt_assert_equal((LONG)20, r2.left - r1.right);
+   cbelt_assert_true((LONG)20 == r2.left - r1.right);
 
    return TEST_SUCCESS;
 }

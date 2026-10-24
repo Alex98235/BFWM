@@ -40,12 +40,12 @@ CBELT_TEST(force_floating_sets_flags) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceFloating() == TRUE);
-   cbelt_assert(win->ForceTiled() == FALSE);
-   cbelt_assert(win->IsFloating() == TRUE);
-   cbelt_assert(win->IsFullscreen() == FALSE);
-   cbelt_assert(win->IsUnmanagedFullscreen() == FALSE);
-   cbelt_assert(win->IsMaximized() == FALSE);
+   cbelt_assert_true(win->ForceFloating());
+   cbelt_assert_false(win->ForceTiled());
+   cbelt_assert_true(win->IsFloating());
+   cbelt_assert_false(win->IsFullscreen());
+   cbelt_assert_false(win->IsUnmanagedFullscreen());
+   cbelt_assert_false(win->IsMaximized());
 
    return TEST_SUCCESS;
 }
@@ -68,12 +68,12 @@ CBELT_TEST(force_floating_clears_conflicting) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceFloating() == TRUE);
-   cbelt_assert(win->ForceTiled() == FALSE);
-   cbelt_assert(win->IsFloating() == TRUE);
-   cbelt_assert(win->IsFullscreen() == FALSE);
-   cbelt_assert(win->IsUnmanagedFullscreen() == FALSE);
-   cbelt_assert(win->IsMaximized() == FALSE);
+   cbelt_assert_true(win->ForceFloating());
+   cbelt_assert_false(win->ForceTiled());
+   cbelt_assert_true(win->IsFloating());
+   cbelt_assert_false(win->IsFullscreen());
+   cbelt_assert_false(win->IsUnmanagedFullscreen());
+   cbelt_assert_false(win->IsMaximized());
 
    return TEST_SUCCESS;
 }
@@ -95,12 +95,12 @@ CBELT_TEST(force_tiled_sets_flags) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceTiled() == TRUE);
-   cbelt_assert(win->ForceFloating() == FALSE);
-   cbelt_assert(win->IsFloating() == FALSE);
-   cbelt_assert(win->IsFullscreen() == FALSE);
-   cbelt_assert(win->IsUnmanagedFullscreen() == FALSE);
-   cbelt_assert(win->IsMaximized() == FALSE);
+   cbelt_assert_true(win->ForceTiled());
+   cbelt_assert_false(win->ForceFloating());
+   cbelt_assert_false(win->IsFloating());
+   cbelt_assert_false(win->IsFullscreen());
+   cbelt_assert_false(win->IsUnmanagedFullscreen());
+   cbelt_assert_false(win->IsMaximized());
 
    return TEST_SUCCESS;
 }
@@ -124,12 +124,12 @@ CBELT_TEST(force_tiled_clears_conflicting) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceTiled() == TRUE);
-   cbelt_assert(win->ForceFloating() == FALSE);
-   cbelt_assert(win->IsFloating() == FALSE);
-   cbelt_assert(win->IsFullscreen() == FALSE);
-   cbelt_assert(win->IsUnmanagedFullscreen() == FALSE);
-   cbelt_assert(win->IsMaximized() == FALSE);
+   cbelt_assert_true(win->ForceTiled());
+   cbelt_assert_false(win->ForceFloating());
+   cbelt_assert_false(win->IsFloating());
+   cbelt_assert_false(win->IsFullscreen());
+   cbelt_assert_false(win->IsUnmanagedFullscreen());
+   cbelt_assert_false(win->IsMaximized());
 
    return TEST_SUCCESS;
 }
@@ -154,9 +154,9 @@ CBELT_TEST(set_floating_does_not_force) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceFloating() == FALSE);
-   cbelt_assert(win->ForceTiled() == FALSE);
-   cbelt_assert(win->IsFloating() == TRUE);
+   cbelt_assert_false(win->ForceFloating());
+   cbelt_assert_false(win->ForceTiled());
+   cbelt_assert_true(win->IsFloating());
 
    return TEST_SUCCESS;
 }
@@ -184,8 +184,8 @@ CBELT_TEST(no_match_skips_rule) {
 
    WindowRulesApply(&shared, &main, win.get(), "test.exe", "TestClass", "test");
 
-   cbelt_assert(win->ForceFloating() == FALSE);
-   cbelt_assert(win->IsFloating() == FALSE);
+   cbelt_assert_false(win->ForceFloating());
+   cbelt_assert_false(win->IsFloating());
 
    return TEST_SUCCESS;
 }
