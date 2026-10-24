@@ -4,10 +4,8 @@ name: CI
 # workflow a required status check: a path-skipped PR never reports a result,
 # so it would stall on "Expected".
 on:
-  push:
-    branches: ['main']
-    paths-ignore: ['website/**', '**.md', 'LICENSE']
   pull_request:
+    branches: ['main']
     paths-ignore: ['website/**', '**.md', 'LICENSE']
 
 concurrency:
