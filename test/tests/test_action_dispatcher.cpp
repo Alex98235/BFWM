@@ -151,6 +151,7 @@ CBELT_TEST(dispatch_with_no_handler_returns_minus_one) {
 }
 
 CBELT_TEST(dispatch_after_unregister_returns_minus_one) {
+   reset_trace();
    ActionDispatcherRegister(ActionFullscreen, mock_handler_kill);
 
    BFWMAction *act = BFWMActionCreateFullscreen();
