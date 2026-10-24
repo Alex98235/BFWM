@@ -39,10 +39,6 @@ set(TEST_SOURCES
 
 add_executable(test_runner ${ABSOLUTE_LIB_SOURCES} ${TEST_SOURCES})
 target_compile_definitions(test_runner PRIVATE BFWM_BUILD_TESTING)
-option(BFWM_TEST_CI "Plain test output for CI (no CBelt spinner/color)" OFF)
-if(BFWM_TEST_CI)
-    target_compile_definitions(test_runner PRIVATE CBELT_DISABLE_SPINNER CBELT_DISABLE_COLOR)
-endif()
 target_link_libraries(test_runner PRIVATE dwmapi gdiplus lua tiny-regex-c clay ole32 oleaut32 psapi wlanapi shcore)
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cbelt)
 message(STATUS "Created test executable: test_runner")

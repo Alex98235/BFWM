@@ -44,6 +44,6 @@ auto main(int argc, char **argv) -> int {
    static Logger logger;
    SetGlobalLogger(&logger);
    logger.SetLevel(LogLevel::None);
-   cbelt_run_all_tests();
+   cbelt_run_all_tests_with_args(argc, argv);
    return 0;
 }
