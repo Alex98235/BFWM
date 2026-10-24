@@ -101,7 +101,7 @@ class Workspace {
                     size_t identifier);
    /// Add a window to the workspace (layout-tree insert, tracking, focus)
    void AddWindow(struct SharedState *shared, struct MainContext *main,
-                  Window *window);
+                  Window *window, BOOL focus = TRUE);
    /// Remove a window from the workspace (tracking + layout-tree removal)
    void RemoveWindow(Window *window);
    /// Recalculate and apply the layout, then set border colours

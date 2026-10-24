@@ -333,7 +333,7 @@ void Workspace::DestroyWindows(struct SharedState *shared,
 }
 
 void Workspace::AddWindow(struct SharedState *shared, struct MainContext *main,
-                          Window *window) {
+                          Window *window, BOOL focus) {
 
    // Minimized windows should not enter the tree — they get re-added on
    // restore via EVENT_OBJECT_SHOW.
@@ -370,8 +370,10 @@ void Workspace::AddWindow(struct SharedState *shared, struct MainContext *main,
       }
    }
 
-   // Focus the newly added window.
-   FocusWindow(window->GetHwnd(), shared, main);
+   // Focus the newly added window unless the caller opts out (e.g. periodic
+   // harvest of previously-cloaked windows, which must not steal focus).
+   if (focus != FALSE)
+      FocusWindow(window->GetHwnd(), shared, main);
 }
 
 void Workspace::RemoveWindow(Window *window) {
