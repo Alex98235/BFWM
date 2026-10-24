@@ -24,8 +24,8 @@ CBELT_TEST(center_deep_inside_source) {
    FloatDragMonitor mons[2] = {Mon(0, 0, 2560, 1440, 120),
                                Mon(2560, 0, 5120, 1440, 96)};
    POINT const center = {100, 100};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -36,8 +36,8 @@ CBELT_TEST(center_deep_inside_dest) {
    FloatDragMonitor mons[2] = {Mon(0, 0, 2560, 1440, 120),
                                Mon(2560, 0, 5120, 1440, 96)};
    POINT const center = {4000, 500};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -48,8 +48,8 @@ CBELT_TEST(pinned_forward_mixed_dpi) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {0, 500};
-   cbelt_assert_equal((size_t)1,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)1 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -59,8 +59,8 @@ CBELT_TEST(pinned_reverse_mixed_dpi) {
    FloatDragMonitor mons[2] = {Mon(0, 0, 2560, 1440, 96),
                                Mon(-1080, 0, 0, 1920, 120)};
    POINT const center = {0, 500};
-   cbelt_assert_equal((size_t)1,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)1 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -70,8 +70,8 @@ CBELT_TEST(equal_dpi_boundary_not_pinned) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 96),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {0, 500};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -81,8 +81,8 @@ CBELT_TEST(pinned_within_tolerance) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {-2, 500};
-   cbelt_assert_equal((size_t)1,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)1 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -92,8 +92,8 @@ CBELT_TEST(pinned_at_tolerance_edge) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {-3, 500};
-   cbelt_assert_equal((size_t)1,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)1 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -103,8 +103,8 @@ CBELT_TEST(beyond_tolerance_not_pinned) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {-5, 500};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }
 
@@ -115,8 +115,8 @@ CBELT_TEST(three_monitor_corner_ambiguous) {
                                Mon(0, 0, 2560, 1440, 96),
                                Mon(0, 1080, 2560, 2520, 144)};
    POINT const center = {0, 1080};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 3, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 3, 0));
    return TEST_SUCCESS;
 }
 
@@ -127,8 +127,8 @@ CBELT_TEST(three_monitor_source_not_candidate) {
                                Mon(0, 0, 2560, 1440, 96),
                                Mon(0, 1080, 2560, 2520, 144)};
    POINT const center = {0, 1080};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 3, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 3, 0));
    return TEST_SUCCESS;
 }
 
@@ -137,10 +137,10 @@ CBELT_TEST(three_monitor_source_not_candidate) {
 CBELT_TEST(null_or_zero_count) {
    FloatDragMonitor one = Mon(0, 0, 2560, 1440, 96);
    POINT const center = {100, 100};
-   cbelt_assert_equal(
-       (size_t)3, ClassifyPinnedFloatDrag(center, TOLERANCE, nullptr, 0, 3));
-   cbelt_assert_equal((size_t)7,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, &one, 0, 7));
+   cbelt_assert_true((size_t)3 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, nullptr, 0, 3));
+   cbelt_assert_true((size_t)7 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, &one, 0, 7));
    return TEST_SUCCESS;
 }
 
@@ -148,8 +148,8 @@ CBELT_TEST(null_or_zero_count) {
 CBELT_TEST(single_monitor) {
    FloatDragMonitor mons[1] = {Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {100, 100};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 1, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 1, 0));
    return TEST_SUCCESS;
 }
 
@@ -159,8 +159,8 @@ CBELT_TEST(source_index_out_of_range) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 120),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {0, 500};
-   cbelt_assert_equal((size_t)1,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 7));
+   cbelt_assert_true((size_t)1 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 7));
    return TEST_SUCCESS;
 }
 
@@ -170,7 +170,7 @@ CBELT_TEST(dpi_zero_treated_as_96) {
    FloatDragMonitor mons[2] = {Mon(-1080, 0, 0, 1920, 0),
                                Mon(0, 0, 2560, 1440, 96)};
    POINT const center = {0, 500};
-   cbelt_assert_equal((size_t)0,
-                      ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
+   cbelt_assert_true((size_t)0 ==
+                     ClassifyPinnedFloatDrag(center, TOLERANCE, mons, 2, 0));
    return TEST_SUCCESS;
 }

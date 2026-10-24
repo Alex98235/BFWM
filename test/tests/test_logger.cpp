@@ -102,10 +102,10 @@ CBELT_TEST(basic_logging) {
    Warn("warn message");
    Error("error message");
 
-   cbelt_assert_equal(logger.GetCallCount(), 4);
-   cbelt_assert_equal(static_cast<int>(logger.GetLastLevel()),
-                      static_cast<int>(LogLevel::Error));
-   cbelt_assert(StrContains(logger.GetLastMessage(), "error message"));
+   cbelt_assert_true(logger.GetCallCount() == 4);
+   cbelt_assert_true(static_cast<int>(logger.GetLastLevel()) ==
+                     static_cast<int>(LogLevel::Error));
+   cbelt_assert_true(StrContains(logger.GetLastMessage(), "error message"));
 
    return TEST_SUCCESS;
 }
@@ -120,9 +120,9 @@ CBELT_TEST(level_filtering) {
    Warn("should appear");
    Error("should appear");
 
-   cbelt_assert_equal(logger.GetCallCount(), 2); // only Warn and Error
-   cbelt_assert_equal(static_cast<int>(logger.GetLastLevel()),
-                      static_cast<int>(LogLevel::Error));
+   cbelt_assert_true(logger.GetCallCount() == 2); // only Warn and Error
+   cbelt_assert_true(static_cast<int>(logger.GetLastLevel()) ==
+                     static_cast<int>(LogLevel::Error));
 
    return TEST_SUCCESS;
 }
@@ -135,11 +135,11 @@ CBELT_TEST(wide_logging) {
    DebugW(L"wide debug %d", 42);
    InfoW(L"wide info %ls", L"test");
 
-   cbelt_assert_equal(logger.GetCallCount(), 2);
+   cbelt_assert_true(logger.GetCallCount() == 2);
    // Use wstring::find directly to avoid std::string narrowing conversion
    // that can crash with libc++ on UCRT.
-   cbelt_assert(logger.GetLastMessageW().find(L"wide info") !=
-                std::wstring::npos);
+   cbelt_assert_true(logger.GetLastMessageW().find(L"wide info") !=
+                     std::wstring::npos);
 
    return TEST_SUCCESS;
 }
@@ -176,15 +176,15 @@ CBELT_TEST(di_pattern) {
    // Use logger1 via DI
    Component c1(&logger1);
    c1.DoWork();
-   cbelt_assert_equal(logger1.GetCallCount(), 1);
-   cbelt_assert_equal(logger2.GetCallCount(), 0);
+   cbelt_assert_true(logger1.GetCallCount() == 1);
+   cbelt_assert_true(logger2.GetCallCount() == 0);
 
    // Use global logger (logger2 set as global)
    SetGlobalLogger(&logger2);
    Component c2;
    c2.DoWork();
-   cbelt_assert_equal(logger1.GetCallCount(), 1);
-   cbelt_assert_equal(logger2.GetCallCount(), 1);
+   cbelt_assert_true(logger1.GetCallCount() == 1);
+   cbelt_assert_true(logger2.GetCallCount() == 1);
 
    return TEST_SUCCESS;
 }

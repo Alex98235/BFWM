@@ -16,7 +16,7 @@ CBELT_TEST(init_initializes_registries) {
    cbelt_assert_not_null(main.monitors);
    cbelt_assert_not_null(main.windows);
    cbelt_assert_not_null(main.dpi);
-   cbelt_assert(shared.config.bar_cfg.enabled == TRUE);
+   cbelt_assert_true(shared.config.bar_cfg.enabled);
 
    BFWMFree(&shared, &main);
    return TEST_SUCCESS;
@@ -29,9 +29,9 @@ CBELT_TEST(free_releases_registries) {
    BFWMInit(&shared, &main);
    BFWMFree(&shared, &main);
 
-   cbelt_assert(main.monitors == nullptr);
-   cbelt_assert(main.windows == nullptr);
-   cbelt_assert(main.dpi == nullptr);
+   cbelt_assert_true(main.monitors == nullptr);
+   cbelt_assert_true(main.windows == nullptr);
+   cbelt_assert_true(main.dpi == nullptr);
 
    return TEST_SUCCESS;
 }

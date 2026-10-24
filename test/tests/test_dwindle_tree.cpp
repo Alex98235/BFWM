@@ -13,15 +13,15 @@ CBELT_TEST(create_leaf_node) {
    RECT rect = {.left = 10, .top = 20, .right = 100, .bottom = 200};
    DwindleNode *node = CreateLeafNode(reinterpret_cast<HWND>(42), rect);
 
-   cbelt_assert(node != nullptr);
-   cbelt_assert(node->hwnd == reinterpret_cast<HWND>(42));
-   cbelt_assert(node->is_leaf == TRUE);
-   cbelt_assert(node->first == nullptr);
-   cbelt_assert(node->second == nullptr);
-   cbelt_assert(node->rect.left == 10);
-   cbelt_assert(node->rect.top == 20);
-   cbelt_assert(node->rect.right == 100);
-   cbelt_assert(node->rect.bottom == 200);
+   cbelt_assert_not_null(node);
+   cbelt_assert_true(reinterpret_cast<HWND>(42) == node->hwnd);
+   cbelt_assert_true(node->is_leaf);
+   cbelt_assert_null(node->first);
+   cbelt_assert_null(node->second);
+   cbelt_assert_true(10 == node->rect.left);
+   cbelt_assert_true(20 == node->rect.top);
+   cbelt_assert_true(100 == node->rect.right);
+   cbelt_assert_true(200 == node->rect.bottom);
 
    FreeTree(node);
    return TEST_SUCCESS;
@@ -35,14 +35,14 @@ CBELT_TEST(create_container_node_horizontal) {
    RECT rect = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    DwindleNode *node = CreateContainerNode(rect, TRUE, 0.5);
 
-   cbelt_assert(node != nullptr);
-   cbelt_assert(node->is_leaf == FALSE);
-   cbelt_assert(node->split_horizontal == TRUE);
-   cbelt_assert(node->split_ratio == 0.5);
-   cbelt_assert(node->first == nullptr);
-   cbelt_assert(node->second == nullptr);
-   cbelt_assert(node->rect.left == 0);
-   cbelt_assert(node->rect.right == 1920);
+   cbelt_assert_not_null(node);
+   cbelt_assert_false(node->is_leaf);
+   cbelt_assert_true(node->split_horizontal);
+   cbelt_assert_true(0.5 == node->split_ratio);
+   cbelt_assert_null(node->first);
+   cbelt_assert_null(node->second);
+   cbelt_assert_true(0 == node->rect.left);
+   cbelt_assert_true(1920 == node->rect.right);
 
    FreeTree(node);
    return TEST_SUCCESS;
@@ -52,10 +52,10 @@ CBELT_TEST(create_container_node_vertical) {
    RECT rect = {.left = 0, .top = 0, .right = 800, .bottom = 600};
    DwindleNode *node = CreateContainerNode(rect, FALSE, 0.25);
 
-   cbelt_assert(node != nullptr);
-   cbelt_assert(node->is_leaf == FALSE);
-   cbelt_assert(node->split_horizontal == FALSE);
-   cbelt_assert(node->split_ratio == 0.25);
+   cbelt_assert_not_null(node);
+   cbelt_assert_false(node->is_leaf);
+   cbelt_assert_false(node->split_horizontal);
+   cbelt_assert_true(0.25 == node->split_ratio);
 
    FreeTree(node);
    return TEST_SUCCESS;
@@ -79,13 +79,13 @@ CBELT_TEST(find_node_single_leaf) {
    DwindleNode *root = CreateLeafNode(reinterpret_cast<HWND>(1), rect);
 
    DwindleNode *found = FindNodeByWindow(root, reinterpret_cast<HWND>(1));
-   cbelt_assert(found != nullptr);
-   cbelt_assert(found == root);
-   cbelt_assert(found->hwnd == reinterpret_cast<HWND>(1));
+   cbelt_assert_not_null(found);
+   cbelt_assert_true(root == found);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == found->hwnd);
 
    /* Not found */
    found = FindNodeByWindow(root, reinterpret_cast<HWND>(999));
-   cbelt_assert(found == nullptr);
+   cbelt_assert_null(found);
 
    FreeTree(root);
    return TEST_SUCCESS;
@@ -105,11 +105,11 @@ CBELT_TEST(find_node_in_container) {
 
    DwindleNode *found1 = FindNodeByWindow(root, reinterpret_cast<HWND>(1));
    DwindleNode *found2 = FindNodeByWindow(root, reinterpret_cast<HWND>(2));
-   cbelt_assert(found1 == leaf1);
-   cbelt_assert(found2 == leaf2);
+   cbelt_assert_true(leaf1 == found1);
+   cbelt_assert_true(leaf2 == found2);
 
    /* Not found */
-   cbelt_assert(FindNodeByWindow(root, reinterpret_cast<HWND>(3)) == nullptr);
+   cbelt_assert_null(FindNodeByWindow(root, reinterpret_cast<HWND>(3)));
 
    FreeTree(root);
    return TEST_SUCCESS;
@@ -130,18 +130,20 @@ CBELT_TEST(find_node_deep_tree) {
    root->first = leaf1;
    root->second = right;
 
-   cbelt_assert(FindNodeByWindow(root, reinterpret_cast<HWND>(1)) == leaf1);
-   cbelt_assert(FindNodeByWindow(root, reinterpret_cast<HWND>(2)) == leaf2);
-   cbelt_assert(FindNodeByWindow(root, reinterpret_cast<HWND>(3)) == leaf3);
-   cbelt_assert(FindNodeByWindow(root, reinterpret_cast<HWND>(4)) == nullptr);
+   cbelt_assert_true(leaf1 ==
+                     FindNodeByWindow(root, reinterpret_cast<HWND>(1)));
+   cbelt_assert_true(leaf2 ==
+                     FindNodeByWindow(root, reinterpret_cast<HWND>(2)));
+   cbelt_assert_true(leaf3 ==
+                     FindNodeByWindow(root, reinterpret_cast<HWND>(3)));
+   cbelt_assert_null(FindNodeByWindow(root, reinterpret_cast<HWND>(4)));
 
    FreeTree(root);
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(find_node_null_root) {
-   cbelt_assert(FindNodeByWindow(nullptr, reinterpret_cast<HWND>(1)) ==
-                nullptr);
+   cbelt_assert_null(FindNodeByWindow(nullptr, reinterpret_cast<HWND>(1)));
    return TEST_SUCCESS;
 }
 
@@ -153,7 +155,7 @@ CBELT_TEST(find_parent_null_root) {
    DwindleNode *child =
        CreateLeafNode(reinterpret_cast<HWND>(1),
                       RECT{.left = 0, .top = 0, .right = 0, .bottom = 0});
-   cbelt_assert(FindParent(nullptr, child) == nullptr);
+   cbelt_assert_null(FindParent(nullptr, child));
    FreeTree(child);
    return TEST_SUCCESS;
 }
@@ -163,7 +165,7 @@ CBELT_TEST(find_parent_single_leaf) {
        CreateLeafNode(reinterpret_cast<HWND>(1),
                       RECT{.left = 0, .top = 0, .right = 0, .bottom = 0});
    /* No parent for a single-node tree */
-   cbelt_assert(FindParent(root, root) == nullptr);
+   cbelt_assert_null(FindParent(root, root));
    FreeTree(root);
    return TEST_SUCCESS;
 }
@@ -178,11 +180,11 @@ CBELT_TEST(find_parent_two_levels) {
 
    DwindleNode *parent1 = FindParent(root, leaf1);
    DwindleNode *parent2 = FindParent(root, leaf2);
-   cbelt_assert(parent1 == root);
-   cbelt_assert(parent2 == root);
+   cbelt_assert_true(root == parent1);
+   cbelt_assert_true(root == parent2);
 
    /* Root has no parent */
-   cbelt_assert(FindParent(root, root) == nullptr);
+   cbelt_assert_null(FindParent(root, root));
 
    FreeTree(root);
    return TEST_SUCCESS;
@@ -200,11 +202,11 @@ CBELT_TEST(find_parent_deep_tree) {
    root->first = leaf1;
    root->second = right;
 
-   cbelt_assert(FindParent(root, leaf1) == root);
-   cbelt_assert(FindParent(root, right) == root);
-   cbelt_assert(FindParent(root, leaf2) == right);
-   cbelt_assert(FindParent(root, leaf3) == right);
-   cbelt_assert(FindParent(root, root) == nullptr);
+   cbelt_assert_true(root == FindParent(root, leaf1));
+   cbelt_assert_true(root == FindParent(root, right));
+   cbelt_assert_true(right == FindParent(root, leaf2));
+   cbelt_assert_true(right == FindParent(root, leaf3));
+   cbelt_assert_null(FindParent(root, root));
 
    FreeTree(root);
    return TEST_SUCCESS;
@@ -220,7 +222,7 @@ CBELT_TEST(find_parent_unrelated_node) {
 
    /* A node not in the tree */
    DwindleNode *orphan = CreateLeafNode(reinterpret_cast<HWND>(99), rc);
-   cbelt_assert(FindParent(root, orphan) == nullptr);
+   cbelt_assert_null(FindParent(root, orphan));
 
    FreeTree(root);
    FreeTree(orphan);

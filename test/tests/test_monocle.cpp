@@ -16,26 +16,25 @@ CBELT_TEST(null_safety) {
    auto ml = std::make_unique<TestMonocle>();
 
    /* Insert should work on an empty engine */
-   cbelt_assert(ml->insert(reinterpret_cast<HWND>(1),
-                           reinterpret_cast<HWND>(0)) == true);
+   cbelt_assert_true(
+       ml->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
 
    /* Remove on non-existent window returns false */
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(99)) == false);
+   cbelt_assert_false(ml->remove(reinterpret_cast<HWND>(99)));
 
    /* get_rect with null out returns false */
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), nullptr) == false);
+   cbelt_assert_false(ml->get_rect(reinterpret_cast<HWND>(1), nullptr));
 
    /* get_rect on valid engine returns true */
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out) == true);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
 
    /* get_neighbor on non-existent window returns nullptr */
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(99), DirNext) ==
-                nullptr);
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(99), DirNext));
 
    /* get_closest_window on empty engine returns nullptr */
    ml->remove(reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->get_closest_window(nullptr) == nullptr);
+   cbelt_assert_null(ml->get_closest_window(nullptr));
 
    /* apply() on empty engine should not crash */
    ml->apply();
@@ -45,11 +44,10 @@ CBELT_TEST(null_safety) {
 
 CBELT_TEST(empty_layout_returns_null) {
    auto ml = std::make_unique<TestMonocle>();
-   cbelt_assert(ml != nullptr);
+   cbelt_assert_not_null(ml);
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext) ==
-                nullptr);
-   cbelt_assert(ml->get_closest_window(nullptr) == nullptr);
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext));
+   cbelt_assert_null(ml->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
@@ -65,18 +63,18 @@ CBELT_TEST(create_free) {
                                  .gap_edge = 0,
                                  .border_width = 0,
                                  .workspace_rect = workspace});
-   cbelt_assert(ml != nullptr);
-   cbelt_assert(ml->windows.empty());
-   cbelt_assert(ml->workspace_rect.left == 0);
-   cbelt_assert(ml->workspace_rect.top == 0);
-   cbelt_assert(ml->workspace_rect.right == 1920);
-   cbelt_assert(ml->workspace_rect.bottom == 1080);
-   cbelt_assert(ml->gap_between == 0);
-   cbelt_assert(ml->gap_edge == 0);
-   cbelt_assert(ml->tiled_rect.left == 0);
-   cbelt_assert(ml->tiled_rect.top == 0);
-   cbelt_assert(ml->tiled_rect.right == 1920);
-   cbelt_assert(ml->tiled_rect.bottom == 1080);
+   cbelt_assert_not_null(ml);
+   cbelt_assert_true(ml->windows.empty());
+   cbelt_assert_true(0 == ml->workspace_rect.left);
+   cbelt_assert_true(0 == ml->workspace_rect.top);
+   cbelt_assert_true(1920 == ml->workspace_rect.right);
+   cbelt_assert_true(1080 == ml->workspace_rect.bottom);
+   cbelt_assert_true(0 == ml->gap_between);
+   cbelt_assert_true(0 == ml->gap_edge);
+   cbelt_assert_true(0 == ml->tiled_rect.left);
+   cbelt_assert_true(0 == ml->tiled_rect.top);
+   cbelt_assert_true(1920 == ml->tiled_rect.right);
+   cbelt_assert_true(1080 == ml->tiled_rect.bottom);
    return TEST_SUCCESS;
 }
 
@@ -92,8 +90,8 @@ CBELT_TEST(create_after_free) {
                                  .gap_edge = 0,
                                  .border_width = 0,
                                  .workspace_rect = workspace});
-   cbelt_assert(ml != nullptr);
-   cbelt_assert(ml->windows.empty());
+   cbelt_assert_not_null(ml);
+   cbelt_assert_true(ml->windows.empty());
    return TEST_SUCCESS;
 }
 
@@ -105,10 +103,10 @@ CBELT_TEST(insert_first_window) {
    auto ml = std::make_unique<TestMonocle>();
 
    HWND win1 = reinterpret_cast<HWND>(1);
-   cbelt_assert(ml->insert(win1, reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(ml->windows.size() == 1);
-   cbelt_assert(ml->windows[0] == win1);
-   cbelt_assert(ml->get_closest_window(nullptr) == win1);
+   cbelt_assert_true(ml->insert(win1, reinterpret_cast<HWND>(0)));
+   cbelt_assert_true(1 == ml->windows.size());
+   cbelt_assert_true(win1 == ml->windows[0]);
+   cbelt_assert_true(win1 == ml->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
@@ -121,11 +119,11 @@ CBELT_TEST(insert_multiple) {
        reinterpret_cast<HWND>(3), reinterpret_cast<HWND>(4),
        reinterpret_cast<HWND>(5)};
    for (int i = 0; i < 5; i++) {
-      cbelt_assert(ml->insert(wins[i], reinterpret_cast<HWND>(0)) == true);
+      cbelt_assert_true(ml->insert(wins[i], reinterpret_cast<HWND>(0)));
    }
-   cbelt_assert(ml->windows.size() == 5);
+   cbelt_assert_true(5 == ml->windows.size());
    for (int i = 0; i < 5; i++) {
-      cbelt_assert(ml->windows[i] == wins[i]);
+      cbelt_assert_true(wins[i] == ml->windows[i]);
    }
 
    return TEST_SUCCESS;
@@ -134,13 +132,13 @@ CBELT_TEST(insert_multiple) {
 CBELT_TEST(insert_ignores_focus) {
    auto ml = std::make_unique<TestMonocle>();
 
-   cbelt_assert(ml->insert(reinterpret_cast<HWND>(1),
-                           reinterpret_cast<HWND>(42)) == true);
-   cbelt_assert(ml->insert(reinterpret_cast<HWND>(2),
-                           reinterpret_cast<HWND>(99)) == true);
-   cbelt_assert(ml->windows.size() == 2);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(2));
+   cbelt_assert_true(
+       ml->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(42)));
+   cbelt_assert_true(
+       ml->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(99)));
+   cbelt_assert_true(2 == ml->windows.size());
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[1]);
 
    return TEST_SUCCESS;
 }
@@ -149,13 +147,12 @@ CBELT_TEST(insert_grows_array) {
    auto ml = std::make_unique<TestMonocle>();
 
    for (size_t i = 0; i < 20; i++) {
-      cbelt_assert(ml->insert((HWND)(i + 1), reinterpret_cast<HWND>(0)) ==
-                   true);
+      cbelt_assert_true(ml->insert((HWND)(i + 1), reinterpret_cast<HWND>(0)));
    }
-   cbelt_assert(ml->windows.size() == 20);
-   cbelt_assert(ml->windows.capacity() >= 20);
+   cbelt_assert_true(20 == ml->windows.size());
+   cbelt_assert_true(ml->windows.capacity() >= 20);
    for (size_t i = 0; i < 20; i++) {
-      cbelt_assert(ml->windows[i] == (HWND)(i + 1));
+      cbelt_assert_true((HWND)(i + 1) == ml->windows[i]);
    }
 
    return TEST_SUCCESS;
@@ -165,17 +162,17 @@ CBELT_TEST(insert_duplicate_window_keeps_single_entry) {
    auto ml = std::make_unique<TestMonocle>();
 
    HWND win1 = reinterpret_cast<HWND>(1);
-   cbelt_assert(ml->insert(win1, reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(ml->windows.size() == 1);
+   cbelt_assert_true(ml->insert(win1, reinterpret_cast<HWND>(0)));
+   cbelt_assert_true(1 == ml->windows.size());
 
    /* Re-inserting the same window is a no-op — no duplicate entry */
-   cbelt_assert(ml->insert(win1, reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(ml->windows.size() == 1);
-   cbelt_assert(ml->windows[0] == win1);
+   cbelt_assert_true(ml->insert(win1, reinterpret_cast<HWND>(0)));
+   cbelt_assert_true(1 == ml->windows.size());
+   cbelt_assert_true(win1 == ml->windows[0]);
 
    /* A single remove takes it out entirely */
-   cbelt_assert(ml->remove(win1) == true);
-   cbelt_assert(ml->windows.empty());
+   cbelt_assert_true(ml->remove(win1));
+   cbelt_assert_true(ml->windows.empty());
 
    return TEST_SUCCESS;
 }
@@ -198,8 +195,8 @@ CBELT_TEST(remove_only_window) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 1);
 
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(1)) == true);
-   cbelt_assert(ml->windows.empty());
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(1)));
+   cbelt_assert_true(ml->windows.empty());
 
    return TEST_SUCCESS;
 }
@@ -208,10 +205,10 @@ CBELT_TEST(remove_first) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(1)) == true);
-   cbelt_assert(ml->windows.size() == 2);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(1)));
+   cbelt_assert_true(2 == ml->windows.size());
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[1]);
 
    return TEST_SUCCESS;
 }
@@ -220,10 +217,10 @@ CBELT_TEST(remove_middle) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(2)) == true);
-   cbelt_assert(ml->windows.size() == 2);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(2)));
+   cbelt_assert_true(2 == ml->windows.size());
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[1]);
 
    return TEST_SUCCESS;
 }
@@ -232,10 +229,10 @@ CBELT_TEST(remove_last) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(3)) == true);
-   cbelt_assert(ml->windows.size() == 2);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(2));
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(3)));
+   cbelt_assert_true(2 == ml->windows.size());
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[1]);
 
    return TEST_SUCCESS;
 }
@@ -244,8 +241,8 @@ CBELT_TEST(remove_nonexistent) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(99)) == false);
-   cbelt_assert(ml->windows.size() == 3);
+   cbelt_assert_false(ml->remove(reinterpret_cast<HWND>(99)));
+   cbelt_assert_true(3 == ml->windows.size());
 
    return TEST_SUCCESS;
 }
@@ -267,14 +264,14 @@ CBELT_TEST(all_windows_same_rect) {
    RECT out1;
    RECT out2;
    RECT out3;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out1) == true);
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(2), &out2) == true);
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(3), &out3) == true);
-   cbelt_assert(out1.left == out2.left);
-   cbelt_assert(out1.top == out2.top);
-   cbelt_assert(out1.right == out2.right);
-   cbelt_assert(out1.bottom == out2.bottom);
-   cbelt_assert(memcmp(&out1, &out3, sizeof(RECT)) == 0);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out1));
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(2), &out2));
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(3), &out3));
+   cbelt_assert_true(out2.left == out1.left);
+   cbelt_assert_true(out2.top == out1.top);
+   cbelt_assert_true(out2.right == out1.right);
+   cbelt_assert_true(out2.bottom == out1.bottom);
+   cbelt_assert_true(0 == memcmp(&out1, &out3, sizeof(RECT)));
 
    return TEST_SUCCESS;
 }
@@ -289,11 +286,11 @@ CBELT_TEST(rect_no_gap) {
    ml->apply();
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out) == true);
-   cbelt_assert(out.left == 100);
-   cbelt_assert(out.top == 50);
-   cbelt_assert(out.right == 1900);
-   cbelt_assert(out.bottom == 1050);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(100 == out.left);
+   cbelt_assert_true(50 == out.top);
+   cbelt_assert_true(1900 == out.right);
+   cbelt_assert_true(1050 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -305,11 +302,11 @@ CBELT_TEST(rect_with_edge_gap) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out) == true);
-   cbelt_assert(out.left == 10);
-   cbelt_assert(out.top == 10);
-   cbelt_assert(out.right == 1910);
-   cbelt_assert(out.bottom == 1070);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(10 == out.left);
+   cbelt_assert_true(10 == out.top);
+   cbelt_assert_true(1910 == out.right);
+   cbelt_assert_true(1070 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -322,12 +319,11 @@ CBELT_TEST(get_neighbor_next_no_wrap) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext) ==
-                reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirNext) ==
-                reinterpret_cast<HWND>(3));
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(3), DirNext) ==
-                nullptr);
+   cbelt_assert_true(reinterpret_cast<HWND>(2) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(2), DirNext));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(3), DirNext));
 
    return TEST_SUCCESS;
 }
@@ -336,12 +332,11 @@ CBELT_TEST(get_neighbor_prev_no_wrap) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(1), DirPrev) ==
-                nullptr);
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirPrev) ==
-                reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(3), DirPrev) ==
-                reinterpret_cast<HWND>(2));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(1), DirPrev));
+   cbelt_assert_true(reinterpret_cast<HWND>(1) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(2), DirPrev));
+   cbelt_assert_true(reinterpret_cast<HWND>(2) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(3), DirPrev));
 
    return TEST_SUCCESS;
 }
@@ -350,10 +345,8 @@ CBELT_TEST(get_neighbor_single_window) {
    auto ml = std::make_unique<TestMonocle>();
    ml->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0));
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext) ==
-                nullptr);
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(1), DirPrev) ==
-                nullptr);
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(1), DirNext));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(1), DirPrev));
 
    return TEST_SUCCESS;
 }
@@ -362,13 +355,12 @@ CBELT_TEST(get_neighbor_geometric) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirLeft) ==
-                reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirRight) ==
-                reinterpret_cast<HWND>(3));
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirUp) == nullptr);
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(2), DirDown) ==
-                nullptr);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(2), DirLeft));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) ==
+                     ml->get_neighbor(reinterpret_cast<HWND>(2), DirRight));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(2), DirUp));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(2), DirDown));
 
    return TEST_SUCCESS;
 }
@@ -377,12 +369,9 @@ CBELT_TEST(get_neighbor_nonexistent_returns_null) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(99), DirNext) ==
-                nullptr);
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(99), DirPrev) ==
-                nullptr);
-   cbelt_assert(ml->get_neighbor(reinterpret_cast<HWND>(99), DirLeft) ==
-                nullptr);
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(99), DirNext));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(99), DirPrev));
+   cbelt_assert_null(ml->get_neighbor(reinterpret_cast<HWND>(99), DirLeft));
 
    return TEST_SUCCESS;
 }
@@ -395,14 +384,15 @@ CBELT_TEST(get_closest_window_returns_first_on_null) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 5);
 
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(1));
+   cbelt_assert_true(reinterpret_cast<HWND>(1) ==
+                     ml->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(get_closest_window_empty_returns_null) {
    auto ml = std::make_unique<TestMonocle>();
-   cbelt_assert(ml->get_closest_window(nullptr) == nullptr);
+   cbelt_assert_null(ml->get_closest_window(nullptr));
    return TEST_SUCCESS;
 }
 
@@ -411,15 +401,18 @@ CBELT_TEST(get_closest_window_returns_selected_window) {
    insert_n(ml.get(), 3); // win1, win2, win3
 
    // The first inserted window is the initially-shown one.
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(1));
+   cbelt_assert_true(reinterpret_cast<HWND>(1) ==
+                     ml->get_closest_window(nullptr));
 
    // The currently-shown window is tracked by HWND, so moving focus to a
    // later window changes what get_closest_window(nullptr) reports.
    ml->selected_hwnd = reinterpret_cast<HWND>(2);
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(2));
+   cbelt_assert_true(reinterpret_cast<HWND>(2) ==
+                     ml->get_closest_window(nullptr));
 
    ml->selected_hwnd = reinterpret_cast<HWND>(3);
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) ==
+                     ml->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
@@ -430,20 +423,22 @@ CBELT_TEST(removing_shown_window_advances_selection) {
 
    // Focus moves to win2, then win2 is removed.
    ml->selected_hwnd = reinterpret_cast<HWND>(2);
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(2)) == true);
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(2)));
    // Selection advances to the window now at win2's old index (win3).
-   cbelt_assert(ml->selected_hwnd == reinterpret_cast<HWND>(3));
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->selected_hwnd);
+   cbelt_assert_true(reinterpret_cast<HWND>(3) ==
+                     ml->get_closest_window(nullptr));
 
    // Remove the currently-shown window again; selection advances to win1.
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(3)) == true);
-   cbelt_assert(ml->selected_hwnd == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->get_closest_window(nullptr) == reinterpret_cast<HWND>(1));
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(3)));
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->selected_hwnd);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) ==
+                     ml->get_closest_window(nullptr));
 
    // Remove the last window; selection becomes null.
-   cbelt_assert(ml->remove(reinterpret_cast<HWND>(1)) == true);
-   cbelt_assert(ml->selected_hwnd == nullptr);
-   cbelt_assert(ml->get_closest_window(nullptr) == nullptr);
+   cbelt_assert_true(ml->remove(reinterpret_cast<HWND>(1)));
+   cbelt_assert_null(ml->selected_hwnd);
+   cbelt_assert_null(ml->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
@@ -456,10 +451,10 @@ CBELT_TEST(move_window_next_swap) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(1), DirNext) == true);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->windows[2] == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(ml->move_window(reinterpret_cast<HWND>(1), DirNext));
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[1]);
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[2]);
 
    return TEST_SUCCESS;
 }
@@ -468,10 +463,10 @@ CBELT_TEST(move_window_prev_swap) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(2), DirPrev) == true);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(1));
-   cbelt_assert(ml->windows[2] == reinterpret_cast<HWND>(3));
+   cbelt_assert_true(ml->move_window(reinterpret_cast<HWND>(2), DirPrev));
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[1]);
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[2]);
 
    return TEST_SUCCESS;
 }
@@ -480,10 +475,10 @@ CBELT_TEST(move_window_first_prev_wraps_to_last) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(1), DirPrev) == true);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(3));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->windows[2] == reinterpret_cast<HWND>(1));
+   cbelt_assert_true(ml->move_window(reinterpret_cast<HWND>(1), DirPrev));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[1]);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[2]);
 
    return TEST_SUCCESS;
 }
@@ -492,10 +487,10 @@ CBELT_TEST(move_window_last_next_wraps_to_first) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(3), DirNext) == true);
-   cbelt_assert(ml->windows[0] == reinterpret_cast<HWND>(3));
-   cbelt_assert(ml->windows[1] == reinterpret_cast<HWND>(2));
-   cbelt_assert(ml->windows[2] == reinterpret_cast<HWND>(1));
+   cbelt_assert_true(ml->move_window(reinterpret_cast<HWND>(3), DirNext));
+   cbelt_assert_true(reinterpret_cast<HWND>(3) == ml->windows[0]);
+   cbelt_assert_true(reinterpret_cast<HWND>(2) == ml->windows[1]);
+   cbelt_assert_true(reinterpret_cast<HWND>(1) == ml->windows[2]);
 
    return TEST_SUCCESS;
 }
@@ -504,10 +499,10 @@ CBELT_TEST(move_window_geometric_returns_false) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(2), DirLeft) == false);
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(2), DirRight) == false);
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(2), DirUp) == false);
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(2), DirDown) == false);
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(2), DirLeft));
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(2), DirRight));
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(2), DirUp));
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(2), DirDown));
 
    return TEST_SUCCESS;
 }
@@ -516,8 +511,8 @@ CBELT_TEST(move_window_nonexistent_returns_false) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(99), DirNext) == false);
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(99), DirPrev) == false);
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(99), DirNext));
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(99), DirPrev));
 
    return TEST_SUCCESS;
 }
@@ -526,8 +521,8 @@ CBELT_TEST(move_window_single_returns_false) {
    auto ml = std::make_unique<TestMonocle>();
    ml->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0));
 
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(1), DirNext) == false);
-   cbelt_assert(ml->move_window(reinterpret_cast<HWND>(1), DirPrev) == false);
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(1), DirNext));
+   cbelt_assert_false(ml->move_window(reinterpret_cast<HWND>(1), DirPrev));
 
    return TEST_SUCCESS;
 }
@@ -540,12 +535,12 @@ CBELT_TEST(na_resize) {
    auto ml = std::make_unique<TestMonocle>();
    insert_n(ml.get(), 3);
 
-   cbelt_assert(ml->resize_window(reinterpret_cast<HWND>(1), DirRight, 50) ==
-                false);
-   cbelt_assert(ml->resize_window_to_rect(reinterpret_cast<HWND>(1),
-                                          RECT{0, 0, 100, 100}) == false);
-   cbelt_assert(ml->toggle_split(reinterpret_cast<HWND>(1)) == false);
-   cbelt_assert(ml->swap_split(reinterpret_cast<HWND>(1)) == false);
+   cbelt_assert_false(
+       ml->resize_window(reinterpret_cast<HWND>(1), DirRight, 50));
+   cbelt_assert_false(ml->resize_window_to_rect(reinterpret_cast<HWND>(1),
+                                                RECT{0, 0, 100, 100}));
+   cbelt_assert_false(ml->toggle_split(reinterpret_cast<HWND>(1)));
+   cbelt_assert_false(ml->swap_split(reinterpret_cast<HWND>(1)));
 
    return TEST_SUCCESS;
 }
@@ -560,13 +555,13 @@ CBELT_TEST(apply_config_updates_config) {
    LayoutConfig cfg = {4, 8, 0, new_rect};
    ml->apply_config(cfg);
 
-   cbelt_assert(ml->gap_between == 4);
-   cbelt_assert(ml->gap_edge == 8);
+   cbelt_assert_true(4 == ml->gap_between);
+   cbelt_assert_true(8 == ml->gap_edge);
    /* apply_config subtracts gap_edge from workspace_rect */
-   cbelt_assert(ml->workspace_rect.left == 108);
-   cbelt_assert(ml->workspace_rect.top == 108);
-   cbelt_assert(ml->workspace_rect.right == 1492);
-   cbelt_assert(ml->workspace_rect.bottom == 892);
+   cbelt_assert_true(108 == ml->workspace_rect.left);
+   cbelt_assert_true(108 == ml->workspace_rect.top);
+   cbelt_assert_true(1492 == ml->workspace_rect.right);
+   cbelt_assert_true(892 == ml->workspace_rect.bottom);
 
    return TEST_SUCCESS;
 }
@@ -579,10 +574,10 @@ CBELT_TEST(apply_config_recalculates_tiled_rect) {
 
    RECT out;
    ml->get_rect(reinterpret_cast<HWND>(1), &out);
-   cbelt_assert(out.left == 55);
-   cbelt_assert(out.top == 55);
-   cbelt_assert(out.right == 1845);
-   cbelt_assert(out.bottom == 995);
+   cbelt_assert_true(55 == out.left);
+   cbelt_assert_true(55 == out.top);
+   cbelt_assert_true(1845 == out.right);
+   cbelt_assert_true(995 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -594,11 +589,11 @@ CBELT_TEST(border_compensation_insets_rect) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out) == true);
-   cbelt_assert(out.left == 3);
-   cbelt_assert(out.top == 3);
-   cbelt_assert(out.right == 1917);
-   cbelt_assert(out.bottom == 1077);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(3 == out.left);
+   cbelt_assert_true(3 == out.top);
+   cbelt_assert_true(1917 == out.right);
+   cbelt_assert_true(1077 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -610,11 +605,11 @@ CBELT_TEST(border_compensation_with_edge_gap) {
    ml->apply_config(cfg);
 
    RECT out;
-   cbelt_assert(ml->get_rect(reinterpret_cast<HWND>(1), &out) == true);
-   cbelt_assert(out.left == 13);
-   cbelt_assert(out.top == 13);
-   cbelt_assert(out.right == 1907);
-   cbelt_assert(out.bottom == 1067);
+   cbelt_assert_true(ml->get_rect(reinterpret_cast<HWND>(1), &out));
+   cbelt_assert_true(13 == out.left);
+   cbelt_assert_true(13 == out.top);
+   cbelt_assert_true(1907 == out.right);
+   cbelt_assert_true(1067 == out.bottom);
 
    return TEST_SUCCESS;
 }
@@ -627,8 +622,8 @@ CBELT_TEST(vtable_type_is_monocle) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 0, 0, 0);
-   cbelt_assert(engine != nullptr);
-   cbelt_assert(engine->type() == MONOCLE);
+   cbelt_assert_not_null(engine);
+   cbelt_assert_true(MONOCLE == engine->type());
    return TEST_SUCCESS;
 }
 
@@ -636,19 +631,19 @@ CBELT_TEST(vtable_insert_and_get_rect) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 6, 4, 0);
-   cbelt_assert(engine != nullptr);
+   cbelt_assert_not_null(engine);
 
-   cbelt_assert(engine->insert(reinterpret_cast<HWND>(1),
-                               reinterpret_cast<HWND>(0)) == true);
-   cbelt_assert(engine->insert(reinterpret_cast<HWND>(2),
-                               reinterpret_cast<HWND>(0)) == true);
+   cbelt_assert_true(
+       engine->insert(reinterpret_cast<HWND>(1), reinterpret_cast<HWND>(0)));
+   cbelt_assert_true(
+       engine->insert(reinterpret_cast<HWND>(2), reinterpret_cast<HWND>(0)));
    engine->apply();
 
    RECT r1;
    RECT r2;
-   cbelt_assert(engine->get_rect(reinterpret_cast<HWND>(1), &r1) == true);
-   cbelt_assert(engine->get_rect(reinterpret_cast<HWND>(2), &r2) == true);
-   cbelt_assert(memcmp(&r1, &r2, sizeof(RECT)) == 0);
+   cbelt_assert_true(engine->get_rect(reinterpret_cast<HWND>(1), &r1));
+   cbelt_assert_true(engine->get_rect(reinterpret_cast<HWND>(2), &r2));
+   cbelt_assert_true(0 == memcmp(&r1, &r2, sizeof(RECT)));
 
    return TEST_SUCCESS;
 }
@@ -657,21 +652,18 @@ CBELT_TEST(vtable_get_neighbor) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 0, 0, 0);
-   cbelt_assert(engine != nullptr);
+   cbelt_assert_not_null(engine);
 
    engine->insert(reinterpret_cast<HWND>(10), reinterpret_cast<HWND>(0));
    engine->insert(reinterpret_cast<HWND>(20), reinterpret_cast<HWND>(0));
 
-   cbelt_assert(engine->get_closest_window(nullptr) ==
-                reinterpret_cast<HWND>(10));
-   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirNext) ==
-                reinterpret_cast<HWND>(20));
-   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(20), DirNext) ==
-                nullptr);
-   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirPrev) ==
-                nullptr);
-   cbelt_assert(engine->get_neighbor(reinterpret_cast<HWND>(10), DirLeft) ==
-                nullptr);
+   cbelt_assert_true(reinterpret_cast<HWND>(10) ==
+                     engine->get_closest_window(nullptr));
+   cbelt_assert_true(reinterpret_cast<HWND>(20) ==
+                     engine->get_neighbor(reinterpret_cast<HWND>(10), DirNext));
+   cbelt_assert_null(engine->get_neighbor(reinterpret_cast<HWND>(20), DirNext));
+   cbelt_assert_null(engine->get_neighbor(reinterpret_cast<HWND>(10), DirPrev));
+   cbelt_assert_null(engine->get_neighbor(reinterpret_cast<HWND>(10), DirLeft));
 
    return TEST_SUCCESS;
 }
@@ -680,30 +672,30 @@ CBELT_TEST(vtable_set_active_window_updates_closest) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 0, 0, 0);
-   cbelt_assert(engine != nullptr);
+   cbelt_assert_not_null(engine);
 
    engine->insert(reinterpret_cast<HWND>(10), reinterpret_cast<HWND>(0));
    engine->insert(reinterpret_cast<HWND>(20), reinterpret_cast<HWND>(0));
    engine->insert(reinterpret_cast<HWND>(30), reinterpret_cast<HWND>(0));
 
    // Initially the first inserted window is shown.
-   cbelt_assert(engine->get_closest_window(nullptr) ==
-                reinterpret_cast<HWND>(10));
+   cbelt_assert_true(reinterpret_cast<HWND>(10) ==
+                     engine->get_closest_window(nullptr));
 
    // set_active_window mirrors the WM focus; get_closest_window(nullptr)
    // should now report the focused window.
    engine->set_active_window(reinterpret_cast<HWND>(20));
-   cbelt_assert(engine->get_closest_window(nullptr) ==
-                reinterpret_cast<HWND>(20));
+   cbelt_assert_true(reinterpret_cast<HWND>(20) ==
+                     engine->get_closest_window(nullptr));
 
    engine->set_active_window(reinterpret_cast<HWND>(30));
-   cbelt_assert(engine->get_closest_window(nullptr) ==
-                reinterpret_cast<HWND>(30));
+   cbelt_assert_true(reinterpret_cast<HWND>(30) ==
+                     engine->get_closest_window(nullptr));
 
    // An unmanaged window must not change the selection.
    engine->set_active_window(reinterpret_cast<HWND>(999));
-   cbelt_assert(engine->get_closest_window(nullptr) ==
-                reinterpret_cast<HWND>(30));
+   cbelt_assert_true(reinterpret_cast<HWND>(30) ==
+                     engine->get_closest_window(nullptr));
 
    return TEST_SUCCESS;
 }
@@ -712,14 +704,14 @@ CBELT_TEST(vtable_na_slots) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 0, 0, 0);
-   cbelt_assert(engine != nullptr);
+   cbelt_assert_not_null(engine);
 
-   cbelt_assert(
-       engine->resize_window(reinterpret_cast<HWND>(1), DirRight, 50) == false);
-   cbelt_assert(engine->resize_window_to_rect(reinterpret_cast<HWND>(1),
-                                              RECT{0, 0, 100, 100}) == false);
-   cbelt_assert(engine->toggle_split(reinterpret_cast<HWND>(1)) == false);
-   cbelt_assert(engine->swap_split(reinterpret_cast<HWND>(1)) == false);
+   cbelt_assert_false(
+       engine->resize_window(reinterpret_cast<HWND>(1), DirRight, 50));
+   cbelt_assert_false(engine->resize_window_to_rect(reinterpret_cast<HWND>(1),
+                                                    RECT{0, 0, 100, 100}));
+   cbelt_assert_false(engine->toggle_split(reinterpret_cast<HWND>(1)));
+   cbelt_assert_false(engine->swap_split(reinterpret_cast<HWND>(1)));
 
    return TEST_SUCCESS;
 }
@@ -728,7 +720,7 @@ CBELT_TEST(vtable_apply_config) {
    RECT workspace = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
    std::unique_ptr<LayoutEngine> engine =
        MonocleLayoutEngineCreate(workspace, 0, 0, 0);
-   cbelt_assert(engine != nullptr);
+   cbelt_assert_not_null(engine);
 
    LayoutConfig cfg = {0, 6, 0, workspace};
    engine->apply_config(cfg);
@@ -736,10 +728,10 @@ CBELT_TEST(vtable_apply_config) {
    /* After apply_config, gap should be reflected in get_rect */
    RECT out;
    engine->get_rect(reinterpret_cast<HWND>(1), &out);
-   cbelt_assert(out.left == 6);
-   cbelt_assert(out.top == 6);
-   cbelt_assert(out.right == 1914);
-   cbelt_assert(out.bottom == 1074);
+   cbelt_assert_true(6 == out.left);
+   cbelt_assert_true(6 == out.top);
+   cbelt_assert_true(1914 == out.right);
+   cbelt_assert_true(1074 == out.bottom);
 
    return TEST_SUCCESS;
 }

@@ -86,7 +86,7 @@ auto PollValue(ExecCache *cache, const std::vector<std::string> &argv,
  * ========================================================================= */
 
 CBELT_TEST(build_command_line_empty_vector) {
-   cbelt_assert(BuildCommandLine({}).empty());
+   cbelt_assert_true(BuildCommandLine({}).empty());
    return TEST_SUCCESS;
 }
 
@@ -131,7 +131,7 @@ CBELT_TEST(build_command_line_round_trips_via_child_crt) {
    DWORD const path_len = GetModuleFileNameW(nullptr, module_path, MAX_PATH);
    cbelt_assert((path_len > 0) && (path_len < MAX_PATH));
    std::string const exe = WideToUtf8(module_path);
-   cbelt_assert(!exe.empty());
+   cbelt_assert_false(exe.empty());
 
    std::vector<std::vector<std::string>> const cases = {
        {"a", "b"},
@@ -157,13 +157,13 @@ CBELT_TEST(build_command_line_round_trips_via_child_crt) {
 
       std::string const key = "rt" + std::to_string(case_index++);
       const std::string *value = nullptr;
-      cbelt_assert(PollValue(cache, argv, key, 500, &value) == true);
+      cbelt_assert_true(PollValue(cache, argv, key, 500, &value));
 
       std::vector<std::string> recovered;
-      cbelt_assert(ParseEcho(*value, &recovered) == true);
-      cbelt_assert(recovered.size() == args.size());
+      cbelt_assert_true(ParseEcho(*value, &recovered));
+      cbelt_assert_true(args.size() == recovered.size());
       for (size_t i = 0; i < recovered.size() && i < args.size(); i++)
-         cbelt_assert(recovered[i] == args[i]);
+         cbelt_assert_true(args[i] == recovered[i]);
 
       ExecCacheDestroy(cache);
    }
@@ -178,8 +178,8 @@ CBELT_TEST(spawn_handles_space_and_empty_arg) {
    ExecCache *cache = ExecCacheCreate();
    std::vector<std::string> const argv = {"cmd.exe", "/c", "echo", "a b", ""};
    const std::string *value = nullptr;
-   cbelt_assert(PollValue(cache, argv, "space", 300, &value) == true);
-   cbelt_assert(value->find("a b") != std::string::npos);
+   cbelt_assert_true(PollValue(cache, argv, "space", 300, &value));
+   cbelt_assert_true(value->find("a b") != std::string::npos);
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
 }
@@ -189,8 +189,8 @@ CBELT_TEST(timeout_terminates_hung_child) {
    std::vector<std::string> const argv = {"cmd.exe", "/c", "ping",
                                           "-n",      "10", "127.0.0.1"};
    const std::string *value = nullptr;
-   cbelt_assert(PollValue(cache, argv, "to", 300, &value) == true);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 0);
+   cbelt_assert_true(PollValue(cache, argv, "to", 300, &value));
+   cbelt_assert_true(0 == ExecCacheInFlightCount(cache));
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
 }
@@ -203,9 +203,9 @@ CBELT_TEST(stdout_cap_truncates) {
        "for /l %i in (1,1,4000) do @echo "
        "0123456789012345678901234567890123456789"};
    const std::string *value = nullptr;
-   cbelt_assert(PollValue(cache, argv, "cap", 500, &value) == true);
-   cbelt_assert(value->size() <= 65536);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 0);
+   cbelt_assert_true(PollValue(cache, argv, "cap", 500, &value));
+   cbelt_assert_true(value->size() <= 65536);
+   cbelt_assert_true(0 == ExecCacheInFlightCount(cache));
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
 }
@@ -218,14 +218,14 @@ CBELT_TEST(failed_start_returns_nil_and_backs_off) {
    ExecCache *cache = ExecCacheCreate(); /* default TTL used as backoff */
    std::vector<std::string> const argv = {"bfwm_no_such_executable_xyz.exe"};
 
-   cbelt_assert(ExecCacheGet(cache, argv, "bad", 1000) == nullptr);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "bad", 1000));
    uint64_t const attempts = ExecCacheStartAttempts(cache);
-   cbelt_assert(attempts == 1);
+   cbelt_assert_true(1 == attempts);
 
    /* Immediate retry backs off: no second attempt, still nil. */
-   cbelt_assert(ExecCacheGet(cache, argv, "bad", 1000) == nullptr);
-   cbelt_assert(ExecCacheStartAttempts(cache) == attempts);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 0);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "bad", 1000));
+   cbelt_assert_true(attempts == ExecCacheStartAttempts(cache));
+   cbelt_assert_true(0 == ExecCacheInFlightCount(cache));
 
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
@@ -236,14 +236,14 @@ CBELT_TEST(coalesces_same_key) {
    std::vector<std::string> const argv = {"cmd.exe", "/c", "ping",
                                           "-n",      "10", "127.0.0.1"};
 
-   cbelt_assert(ExecCacheGet(cache, argv, "co", 0) == nullptr);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 1);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "co", 0));
+   cbelt_assert_true(1 == ExecCacheInFlightCount(cache));
    uint64_t const attempts = ExecCacheStartAttempts(cache);
 
    /* Second call while in flight must not start another child. */
-   cbelt_assert(ExecCacheGet(cache, argv, "co", 0) == nullptr);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 1);
-   cbelt_assert(ExecCacheStartAttempts(cache) == attempts);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "co", 0));
+   cbelt_assert_true(1 == ExecCacheInFlightCount(cache));
+   cbelt_assert_true(attempts == ExecCacheStartAttempts(cache));
 
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
@@ -257,14 +257,14 @@ CBELT_TEST(cap_rejection_returns_nil_and_retries) {
    /* Fill the concurrency cap with distinct keys. */
    for (int i = 0; i < 16; i++)
       (void)ExecCacheGet(cache, argv, "cap" + std::to_string(i), 0);
-   cbelt_assert(ExecCacheInFlightCount(cache) == 16);
+   cbelt_assert_true(16 == ExecCacheInFlightCount(cache));
    uint64_t const attempts = ExecCacheStartAttempts(cache);
 
    /* A 17th key is cap-rejected: nil (no fabricated value) and it *retries*
     * on every call (unlike a genuine failure, which backs off). */
-   cbelt_assert(ExecCacheGet(cache, argv, "cap17", 1000) == nullptr);
-   cbelt_assert(ExecCacheGet(cache, argv, "cap17", 1000) == nullptr);
-   cbelt_assert(ExecCacheStartAttempts(cache) == attempts + 2);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "cap17", 1000));
+   cbelt_assert_null(ExecCacheGet(cache, argv, "cap17", 1000));
+   cbelt_assert_true(attempts + 2 == ExecCacheStartAttempts(cache));
 
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
@@ -276,11 +276,11 @@ CBELT_TEST(entry_cap_returns_nil_without_crash) {
 
    for (int i = 0; i < 64; i++)
       (void)ExecCacheGet(cache, argv, "k" + std::to_string(i), 1000);
-   cbelt_assert(ExecCacheEntryCount(cache) == 64);
+   cbelt_assert_true(64 == ExecCacheEntryCount(cache));
 
    /* The 65th distinct key cannot be retained: nil, no crash, no growth. */
-   cbelt_assert(ExecCacheGet(cache, argv, "k_overflow", 1000) == nullptr);
-   cbelt_assert(ExecCacheEntryCount(cache) == 64);
+   cbelt_assert_null(ExecCacheGet(cache, argv, "k_overflow", 1000));
+   cbelt_assert_true(64 == ExecCacheEntryCount(cache));
 
    ExecCacheDestroy(cache);
    return TEST_SUCCESS;
@@ -296,28 +296,29 @@ CBELT_TEST(freshness_age_is_measured_from_production_time) {
     * harvest-time stamp the age would read 0 and always look fresh, skipping
     * the next replacement spawn. */
    uint64_t const interval = 1000;
-   cbelt_assert(ExecCacheIsFresh(true, /*now_ms=*/interval, /*updated_ms=*/0,
-                                 /*ttl_ms=*/interval) == false);
-   cbelt_assert(ExecCacheIsFresh(true, interval, 0, interval - 1) == false);
-   cbelt_assert(ExecCacheIsFresh(true, interval, 0, 1) == false);
+   cbelt_assert_false(ExecCacheIsFresh(true, /*now_ms=*/interval,
+                                       /*updated_ms=*/0,
+                                       /*ttl_ms=*/interval));
+   cbelt_assert_false(ExecCacheIsFresh(true, interval, 0, interval - 1));
+   cbelt_assert_false(ExecCacheIsFresh(true, interval, 0, 1));
 
    /* A ttl strictly greater than the age is fresh. */
-   cbelt_assert(ExecCacheIsFresh(true, interval, 0, interval + 1) == true);
+   cbelt_assert_true(ExecCacheIsFresh(true, interval, 0, interval + 1));
 
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(freshness_ttl_zero_is_never_fresh) {
    /* 0 < 0 is false: ttl = 0 always requests a refresh. */
-   cbelt_assert(ExecCacheIsFresh(true, 0, 0, 0) == false);
-   cbelt_assert(ExecCacheIsFresh(true, 500, 500, 0) == false);
-   cbelt_assert(ExecCacheIsFresh(true, 500, 0, 0) == false);
+   cbelt_assert_false(ExecCacheIsFresh(true, 0, 0, 0));
+   cbelt_assert_false(ExecCacheIsFresh(true, 500, 500, 0));
+   cbelt_assert_false(ExecCacheIsFresh(true, 500, 0, 0));
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(freshness_requires_a_value) {
    /* No value recorded means nothing can be fresh, regardless of ttl. */
-   cbelt_assert(ExecCacheIsFresh(false, 1000, 0, 1000) == false);
-   cbelt_assert(ExecCacheIsFresh(false, 1000, 0, 60000) == false);
+   cbelt_assert_false(ExecCacheIsFresh(false, 1000, 0, 1000));
+   cbelt_assert_false(ExecCacheIsFresh(false, 1000, 0, 60000));
    return TEST_SUCCESS;
 }

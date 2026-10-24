@@ -29,28 +29,28 @@ inline auto test_hwnd(int i) -> HWND {
  * owns its CRITICAL_SECTION). */
 CBELT_TEST(empty_registry_construct_destroy) {
    WindowRegistry reg;
-   cbelt_assert(reg.Windows().empty());
+   cbelt_assert_true(reg.Windows().empty());
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(window_create_and_free) {
    auto w = std::make_unique<Window>(reinterpret_cast<HWND>(0x1234), L"MyApp");
-   cbelt_assert(w != nullptr);
-   cbelt_assert(w->GetHwnd() == reinterpret_cast<HWND>(0x1234));
+   cbelt_assert_not_null(w);
+   cbelt_assert_true(reinterpret_cast<HWND>(0x1234) == w->GetHwnd());
    cbelt_assert(w->GetTitle() == L"MyApp");
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(window_create_empty_title) {
    auto w = std::make_unique<Window>(reinterpret_cast<HWND>(1), L"");
-   cbelt_assert(w != nullptr);
-   cbelt_assert(w->GetTitle().empty());
+   cbelt_assert_not_null(w);
+   cbelt_assert_true(w->GetTitle().empty());
    return TEST_SUCCESS;
 }
 
 CBELT_TEST(window_create_unicode_title) {
    auto w = std::make_unique<Window>(reinterpret_cast<HWND>(100), L"Ünïcødé✓");
-   cbelt_assert(w != nullptr);
+   cbelt_assert_not_null(w);
    cbelt_assert(w->GetTitle() == L"Ünïcødé✓");
    return TEST_SUCCESS;
 }
@@ -65,10 +65,10 @@ CBELT_TEST(register_one_window) {
 
    Window *w = reg.Register(std::make_unique<Window>(hwnd, L"TestWindow"));
 
-   cbelt_assert(w != nullptr);
-   cbelt_assert(reg.Windows().size() == 1);
-   cbelt_assert(reg.Windows()[0].get() == w);
-   cbelt_assert(reg.FindByHwnd(hwnd) == w);
+   cbelt_assert_not_null(w);
+   cbelt_assert_true(1 == reg.Windows().size());
+   cbelt_assert_true(w == reg.Windows()[0].get());
+   cbelt_assert_true(w == reg.FindByHwnd(hwnd));
    return TEST_SUCCESS;
 }
 
@@ -81,11 +81,11 @@ CBELT_TEST(register_multiple_windows) {
           reg.Register(std::make_unique<Window>(test_hwnd(i), L"TestWindow"));
    }
 
-   cbelt_assert(reg.Windows().size() == 5);
+   cbelt_assert_true(5 == reg.Windows().size());
    /* Order preserved: windows[0..4] in registration order. */
    for (int i = 0; i < 5; i++) {
-      cbelt_assert(reg.Windows()[static_cast<size_t>(i)].get() == wins[i]);
-      cbelt_assert(reg.FindByHwnd(test_hwnd(i)) == wins[i]);
+      cbelt_assert_true(wins[i] == reg.Windows()[static_cast<size_t>(i)].get());
+      cbelt_assert_true(wins[i] == reg.FindByHwnd(test_hwnd(i)));
    }
    return TEST_SUCCESS;
 }
@@ -96,9 +96,9 @@ CBELT_TEST(get_window_by_index) {
    Window *win1 = reg.Register(std::make_unique<Window>(test_hwnd(1), L"W1"));
    Window *win2 = reg.Register(std::make_unique<Window>(test_hwnd(2), L"W2"));
 
-   cbelt_assert(reg.Windows().size() == 2);
-   cbelt_assert(reg.Windows()[0].get() == win1);
-   cbelt_assert(reg.Windows()[1].get() == win2);
+   cbelt_assert_true(2 == reg.Windows().size());
+   cbelt_assert_true(win1 == reg.Windows()[0].get());
+   cbelt_assert_true(win2 == reg.Windows()[1].get());
    return TEST_SUCCESS;
 }
 
@@ -109,18 +109,18 @@ CBELT_TEST(register_pointer_stable_across_registers) {
 
    HWND hwnd0 = test_hwnd(0);
    Window *first = reg.Register(std::make_unique<Window>(hwnd0, L"First"));
-   cbelt_assert(first != nullptr);
+   cbelt_assert_not_null(first);
 
    /* Register enough windows to force several vector reallocations. */
    for (int i = 1; i < 16; i++) {
       reg.Register(std::make_unique<Window>(test_hwnd(i), L"TestWindow"));
    }
 
-   cbelt_assert(reg.Windows().size() == 16);
-   cbelt_assert(reg.Windows()[0].get() == first);
-   cbelt_assert(first->GetHwnd() == hwnd0);
+   cbelt_assert_true(16 == reg.Windows().size());
+   cbelt_assert_true(first == reg.Windows()[0].get());
+   cbelt_assert_true(hwnd0 == first->GetHwnd());
    cbelt_assert(first->GetTitle() == L"First");
-   cbelt_assert(reg.FindByHwnd(hwnd0) == first);
+   cbelt_assert_true(first == reg.FindByHwnd(hwnd0));
    return TEST_SUCCESS;
 }
 
@@ -136,9 +136,9 @@ CBELT_TEST(find_window_by_hwnd_found) {
    reg.Register(std::make_unique<Window>(test_hwnd(30), L"W3"));
 
    Window *found = reg.FindByHwnd(test_hwnd(20));
-   cbelt_assert(found != nullptr);
-   cbelt_assert(found == win2);
-   cbelt_assert(found->GetHwnd() == test_hwnd(20));
+   cbelt_assert_not_null(found);
+   cbelt_assert_true(win2 == found);
+   cbelt_assert_true(test_hwnd(20) == found->GetHwnd());
    return TEST_SUCCESS;
 }
 
@@ -147,11 +147,11 @@ CBELT_TEST(find_window_by_hwnd_not_found) {
 
    Window *win =
        reg.Register(std::make_unique<Window>(test_hwnd(1), L"TestWindow"));
-   cbelt_assert(win != nullptr);
+   cbelt_assert_not_null(win);
 
    Window *found =
        reg.FindByHwnd(reinterpret_cast<HWND>(static_cast<std::uintptr_t>(999)));
-   cbelt_assert(found == nullptr);
+   cbelt_assert_null(found);
    return TEST_SUCCESS;
 }
 
@@ -159,7 +159,7 @@ CBELT_TEST(find_window_by_hwnd_empty_reg) {
    WindowRegistry reg;
 
    Window *found = reg.FindByHwnd(test_hwnd(1));
-   cbelt_assert(found == nullptr);
+   cbelt_assert_null(found);
    return TEST_SUCCESS;
 }
 
@@ -174,10 +174,10 @@ CBELT_TEST(find_window_by_hwnd_unique_hwnds) {
 
    /* Each distinct hwnd resolves to exactly its own window. */
    for (int i = 0; i < 4; i++) {
-      cbelt_assert(reg.FindByHwnd(test_hwnd(i)) == wins[i]);
+      cbelt_assert_true(wins[i] == reg.FindByHwnd(test_hwnd(i)));
       for (int j = 0; j < 4; j++) {
          if (i != j)
-            cbelt_assert(reg.FindByHwnd(test_hwnd(j)) != wins[i]);
+            cbelt_assert_not_equal(wins[i], reg.FindByHwnd(test_hwnd(j)));
       }
    }
    return TEST_SUCCESS;
@@ -197,19 +197,19 @@ CBELT_TEST(remove_window_success) {
    Window *win2 = reg.Register(std::make_unique<Window>(hwnd2, L"W2"));
    Window *win3 = reg.Register(std::make_unique<Window>(hwnd3, L"W3"));
 
-   cbelt_assert(reg.Windows().size() == 3);
+   cbelt_assert_true(3 == reg.Windows().size());
 
    /* Remove win2 (middle). win2 becomes dangling — do not dereference it. */
    bool result = reg.Remove(win2);
-   cbelt_assert(result == true);
-   cbelt_assert(reg.Windows().size() == 2);
+   cbelt_assert_true(result);
+   cbelt_assert_true(2 == reg.Windows().size());
 
    /* Remaining windows are contiguous: win1, win3. */
-   cbelt_assert(reg.Windows()[0].get() == win1);
-   cbelt_assert(reg.Windows()[1].get() == win3);
+   cbelt_assert_true(win1 == reg.Windows()[0].get());
+   cbelt_assert_true(win3 == reg.Windows()[1].get());
 
    /* Removed window is no longer findable. */
-   cbelt_assert(reg.FindByHwnd(hwnd2) == nullptr);
+   cbelt_assert_null(reg.FindByHwnd(hwnd2));
    return TEST_SUCCESS;
 }
 
@@ -222,10 +222,10 @@ CBELT_TEST(remove_first_window) {
    Window *win2 = reg.Register(std::make_unique<Window>(hwnd2, L"W2"));
 
    bool result = reg.Remove(win1);
-   cbelt_assert(result == true);
-   cbelt_assert(reg.Windows().size() == 1);
-   cbelt_assert(reg.Windows()[0].get() == win2);
-   cbelt_assert(reg.FindByHwnd(hwnd1) == nullptr);
+   cbelt_assert_true(result);
+   cbelt_assert_true(1 == reg.Windows().size());
+   cbelt_assert_true(win2 == reg.Windows()[0].get());
+   cbelt_assert_null(reg.FindByHwnd(hwnd1));
    return TEST_SUCCESS;
 }
 
@@ -235,12 +235,12 @@ CBELT_TEST(remove_last_window) {
    HWND hwnd1 = test_hwnd(1);
 
    Window *win1 = reg.Register(std::make_unique<Window>(hwnd1, L"W1"));
-   cbelt_assert(reg.Windows().size() == 1);
+   cbelt_assert_true(1 == reg.Windows().size());
 
    bool result = reg.Remove(win1);
-   cbelt_assert(result == true);
-   cbelt_assert(reg.Windows().empty());
-   cbelt_assert(reg.FindByHwnd(hwnd1) == nullptr);
+   cbelt_assert_true(result);
+   cbelt_assert_true(reg.Windows().empty());
+   cbelt_assert_null(reg.FindByHwnd(hwnd1));
    return TEST_SUCCESS;
 }
 
@@ -252,18 +252,18 @@ CBELT_TEST(remove_nonexistent_window) {
 
    Window *win1 = reg.Register(std::make_unique<Window>(hwnd1, L"W1"));
    Window *win2 = other_reg.Register(std::make_unique<Window>(hwnd2, L"W2"));
-   cbelt_assert(win1 != nullptr);
-   cbelt_assert(win2 != nullptr);
+   cbelt_assert_not_null(win1);
+   cbelt_assert_not_null(win2);
 
    /* win2 belongs to other_reg, not reg — removal must fail. */
    bool result = reg.Remove(win2);
-   cbelt_assert(result == false);
-   cbelt_assert(reg.Windows().size() == 1);
+   cbelt_assert_false(result);
+   cbelt_assert_true(1 == reg.Windows().size());
 
    /* nullptr is never a registered window. */
    bool result_null = reg.Remove(nullptr);
-   cbelt_assert(result_null == false);
-   cbelt_assert(reg.Windows().size() == 1);
+   cbelt_assert_false(result_null);
+   cbelt_assert_true(1 == reg.Windows().size());
    return TEST_SUCCESS;
 }
 
@@ -277,13 +277,13 @@ CBELT_TEST(registry_empty_after_full_remove) {
    }
 
    for (int i = 0; i < 3; i++) {
-      cbelt_assert(reg.Remove(wins[i]) == true);
+      cbelt_assert_true(reg.Remove(wins[i]));
    }
 
-   cbelt_assert(reg.Windows().empty());
-   cbelt_assert(reg.FindByHwnd(test_hwnd(0)) == nullptr);
-   cbelt_assert(reg.FindByHwnd(test_hwnd(1)) == nullptr);
-   cbelt_assert(reg.FindByHwnd(test_hwnd(2)) == nullptr);
+   cbelt_assert_true(reg.Windows().empty());
+   cbelt_assert_null(reg.FindByHwnd(test_hwnd(0)));
+   cbelt_assert_null(reg.FindByHwnd(test_hwnd(1)));
+   cbelt_assert_null(reg.FindByHwnd(test_hwnd(2)));
    return TEST_SUCCESS;
 }
 
@@ -298,7 +298,7 @@ CBELT_TEST(registry_destructor_destroys_remaining_windows) {
       WindowRegistry reg;
       reg.Register(std::make_unique<Window>(test_hwnd(1), L"A"));
       reg.Register(std::make_unique<Window>(test_hwnd(2), L"B"));
-      cbelt_assert(reg.Windows().size() == 2);
+      cbelt_assert_true(2 == reg.Windows().size());
    } /* reg goes out of scope with 2 live windows — safe */
    return TEST_SUCCESS;
 }

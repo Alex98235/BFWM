@@ -61,10 +61,10 @@ CBELT_TEST(register_and_dispatch_kill_active) {
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionKillActive, nullptr);
 
-   cbelt_assert(result == 0);
-   cbelt_assert(g_last_handler_called == ActionKillActive);
-   cbelt_assert(g_last_handler_action == saved_act);
-   cbelt_assert(g_last_handler_shared == fake_ctx);
+   cbelt_assert_true(0 == result);
+   cbelt_assert_true(ActionKillActive == g_last_handler_called);
+   cbelt_assert_true(saved_act == g_last_handler_action);
+   cbelt_assert_true(fake_ctx == g_last_handler_shared);
 
    return TEST_SUCCESS;
 }
@@ -85,10 +85,10 @@ CBELT_TEST(register_and_dispatch_spawn) {
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionSpawn, nullptr);
 
-   cbelt_assert(result == 0);
-   cbelt_assert(g_last_handler_called == ActionSpawn);
-   cbelt_assert(g_last_handler_action == saved_act);
-   cbelt_assert(g_last_handler_shared == fake_ctx);
+   cbelt_assert_true(0 == result);
+   cbelt_assert_true(ActionSpawn == g_last_handler_called);
+   cbelt_assert_true(saved_act == g_last_handler_action);
+   cbelt_assert_true(fake_ctx == g_last_handler_shared);
 
    return TEST_SUCCESS;
 }
@@ -108,7 +108,7 @@ CBELT_TEST(handler_receives_context) {
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionKillActive, nullptr);
 
-   cbelt_assert(g_last_handler_shared == fake_ctx);
+   cbelt_assert_true(fake_ctx == g_last_handler_shared);
 
    return TEST_SUCCESS;
 }
@@ -125,12 +125,12 @@ CBELT_TEST(handler_return_value_propagated) {
    g_mock_return_value = 42;
    int result = ActionDispatcherDispatch(
        fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
-   cbelt_assert(result == 42);
+   cbelt_assert_true(42 == result);
 
    g_mock_return_value = -7;
    result = ActionDispatcherDispatch(
        fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act);
-   cbelt_assert(result == -7);
+   cbelt_assert_true(-7 == result);
 
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionKillActive, nullptr);
@@ -145,7 +145,7 @@ CBELT_TEST(dispatch_with_no_handler_returns_minus_one) {
 
    BFWMActionDestroy(act);
 
-   cbelt_assert(result == -1);
+   cbelt_assert_true(-1 == result);
 
    return TEST_SUCCESS;
 }
@@ -157,14 +157,14 @@ CBELT_TEST(dispatch_after_unregister_returns_minus_one) {
    BFWMAction *act = BFWMActionCreateFullscreen();
 
    int result = ActionDispatcherDispatch(nullptr, nullptr, act);
-   cbelt_assert(result == 0);
+   cbelt_assert_true(0 == result);
 
    ActionDispatcherRegister(ActionFullscreen, nullptr);
 
    result = ActionDispatcherDispatch(nullptr, nullptr, act);
    BFWMActionDestroy(act);
 
-   cbelt_assert(result == -1);
+   cbelt_assert_true(-1 == result);
 
    return TEST_SUCCESS;
 }
@@ -180,7 +180,7 @@ CBELT_TEST(re_register_overwrites_previous_handler) {
    auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
    ActionDispatcherDispatch(fake_ctx,
                             reinterpret_cast<MainContext *>(&dummy_ctx), act);
-   cbelt_assert(g_last_handler_called == ActionKillActive);
+   cbelt_assert_true(ActionKillActive == g_last_handler_called);
 
    ActionDispatcherRegister(ActionSpawn, mock_handler_spawn);
 
@@ -189,7 +189,7 @@ CBELT_TEST(re_register_overwrites_previous_handler) {
    BFWMActionDestroy(act);
    ActionDispatcherRegister(ActionSpawn, nullptr);
 
-   cbelt_assert(g_last_handler_called == ActionSpawn);
+   cbelt_assert_true(ActionSpawn == g_last_handler_called);
 
    return TEST_SUCCESS;
 }
@@ -207,11 +207,11 @@ CBELT_TEST(multiple_handlers_independent) {
    auto *fake_ctx = reinterpret_cast<SharedState *>(&dummy_ctx);
    ActionDispatcherDispatch(
        fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act_kill);
-   cbelt_assert(g_last_handler_called == ActionKillActive);
+   cbelt_assert_true(ActionKillActive == g_last_handler_called);
 
    ActionDispatcherDispatch(
        fake_ctx, reinterpret_cast<MainContext *>(&dummy_ctx), act_custom);
-   cbelt_assert(g_last_handler_called == ActionCustom);
+   cbelt_assert_true(ActionCustom == g_last_handler_called);
 
    BFWMActionDestroy(act_kill);
    BFWMActionDestroy(act_custom);
@@ -229,7 +229,7 @@ CBELT_TEST(dispatch_out_of_range_type_returns_minus_one) {
    bad_action.args = std::monostate{};
 
    int result = ActionDispatcherDispatch(nullptr, nullptr, &bad_action);
-   cbelt_assert(result == -1);
+   cbelt_assert_true(-1 == result);
 
    return TEST_SUCCESS;
 }
