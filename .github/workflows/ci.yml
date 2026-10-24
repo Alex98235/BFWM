@@ -43,7 +43,7 @@ jobs:
       - name: Configure (CMake)
         shell: msys2 {0}
         # Plain, non-animated CBelt output so CI logs stay readable.
-        run: cmake --preset ucrt64 -DBFWM_TEST_CI=ON
+        run: cmake --preset ucrt64
 
       - name: Build test_runner and BFWM
         shell: msys2 {0}
@@ -51,4 +51,4 @@ jobs:
 
       - name: Run tests
         shell: msys2 {0}
-        run: ./build/test/test_runner.exe
+        run: ./build/test/test_runner.exe --no-spinner --color never --quiet
