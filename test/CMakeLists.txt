@@ -47,7 +47,7 @@ enable_testing()
 add_test(NAME tests COMMAND test_runner)
 
 add_custom_target(test-run
-    COMMAND $<TARGET_FILE:test_runner>
+    COMMAND $<TARGET_FILE:test_runner> -j 8 --quiet
     DEPENDS test_runner
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running tests"
