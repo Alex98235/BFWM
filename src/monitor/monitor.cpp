@@ -403,9 +403,11 @@ TryMatchMonitor(struct SharedState *shared, struct MainContext *main,
       RECT const new_rect = new_replacement->GetRect();
       RECT const old_work_area = old_mon->GetWorkArea();
       RECT const new_work_area = new_replacement->GetWorkArea();
-      BOOL const rect_changed = static_cast<BOOL>(
-          (EqualRect(&old_rect, &new_rect) == FALSE) ||
-          (EqualRect(&old_work_area, &new_work_area) == FALSE));
+      BOOL const work_area_changed =
+          static_cast<BOOL>(EqualRect(&old_work_area, &new_work_area) == FALSE);
+      BOOL const rect_changed =
+          static_cast<BOOL>((EqualRect(&old_rect, &new_rect) == FALSE) ||
+                            (work_area_changed == TRUE));
       old_mon->SetRect(new_replacement->GetRect());
       old_mon->SetWorkArea(new_replacement->GetWorkArea());
       old_mon->SetDisplayNumber(new_replacement->GetDisplayNumber());
@@ -418,6 +420,10 @@ TryMatchMonitor(struct SharedState *shared, struct MainContext *main,
          for (size_t w = 0; w < old_mon->Workspaces().size(); w++) {
             old_mon->Workspaces()[w]->RecalculateRect(old_mon, shared, main);
          }
+         // The bar is positioned from the work area, so it has to be rebuilt
+         // when the taskbar or the display layout moves.
+         if (work_area_changed == TRUE)
+            BarUpdateRequest(main, BAR_UPDATE_RECREATE);
       } else {
          ReconcileMonitorDpi(shared, main, old_mon, old_dpis);
       }
