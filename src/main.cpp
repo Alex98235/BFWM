@@ -534,6 +534,9 @@ inline void MainLoop(SharedState *shared, WorkerContext *worker,
       if (main->dpi_update == TRUE) {
          for (size_t i = 0; i < main->monitors->Size(); i++) {
             Monitor *mon = main->monitors->At(i);
+            // Scaling changes the taskbar's physical height, so the cached
+            // work area is stale until it is re-read from the OS.
+            mon->RefreshWorkArea();
             mon->SetBarHeight(main->dpi->ScaleForMonitor(
                 mon->GetHandle(), shared->config.bar_height));
          }

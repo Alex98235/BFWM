@@ -118,6 +118,41 @@ void RegisterMonitor(MonitorRegistry *reg, Monitor *monitor) {
           r.left, r.top, r.right - r.left, r.bottom - r.top);
 }
 
+/* A monitor's usable area, with the taskbar auto-hide rule applied: when
+ * auto-hide is on and the taskbar lives on this monitor, tiled windows may use
+ * the full rect so they reach the screen edges. */
+namespace {
+auto ResolveWorkArea(const RECT &mon_rect, const RECT &rc_work) -> RECT {
+   HWND tray_bar = FindWindowW(L"Shell_TrayWnd", nullptr);
+   if (tray_bar == nullptr)
+      return rc_work;
+   APPBARDATA abd = {.cbSize = sizeof(abd),
+                     .hWnd = tray_bar,
+                     .uCallbackMessage = {},
+                     .uEdge = {},
+                     .rc = {},
+                     .lParam = {}};
+   UINT const state = static_cast<UINT>(SHAppBarMessage(ABM_GETSTATE, &abd));
+   if ((state & ABS_AUTOHIDE) == 0U)
+      return rc_work;
+   RECT tb_rect;
+   if (GetWindowRect(tray_bar, &tb_rect) == 0)
+      return rc_work;
+   RECT inter;
+   if (IntersectRect(&inter, &mon_rect, &tb_rect) != 0)
+      return mon_rect;
+   return rc_work;
+}
+} // namespace
+
+void Monitor::RefreshWorkArea() {
+   MONITORINFOEXW miex;
+   miex.cbSize = sizeof(miex);
+   if (GetMonitorInfoW(handle_, reinterpret_cast<LPMONITORINFO>(&miex)) == 0)
+      return;
+   work_area_ = ResolveWorkArea(rect_, miex.rcWork);
+}
+
 auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
                               LPRECT lprcMonitor, LPARAM dwData) -> BOOL {
    (void)hdcMonitor;
@@ -137,7 +172,7 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
 
    mon->SetHandle(hMonitor);
    mon->SetRect(*lprcMonitor);
-   mon->SetWorkArea(miex.rcWork);
+   mon->SetWorkArea(ResolveWorkArea(*lprcMonitor, miex.rcWork));
 
    // Register the monitor's effective DPI in the DpiSystem registry (the
    // per-monitor DPI truth; rebuilt from scratch each reconcile).
@@ -163,31 +198,6 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
    };
    if (EnumDisplayDevicesW(miex.szDevice, 0, &display_device, 0) != 0)
       mon->SetUid(display_device.DeviceID);
-
-   // Detect taskbar auto-hide: if enabled, use full monitor rect so
-   // tiled windows extend edge-to-edge even when the taskbar is
-   // normally occupying work area space.
-   {
-      HWND tray_bar = FindWindowW(L"Shell_TrayWnd", nullptr);
-      if (tray_bar != nullptr) {
-         APPBARDATA abd = {.cbSize = sizeof(abd),
-                           .hWnd = tray_bar,
-                           .uCallbackMessage = {},
-                           .uEdge = {},
-                           .rc = {},
-                           .lParam = {}};
-         UINT const state = (UINT)SHAppBarMessage(ABM_GETSTATE, &abd);
-         if ((state & ABS_AUTOHIDE) != 0U) {
-            RECT tb_rect;
-            if (GetWindowRect(tray_bar, &tb_rect) != 0) {
-               RECT inter;
-               RECT const mon_rect = mon->GetRect();
-               if (IntersectRect(&inter, &mon_rect, &tb_rect) != 0)
-                  mon->SetWorkArea(mon_rect);
-            }
-         }
-      }
-   }
 
    RegisterMonitor(reg, mon);
    return TRUE;
