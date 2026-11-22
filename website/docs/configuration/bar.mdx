@@ -24,6 +24,28 @@ title: "Bar"
 | `colors.tab_border` | string | `"#232634"` | Tab border color |
 | `indicators` | array | built-in indicators | Array of indicator entries |
 
+## Placement and the taskbar
+
+The bar is anchored to the top edge of each monitor's **work area**, never to the
+full monitor. Windows reports the work area already excluding the taskbar, so:
+
+- taskbar at the **bottom** — the bar stays at the top of the screen, unchanged
+- taskbar at the **top** — the bar sits directly below it, and tiled windows below the bar
+- taskbar on the **left or right** — the bar starts after it and is narrower
+
+There is no position or edge setting, and no vertical bar. BFWM moves the bar
+itself when Windows announces a taskbar or display change; a DPI change re-reads
+the work area as well, because scaling changes the taskbar's height in pixels.
+
+If a monitor's work area cannot fit the bar after margins, the bar is skipped on
+that monitor and a warning is written to the log, rather than drawing over the
+taskbar.
+
+:::note
+A taskbar set to auto-hide may still reveal itself over the bar on a top or
+left edge, because its reveal zone is not part of the work area.
+:::
+
 ## Bar.indicators[]
 
 Each entry is a Lua table:
