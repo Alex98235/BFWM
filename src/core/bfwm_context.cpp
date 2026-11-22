@@ -38,7 +38,8 @@ extern "C" {
 
 // ============================================================
 // MONITOR HELPER WINDOW — receives WM_DISPLAYCHANGE broadcasts
-// and forwards them as WM_APP_DISPLAYCHANGE (WM_APP+2) to the main thread.
+// and taskbar setting changes, and forwards both as WM_APP_DISPLAYCHANGE
+// (WM_APP+2) to the main thread.
 // ============================================================
 
 namespace {
@@ -51,6 +52,23 @@ inline auto CALLBACK MonitorHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam,
       auto *shared = (SharedState *)BFWMGetWindowData(hwnd);
       if (shared != nullptr) {
          PostThreadMessageW(shared->main_thread_id, WM_APP_DISPLAYCHANGE, 0, 0);
+      }
+      return 0;
+   }
+   if (msg == WM_SETTINGCHANGE) {
+      // Taskbar position and auto-hide are not signalled by WM_DISPLAYCHANGE,
+      // yet both change the work area that the bar and the layout derive from.
+      if (lParam != 0) {
+         auto const *setting = reinterpret_cast<const wchar_t *>(lParam);
+         if ((lstrcmpW(setting, L"TraySettings") == 0) ||
+             (lstrcmpW(setting, L"TaskbarSettings") == 0)) {
+            auto const *shared =
+                static_cast<const SharedState *>(BFWMGetWindowData(hwnd));
+            if (shared != nullptr) {
+               PostThreadMessageW(shared->main_thread_id, WM_APP_DISPLAYCHANGE,
+                                  0, 0);
+            }
+         }
       }
       return 0;
    }
