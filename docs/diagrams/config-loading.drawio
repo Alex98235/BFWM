@@ -1,0 +1,209 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-config-loading" name="Config Loading">
+        <mxGraphModel dx="996" dy="647" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;" value="BFWM — Config Loading" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;" value="config.lua is executed by an embedded Lua VM that validates keys through __newindex guards. Defaults are written FIRST, then the user file overwrites them field by field." vertex="1">
+                    <mxGeometry height="26" width="1400" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="cA" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="1 · Resolve and load" vertex="1">
+                    <mxGeometry height="600" width="420" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;ResolveConfigPath(&amp;quot;config.lua&amp;quot;)&lt;/b&gt; config_paths.cpp:16" vertex="1">
+                    <mxGeometry height="34" width="388" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1b" parent="cA" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="%APPDATA%\BFWM\  then  %USERPROFILE%\.config\BFWM\&lt;br&gt;--config overrides; first existing file wins. Missing = warn + pure defaults (not an error)." vertex="1">
+                    <mxGeometry height="52" width="388" x="16" y="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;LoadConfig()&lt;/b&gt; main.cpp:333&lt;br&gt;--no-bar forces bar_cfg.enabled = FALSE" vertex="1">
+                    <mxGeometry height="44" width="388" x="16" y="122" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;strokeWidth=2;" value="&lt;b&gt;LuaConfigLoad()&lt;/b&gt; parser.cpp:1872" vertex="1">
+                    <mxGeometry height="32" width="388" x="16" y="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;" value="luaL_newstate + luaL_openlibs&lt;br&gt;&lt;i&gt;VM is reused on reload — never recreated&lt;/i&gt;" vertex="1">
+                    <mxGeometry height="48" width="388" x="16" y="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="a5" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;" value="Install globals BFWM, Bar, Snackbar&lt;br&gt;each with a &lt;b&gt;__newindex&lt;/b&gt; key whitelist" vertex="1">
+                    <mxGeometry height="48" width="388" x="16" y="276" as="geometry"/>
+                </mxCell>
+                <mxCell id="a6" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;" value="Register C closures:&lt;br&gt;BFWM.notify · BFWM.exec_cache · BFWM.spawn" vertex="1">
+                    <mxGeometry height="48" width="388" x="16" y="332" as="geometry"/>
+                </mxCell>
+                <mxCell id="a7" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;fontStyle=1;strokeWidth=2;" value="&lt;b&gt;ConfigLoadDefaults(shared)&lt;/b&gt; defaults.cpp:133" vertex="1">
+                    <mxGeometry height="32" width="388" x="16" y="388" as="geometry"/>
+                </mxCell>
+                <mxCell id="a7b" parent="cA" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#B85450;" value="Writes every field and clears + repopulates keybinds with C defaults.&amp;nbsp;&lt;div&gt;&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgba(98, 104, 128, 0.5) rgb(48, 52, 70);&quot;&gt;Runs BEFORE the user file&lt;/b&gt;&lt;span style=&quot;color: rgb(184, 84, 80);&quot;&gt; — this ordering is the source of the partial-failure state&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(184, 84, 80);&quot;&gt;&lt;span style=&quot;color: rgb(184, 84, 80);&quot;&gt;below.&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="60" width="388" x="16" y="424" as="geometry"/>
+                </mxCell>
+                <mxCell id="a8" parent="cA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;strokeWidth=2;" value="&lt;b&gt;luaL_dofile(path)&lt;/b&gt; parser.cpp:1971" vertex="1">
+                    <mxGeometry height="32" width="388" x="16" y="494" as="geometry"/>
+                </mxCell>
+                <mxCell id="a9" parent="cA" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="on error: Snackbar::Error + return false&lt;br&gt;(post-load apply is then skipped)" vertex="1">
+                    <mxGeometry height="44" width="388" x="16" y="530" as="geometry"/>
+                </mxCell>
+                <mxCell id="cB" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="2 · Parse passes — strict order" vertex="1">
+                    <mxGeometry height="600" width="440" x="500" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="b1" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;parse_settings()&lt;/b&gt; :1447&lt;br&gt;BFWM.* scalars: gaps, border, layout, disabled monitors" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="b2" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;parse_bar_config()&lt;/b&gt; :1283&lt;br&gt;indicators[8] · states[8] · colors/fonts/margins" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="98" as="geometry"/>
+                </mxCell>
+                <mxCell id="b3" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;parse_snackbar_config()&lt;/b&gt; :1653&lt;br&gt;snackbar theme, position, timing" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="b4" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;strokeWidth=2;" value="&lt;b&gt;parse_keybinds()&lt;/b&gt; :446 → &lt;b&gt;build_action()&lt;/b&gt; builder.cpp:133&lt;br&gt;string dispatch chain → BFWMActionCreate* factories" vertex="1">
+                    <mxGeometry height="56" width="408" x="16" y="222" as="geometry"/>
+                </mxCell>
+                <mxCell id="b4b" parent="cB" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="absent keybinds = C defaults kept · present-empty = all cleared · present = clear + replace" vertex="1">
+                    <mxGeometry height="38" width="408" x="16" y="282" as="geometry"/>
+                </mxCell>
+                <mxCell id="b5" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;parse_window_rules()&lt;/b&gt; :257&lt;br&gt;&lt;i&gt;frees the previous rule vector first&lt;/i&gt;" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="318" as="geometry"/>
+                </mxCell>
+                <mxCell id="b6" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;parse_workspace_config()&lt;/b&gt; :356&lt;br&gt;id · label · assigned monitor · layout (32 max)" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="b7" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;update_workspace_configs_on_reload()&lt;/b&gt; :1844&lt;br&gt;relabel live workspaces, move them across monitors" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="442" as="geometry"/>
+                </mxCell>
+                <mxCell id="bNote" parent="cB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;" value="There is no reflection layer: each pass reads named fields into fixed structs. Actions are the exception — a strcmp chain in build_action maps a Lua action name to a typed BFWMAction (tagged union, action.h:167)." vertex="1">
+                    <mxGeometry height="76" width="408" x="16" y="506" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="cB" source="b1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="cB" source="b2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="cB" source="b3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="cB" source="b4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b5">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="cB" source="b5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b6">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" edge="1" parent="cB" source="b6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="b7">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="cC" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="3 · Runtime artifacts and 4 · Apply" vertex="1">
+                    <mxGeometry height="600" width="460" x="1010" y="101" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;shared-&amp;gt;keybinds&lt;/b&gt; KeybindDictionary&lt;br&gt;vector of Keystroke + actions · collisions append&lt;br&gt;&lt;i&gt;generation++ invalidates in-flight dispatch&lt;/i&gt;" vertex="1">
+                    <mxGeometry height="64" width="428" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;main-&amp;gt;window_rules&lt;/b&gt; vector of WindowRule*&lt;br&gt;match entries + float/ignore/workspace action" vertex="1">
+                    <mxGeometry height="56" width="428" x="16" y="108" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;shared-&amp;gt;config&lt;/b&gt; scalars&lt;br&gt;gap_between · gap_edge · border_color · inactive_border&lt;br&gt;border_width/radius · focus_follows_mouse · default_layout" vertex="1">
+                    <mxGeometry height="64" width="428" x="16" y="172" as="geometry"/>
+                </mxCell>
+                <mxCell id="c4" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;workspace_configs[32]&lt;/b&gt; id · label · monitor · layout" vertex="1">
+                    <mxGeometry height="44" width="428" x="16" y="244" as="geometry"/>
+                </mxCell>
+                <mxCell id="c5" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;bar_cfg&lt;/b&gt; indicators[8] each with states[8]&lt;br&gt;&lt;b&gt;snackbar_cfg&lt;/b&gt; theme + timing" vertex="1">
+                    <mxGeometry height="56" width="428" x="16" y="296" as="geometry"/>
+                </mxCell>
+                <mxCell id="c6" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;strokeWidth=2;" value="&lt;b&gt;HandleReloadConfig()&lt;/b&gt; handlers.cpp:1085&lt;br&gt;bar_height → SetBarHeight per monitor&lt;br&gt;RecalculateAllWorkspaceRects&lt;br&gt;BAR_UPDATE_RECREATE → bars torn down + rebuilt&lt;br&gt;PushGapConfigToAllWorkspaces → re-apply borders" vertex="1">
+                    <mxGeometry height="90" width="428" x="16" y="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="cNote" parent="cC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Trigger: keybind only.&lt;/b&gt; ActionReloadConfig, default Alt+Ctrl+R (defaults.cpp:130). There is no file watcher, no signal, no timer — editing config.lua does nothing until you press the key." vertex="1">
+                    <mxGeometry height="76" width="428" x="16" y="460" as="geometry"/>
+                </mxCell>
+                <mxCell id="cV" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Validation — three layers" vertex="1">
+                    <mxGeometry height="330" width="700" x="40" y="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="v1" parent="cV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;HARD · unknown key&lt;/b&gt;  __newindex compares against a fixed whitelist (known_BFWM_keys[18], known_bar_keys, known_snackbar_keys[28], nested color/font/margin/border tables). On a miss: Snackbar::Warn then &lt;b&gt;luaL_error&lt;/b&gt; — which aborts luaL_dofile and takes the syntax-error path." vertex="1">
+                    <mxGeometry height="66" width="668" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="v2" parent="cV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;SOFT · wrong type&lt;/b&gt;  each field reader checks lua_isinteger / isboolean / isstring. Mismatch → Snackbar::Warn, the field keeps its default, parsing continues." vertex="1">
+                    <mxGeometry height="48" width="668" x="16" y="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="v3" parent="cV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;VALUE · clamp or reject&lt;/b&gt;  opacity 0–255 · queue 1–16 · indicators ≤ 8 · states ≤ 8 · disabled monitors ≤ 16 · snackbar min&amp;gt;max swapped. Unknown layout / monitor / rule operator → Warn." vertex="1">
+                    <mxGeometry height="60" width="668" x="16" y="166" as="geometry"/>
+                </mxCell>
+                <mxCell id="v4" parent="cV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;User-visible surface:&lt;/b&gt; Snackbar::Warn and Snackbar::Error both log and show a toast overlay. Exception: nested Bar indicator/state warnings are log-only (validate_indicator_keys / validate_state_keys)." vertex="1">
+                    <mxGeometry height="66" width="668" x="16" y="234" as="geometry"/>
+                </mxCell>
+                <mxCell id="cF" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Failure modes — and one real trap" vertex="1">
+                    <mxGeometry height="330" width="680" x="760" y="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="f1" parent="cF" style="text;html=1;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Missing file&lt;/b&gt; → Warn &quot;No custom config found&quot;, path cleared, load returns TRUE with pure defaults." vertex="1">
+                    <mxGeometry height="30" width="648" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="f2" parent="cF" style="text;html=1;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Syntax error / unknown key&lt;/b&gt; → Error toast, LuaConfigLoad returns false. Rules and workspace configs are NOT freed on this path,&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;so the previous ones survive.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="44" width="648" x="16" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="f3" parent="cF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;strokeWidth=2;" value="&lt;b&gt;THE TRAP — no rollback.&lt;/b&gt; Because ConfigLoadDefaults ran before luaL_dofile, a failed load leaves scalars, keybinds and bar/snackbar config at &lt;b&gt;C++ defaults&lt;/b&gt;, while window_rules and workspace_configs still hold the &lt;b&gt;previous&lt;/b&gt; values. The process is left in a mixed state, not the old config." vertex="1">
+                    <mxGeometry height="80" width="648" x="16" y="122" as="geometry"/>
+                </mxCell>
+                <mxCell id="f4" parent="cF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Reload ignores the result.&lt;/b&gt; HandleReloadConfig computes success but then applies anyway: bar height, rects, gaps, borders and BAR_UPDATE_RECREATE are pushed to the live session even when the load failed." vertex="1">
+                    <mxGeometry height="64" width="648" x="16" y="212" as="geometry"/>
+                </mxCell>
+                <mxCell id="f5" parent="cF" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;fontColor=#5A626E;" value="What survives a successful reload: Lua VM, monitors, live windows, workspaces, focus and active-workspace identity. Only labels,&lt;div&gt;&lt;span style=&quot;color: rgb(90, 98, 110);&quot;&gt;&amp;nbsp;monitor assignment, rules, keybinds and theme are rebuilt.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="40" width="648" x="16" y="282" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" source="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="b1" value="file executed OK">
+                    <mxGeometry relative="1" x="0.0231" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e8" edge="1" parent="1" source="b1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBorderColor=none;labelAutoRotate=1;jumpStyle=arc;" target="c3" value="scalars">
+                    <mxGeometry relative="1" x="0.7061" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="960" y="162"/>
+                            <mxPoint x="960" y="305"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e10" edge="1" parent="1" source="b5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;sourcePerimeterSpacing=0;fixedPointSpacing=1;jumpStyle=arc;" target="c2" value="rules">
+                    <mxGeometry relative="1" x="-0.742" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="1000" y="444"/>
+                            <mxPoint x="1000" y="236"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e11" edge="1" parent="1" source="b2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelAutoRotate=1;jumpStyle=arc;" target="c5" value="theme">
+                    <mxGeometry relative="1" x="0.6291" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="950" y="224"/>
+                            <mxPoint x="950" y="424"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e12" edge="1" parent="1" source="b7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;" target="c6" value="apply">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · src/config/**, src/config/lua/**, config.lua, src/main.cpp" basedOn="137651a" date="2026-11-27" covers="config.lua;config-types.lua;src/config;src/main.cpp" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" vertex="1">
+                        <mxGeometry height="24" width="680" x="760" y="1090" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="e9" edge="1" parent="1" source="b4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;labelAutoRotate=1;jumpStyle=arc;" target="c1" value="keybinds">
+                    <mxGeometry relative="1" x="0.7464" y="-2" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="970" y="350"/>
+                            <mxPoint x="970" y="168"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" value="Legend: blue = main thread · green = post-apply mutation · purple = Lua VM · yellow = produced state · red = sharp edge or failure path" vertex="1">
+                    <mxGeometry height="24" width="700" x="40" y="1090" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

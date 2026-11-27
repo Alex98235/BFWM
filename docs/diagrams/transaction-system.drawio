@@ -1,0 +1,165 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-transaction-system" name="Transaction System">
+        <mxGraphModel dx="277" dy="180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;" value="BFWM — Transaction System" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;" value="Handlers mutate BFWM&#39;s model and queue operations; nothing touches Win32 until one commit flushes every queued op in a fixed 10-pass order." vertex="1">
+                    <mxGeometry height="26" width="1400" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="cL" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="PRODUCERS — who opens a transaction" vertex="1">
+                    <mxGeometry height="560" width="380" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Keystroke batch&lt;/b&gt;&lt;br&gt;main.cpp:473 — one Begin for the whole drained batch" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;DrainEventQueue()&lt;/b&gt;&lt;br&gt;transaction.cpp:618 — one Begin for all records" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="102" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Self-wrapping helpers&lt;/b&gt;&lt;br&gt;&lt;i&gt;only&lt;/i&gt; commit if they opened it:&lt;br&gt;FocusWindow · Workspace::ApplyLayout&lt;br&gt;WorkspaceActivate · RestoreDesktopState" vertex="1">
+                    <mxGeometry height="78" width="348" x="16" y="166" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;ProcessReconcile()&lt;/b&gt; main.cpp:440&lt;br&gt;&lt;b&gt;HarvestMissedWindows()&lt;/b&gt; events.cpp:799" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="252" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;CommitMonitorVisibility()&lt;/b&gt; monitor.cpp:605&lt;br&gt;&lt;b&gt;Move-workspace-to-monitor&lt;/b&gt; handlers.cpp:1189" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="316" as="geometry"/>
+                </mxCell>
+                <mxCell id="nL" parent="cL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Sharp edge:&lt;/b&gt; there is no depth counter. A nested Begin() is a silent no-op, so a callee that calls Begin()+Commit() itself (the p2/p5 unguarded sites) would flush the caller&#39;s batch early. The self-wrapping helpers exist to avoid exactly that." vertex="1">
+                    <mxGeometry height="156" width="348" x="16" y="386" as="geometry"/>
+                </mxCell>
+                <mxCell id="cM" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="TransactionState — main_context.h:135" vertex="1">
+                    <mxGeometry height="560" width="360" x="470" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="t1" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;Begin()&lt;/b&gt; transaction.cpp:352&lt;br&gt;idempotent — no nesting" vertex="1">
+                    <mxGeometry height="56" width="328" x="16" y="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="t3" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;" value="&lt;b&gt;Queue*()&lt;/b&gt; ×16 kinds&lt;br&gt;no-op + &lt;b&gt;silent drop&lt;/b&gt; when not in transaction" vertex="1">
+                    <mxGeometry height="56" width="328" x="16" y="102" as="geometry"/>
+                </mxCell>
+                <mxCell id="t2" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;ops_ : std::vector&lt;PendingOperation&gt;&lt;/b&gt;&lt;br&gt;flat list · reserved 32 · no sort, no dedup" vertex="1">
+                    <mxGeometry height="56" width="328" x="16" y="190" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;IsInTransaction()&lt;/b&gt;&lt;br&gt;drives the self-wrap guard" vertex="1">
+                    <mxGeometry height="52" width="328" x="16" y="254" as="geometry"/>
+                </mxCell>
+                <mxCell id="t5" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;Abort()&lt;/b&gt; transaction.cpp:438&lt;br&gt;clears ops · &lt;b&gt;test-only&lt;/b&gt; (no production caller)" vertex="1">
+                    <mxGeometry height="56" width="328" x="16" y="314" as="geometry"/>
+                </mxCell>
+                <mxCell id="t6" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;strokeWidth=2;" value="&lt;b&gt;BFWMTransactionCommit(shared, main)&lt;/b&gt;&lt;br&gt;transaction.cpp:445 — the flush gate" vertex="1">
+                    <mxGeometry height="60" width="328" x="16" y="378" as="geometry"/>
+                </mxCell>
+                <mxCell id="nM" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;" value="Every pass re-reads OpCount() inside its loop, so ops appended by a queuing pass are picked up by later passes." vertex="1">
+                    <mxGeometry height="64" width="328" x="16" y="448" as="geometry"/>
+                </mxCell>
+                <mxCell id="cR" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="BFWMTransactionCommit — 10 passes, priority = pass index" vertex="1">
+                    <mxGeometry height="1010" width="560" x="880" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="r1" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P1 · :478 · OP_CLOAK_WINDOW&lt;/b&gt;&lt;br&gt;SetWindowCloakState (DWM) + MarkWindowOverlayDirty" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="r2" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P2 · :487 · OP_SET_WINDOW_STYLE&lt;/b&gt;&lt;br&gt;SetWindowLongW(GWL_STYLE/EXSTYLE) + SetWindowPos(FRAMECHANGED)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="98" as="geometry"/>
+                </mxCell>
+                <mxCell id="r3" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P3 · :496 · OP_ZORDER&lt;/b&gt;&lt;br&gt;SetWindowPos(insert_after, SWP_ASYNCWINDOWPOS)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="r4" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;strokeWidth=2;" value="&lt;b&gt;P4 · :505 · OP_RELAYOUT_WORKSPACE&lt;/b&gt;  &amp;lt;queuing pass&amp;gt;&lt;br&gt;workspace-&amp;gt;ApplyLayout() → queues moves, borders, cloaks" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="222" as="geometry"/>
+                </mxCell>
+                <mxCell id="r5" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P5 · :514 · OP_MOVE_WINDOW&lt;/b&gt;&lt;br&gt;PlacementIssueMove() — async, per-window; NOT DeferWindowPos" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="284" as="geometry"/>
+                </mxCell>
+                <mxCell id="r6" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P6 · :524 · OP_BORDER_COLOR, OP_CLOSE_WINDOW&lt;/b&gt;&lt;br&gt;SetOverlayColor() / SendMessageTimeout(WM_CLOSE, 2000ms)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="346" as="geometry"/>
+                </mxCell>
+                <mxCell id="r7" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P7 · :535 · OP_REDRAW_BORDER, OP_REDRAW_CONTENT&lt;/b&gt;&lt;br&gt;RedrawWindow(RDW_UPDATENOW)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="408" as="geometry"/>
+                </mxCell>
+                <mxCell id="r8" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;P8 · :545 · OP_SHOW_WINDOW, OP_HIDE_WINDOW, OP_BAR_VISIBILITY&lt;/b&gt;&lt;br&gt;ShowWindow() / Bar::Show() · Bar::Hide()" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="470" as="geometry"/>
+                </mxCell>
+                <mxCell id="r9" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;:565 · RestackWorkspaceLayers()&lt;/b&gt;  &amp;lt;outside the op loop&amp;gt;&lt;br&gt;direct BFWMSetWindowPosEx around focused_hwnd, layered cache" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="532" as="geometry"/>
+                </mxCell>
+                <mxCell id="r10" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;P9 · :556 · OP_FOCUS_WINDOW&lt;/b&gt;&lt;br&gt;FocusWindowImmediate() → queues borders/redraws for P10" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="594" as="geometry"/>
+                </mxCell>
+                <mxCell id="r11" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;P10 · :572 · OP_BORDER_COLOR, OP_REDRAW_BORDER,&lt;br&gt;OP_UPDATE_FOCUS_TRACKING, OP_MINIMIZE_WINDOW&lt;/b&gt;&lt;br&gt;focus wins by queue position — active border beats relayout inactives" vertex="1">
+                    <mxGeometry height="66" width="528" x="16" y="656" as="geometry"/>
+                </mxCell>
+                <mxCell id="r12" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;" value="&lt;b&gt;:585 · FlushOverlayRings()&lt;/b&gt; → ReconcileOverlay + FlushOverlay&lt;br&gt;ONE DComp commit, then ForceDwmComposite() = DwmFlush()" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="732" as="geometry"/>
+                </mxCell>
+                <mxCell id="r13" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;:590 · ClearOps(); in_transaction = FALSE&lt;/b&gt;" vertex="1">
+                    <mxGeometry height="40" width="528" x="16" y="794" as="geometry"/>
+                </mxCell>
+                <mxCell id="rNote" parent="cR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Why this order:&lt;/b&gt; DWM must see the final cloak state before any SetWindowPos (P1); style changes and z-order must land before geometry (P2, P3) or the engine tiles to stale frames; focus runs last and re-queues its own border/redraw so the active border can never be overwritten by an inactive one queued during the relayout." vertex="1">
+                    <mxGeometry height="120" width="528" x="16" y="846" as="geometry"/>
+                </mxCell>
+                <mxCell id="cW" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Op catalogue — producer → Win32 effect" vertex="1">
+                    <mxGeometry height="250" width="820" x="40" y="700" as="geometry"/>
+                </mxCell>
+                <mxCell id="wA" parent="cW" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=4;" value="&lt;b&gt;OP_MOVE_WINDOW&lt;/b&gt; → PlacementIssueMove (async)&lt;br&gt;&lt;b&gt;OP_RELAYOUT_WORKSPACE&lt;/b&gt; → Workspace::ApplyLayout&lt;br&gt;&lt;b&gt;OP_BORDER_COLOR&lt;/b&gt; → Window::SetOverlayColor (if visible)&lt;br&gt;&lt;b&gt;OP_CLOAK_WINDOW&lt;/b&gt; → SetWindowCloakState (DWM)&lt;br&gt;&lt;b&gt;OP_CLOSE_WINDOW&lt;/b&gt; → WM_CLOSE, 2 s timeout &lt;i&gt;(no producer)&lt;/i&gt;&lt;br&gt;&lt;b&gt;OP_FOCUS_WINDOW&lt;/b&gt; → FocusWindowImmediate&lt;br&gt;&lt;b&gt;OP_ZORDER&lt;/b&gt; → SetWindowPos(ASYNCWINDOWPOS)&lt;br&gt;&lt;b&gt;OP_SHOW_WINDOW&lt;/b&gt; → ShowWindow(SW_SHOW)" vertex="1">
+                    <mxGeometry height="200" width="386" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="wB" parent="cW" style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacingLeft=4;" value="&lt;b&gt;OP_HIDE_WINDOW&lt;/b&gt; → &lt;i&gt;never emitted&lt;/i&gt; (QueueHideWindow emits SHOW{visible=0})&lt;br&gt;&lt;b&gt;OP_SET_WINDOW_STYLE&lt;/b&gt; → SetWindowLongW + FRAMECHANGED&lt;br&gt;&lt;b&gt;OP_REDRAW_BORDER&lt;/b&gt; → RedrawWindow(RDW_FRAME)&lt;br&gt;&lt;b&gt;OP_REDRAW_CONTENT&lt;/b&gt; → RedrawWindow(RDW_INVALIDATE)&lt;br&gt;&lt;b&gt;OP_MINIMIZE_WINDOW&lt;/b&gt; → ShowWindow(SW_MINIMIZE) &lt;i&gt;(no producer)&lt;/i&gt;&lt;br&gt;&lt;b&gt;OP_UPDATE_FOCUS_TRACKING&lt;/b&gt; → no-op (handled inline)&lt;br&gt;&lt;b&gt;OP_BAR_VISIBILITY&lt;/b&gt; → Bar::Show / Bar::Hide" vertex="1">
+                    <mxGeometry height="200" width="386" x="418" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="warn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;strokeWidth=2;" value="&lt;b&gt;Known defect — ops queued during P4 can be lost&lt;/b&gt;&lt;br&gt;ApplyLayout runs in P4 and may queue OP_CLOAK_WINDOW (CloakInactiveWorkspaces), OP_SET_WINDOW_STYLE and OP_ZORDER. P1–P3 have already run and no later pass consumes those kinds, so ClearOps() discards them at :591. Only the moves and border colours it queues survive (P5/P6). Today it is masked because CloakInactiveWorkspaces skips windows already cloaked." vertex="1">
+                    <mxGeometry height="140" width="820" x="40" y="970" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" source="p1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;defaultLabelBackgroundColor=page;" target="t1" value="Begin()">
+                    <mxGeometry relative="1" x="-0.3659" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="1" source="p2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=none;fontSize=10;" target="t1" value="Begin() + Dispatch">
+                    <mxGeometry relative="1" x="0.0411" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="450" y="230"/>
+                            <mxPoint x="450" y="166"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="1" source="t3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="t2" value="Queue*()">
+                    <mxGeometry relative="1" x="-0.25" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="1" source="t6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;" target="cR" value="Commit">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="1" source="t2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=none;fontSize=10;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;jumpStyle=none;" target="r4" value="scan ops_">
+                    <mxGeometry relative="1" x="-0.1095" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="1" source="r4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;strokeColor=#B85450;fontColor=#B85450;labelBackgroundColor=default;fontSize=10;entryX=1;entryY=0.75;entryDx=0;entryDy=0;exitX=0;exitY=0.75;exitDx=0;exitDy=0;defaultLabelBackgroundColor=page;" target="t2" value="queues moves + borders mid-commit">
+                    <mxGeometry relative="1" x="-0.2072" y="-10" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="896" y="360"/>
+                            <mxPoint x="850" y="360"/>
+                            <mxPoint x="850" y="332"/>
+                        </Array>
+                        <mxPoint x="896" y="352" as="sourcePoint"/>
+                        <mxPoint x="814" y="298" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · src/transaction/**, src/core/main_context.h" basedOn="137651a" date="2026-11-27" covers="src/transaction/operation.h;src/transaction/transaction.h;src/transaction/transaction.cpp;src/core/main_context.h" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" vertex="1">
+                        <mxGeometry height="24" width="560" x="880" y="1130" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" value="Legend: blue = main thread · green = worker thread · purple = compositor/DComp · yellow = queued state · red = sharp edge" vertex="1">
+                    <mxGeometry height="24" width="820" x="40" y="1130" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

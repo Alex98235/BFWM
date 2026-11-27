@@ -1,0 +1,146 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-window-lifecycle" name="Window Lifecycle">
+        <mxGraphModel dx="1197" dy="777" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;" value="BFWM — Window Lifecycle and Events" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;" value="Foreign windows are observed only through WinEvents. The hook thread classifies nothing — it only enqueues; every decision happens on the main thread inside one transaction." vertex="1">
+                    <mxGeometry height="26" width="1400" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="1 · Ingress — worker thread" vertex="1">
+                    <mxGeometry height="200" width="780" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="i1" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;4 × SetWinEventHook&lt;/b&gt; events.cpp:808&lt;br&gt;object · foreground · minimize · movesize&lt;br&gt;OUTOFCONTEXT + SKIPOWNPROCESS" vertex="1">
+                    <mxGeometry height="60" width="368" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="i2" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;WH_KEYBOARD_LL + WH_MOUSE_LL&lt;/b&gt;&lt;br&gt;keystrokes → KeystrokeQueue (not the event queue)" vertex="1">
+                    <mxGeometry height="60" width="368" x="396" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="i3" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;WinEventProc&lt;/b&gt; events.cpp:1249 — pure producer:&lt;br&gt;idObject must be OBJID_WINDOW; CREATE and FOREGROUND gated on setup_in_progress" vertex="1">
+                    <mxGeometry height="64" width="368" x="16" y="104" as="geometry"/>
+                </mxCell>
+                <mxCell id="i4" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;LOCATIONCHANGE is never queued&lt;/b&gt; — the default case drops it. That is exactly why a 500 ms overlay reconcile tick and HarvestMissedWindows exist." vertex="1">
+                    <mxGeometry height="64" width="368" x="396" y="104" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="2 · Handoff and drain" vertex="1">
+                    <mxGeometry height="200" width="774" x="840" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="q1" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;strokeWidth=2;" value="&lt;b&gt;SpscQueue&lt;/b&gt; 2048 slots · EventRecord POD&lt;br&gt;full → record dropped, dropped_ counter warns next tick" vertex="1">
+                    <mxGeometry height="60" width="360" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="q2" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;strokeWidth=2;" value="&lt;b&gt;DrainEventQueue()&lt;/b&gt; transaction.cpp:597&lt;br&gt;pop ≤2048 → one Begin → dispatch all → ONE commit" vertex="1">
+                    <mxGeometry height="60" width="366" x="392" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="q3" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;First-sight registration never comes from EVENT_OBJECT_CREATE&lt;/b&gt; — 0x8000 sits below the object hook&#39;s lower bound (EVENT_OBJECT_DESTROY, 0x8001), so new windows arrive via FOREGROUND / SHOW / the startup EnumWindows sweep." vertex="1">
+                    <mxGeometry height="64" width="742" x="16" y="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="c2" source="q2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="c3" value="new HWND">
+                    <mxGeometry relative="1" x="-0.7854" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="575" y="120"/>
+                            <mxPoint x="-10" y="120"/>
+                            <mxPoint x="-10" y="210"/>
+                            <mxPoint x="-410" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="c3" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="3 · Classification — NewWindowTrigger (events.cpp:90)" vertex="1">
+                    <mxGeometry height="330" width="780" x="40" y="356" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3t" parent="c3" style="text;html=1;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontColor=#000000;" value="&lt;b&gt;1&lt;/b&gt;  visible · no parent · not Shell_TrayWnd / Shell_SecondaryTrayWnd · no WS_EX_TOOLWINDOW · has an OVERLAPPEDWINDOW or POPUP bit&lt;br&gt;&lt;b&gt;2&lt;/b&gt;  image is not under system32 / syswow64 · token integrity is not higher than ours (UIPI would make SetWindowPos fail silently)&lt;br&gt;&lt;b&gt;3&lt;/b&gt;  not DWM-cloaked — &lt;i&gt;unless&lt;/i&gt; this is the startup EnumWindows sweep, where minimized windows are cloaked but must still register&lt;br&gt;&lt;b&gt;4&lt;/b&gt;  owner is not itself a managed window (rejects transient popups)&lt;br&gt;&lt;b&gt;5&lt;/b&gt;  rect is at least 100 × 150&lt;br&gt;&lt;b&gt;6&lt;/b&gt;  not in the hardcoded blacklist (CoreWindow, MultitaskingViewFrame, D3DProxyWindow, …)&lt;br&gt;&lt;b&gt;7&lt;/b&gt;  matches no RULE_IGNORE — and an IGNORE rule anywhere in the list beats every other rule&lt;br&gt;&lt;br&gt;&lt;b&gt;Returns:&lt;/b&gt; REGISTER_SUCCESSFUL · WINDOW_ALREADY_REGISTERED · REGISTER_SKIPPED · NO_CLASS · NO_CONTEXT" vertex="1">
+                    <mxGeometry height="280" width="748" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c4" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="4 · Manage a new window" vertex="1">
+                    <mxGeometry height="330" width="774" x="840" y="356" as="geometry"/>
+                </mxCell>
+                <mxCell id="c4t" parent="c4" style="text;html=1;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontColor=#000000;" value="&lt;b&gt;1&lt;/b&gt;  construct Window (captures the owner PID), then DetectFullscreen:&amp;nbsp;&lt;div&gt;&amp;nbsp; &amp;nbsp;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;exclusive or borderless fullscreen → SetUnmanagedFullscreen,&amp;nbsp;&lt;span style=&quot;background-color: transparent;&quot;&gt;it never enters the layout tree&lt;/span&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;2&lt;/b&gt;  ShowWindow(SW_RESTORE) if zoomed — WS_MAXIMIZE would otherwise override our SetWindowPos&lt;br&gt;&lt;b&gt;3&lt;/b&gt;  WindowRulesApply — first matching rule wins: SET_FLOATING · FORCE_FLOATING · FORCE_TILED · MOVE_TO_WORKSPACE.&amp;nbsp;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;&amp;nbsp; &amp;nbsp;(run_once is parsed but never read.)&lt;br&gt;&lt;b&gt;4&lt;/b&gt;  WindowRegistry::Register&lt;br&gt;&lt;b&gt;5&lt;/b&gt;  SetOverlay(new Overlay) — four ring strips; a failure leaves the window managed without a border&lt;br&gt;&lt;b&gt;6&lt;/b&gt;  take the lock → target workspace = rule workspace (created on its monitor if missing) else hit-test centre workspace&lt;br&gt;&lt;b&gt;7&lt;/b&gt;  AddWindow → engine-&amp;gt;insert(hwnd, focused_hwnd) → FocusWindow&lt;br&gt;&lt;b&gt;8&lt;/b&gt;  no geometry yet: the relayout is queued and only runs in commit Pass 4/5&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="280" width="742" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c5" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="5 · Main-thread handlers — what each event actually does" vertex="1">
+                    <mxGeometry height="290" width="760" x="40" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="c5a" parent="c5" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;" value="&lt;b&gt;MOVESIZESTART&lt;/b&gt; — set resize_hwnd; suppresses the 500 ms overlay/reconcile tick&lt;br&gt;&lt;b&gt;MOVESIZEEND&lt;/b&gt; — clear resize_hwnd, SetMoveInFlight(FALSE), CheckWindowTransitions, QueueRelayout, revert to engine rect unless unlock modifier, settle&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;floating rect, MarkOverlayDirty&lt;br&gt;&lt;/span&gt;&lt;b&gt;MINIMIZESTART&lt;/b&gt; — &lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;pick closest window BEFORE removing, RemoveWindow, relayout + redraw content, ArmKnown(next). Window stays registered.&lt;br&gt;&lt;b&gt;MINIMIZEEND&lt;/b&gt; — re-run NewWindowTrigger if unseen, resolve workspace by hit-test when orphaned, insert, relayout, focus&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="240" width="742" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c5b" parent="c5" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;" value="&lt;b&gt;OBJECT_DESTROY&lt;/b&gt; — next focus chosen before removal, RemoveWindow, registry.Remove destroys the Window and its four ring HWNDs, relayout, ArmKnown&lt;br&gt;&lt;b&gt;OBJECT_HIDE&lt;/b&gt; — SyncOverlay, remove from workspace (NOT from the registry), clear focus, relayout&lt;br&gt;&lt;b&gt;OBJECT_SHOW&lt;/b&gt; — register if unknown, sync overlay, skip while IsIconic, orphan re-add, relayout, focus if newly registered&lt;br&gt;&lt;b&gt;OBJECT_REORDER&lt;/b&gt; — AssertOverlayZOrder for every window&lt;br&gt;&lt;b&gt;CREATE / FOREGROUND&lt;/b&gt; — focus-intent suppression first, then HandleWindowCreate; FOREGROUND also NoteLanded" vertex="1">
+                    <mxGeometry height="240" width="360" x="16" y="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="c6" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Border overlay — 4 HWNDs per window" vertex="1">
+                    <mxGeometry height="290" width="368" x="848" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="c6t" parent="c6" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#000000;" value="Four layered popups (TOP / BOTTOM / LEFT / RIGHT) that overlap at the&amp;nbsp;&lt;div&gt;corners, all painting one rounded path. Created eagerly at registration&amp;nbsp;&lt;/div&gt;&lt;div&gt;— &lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;not a transaction op.&lt;br&gt;&lt;br&gt;Positioned only in FlushOverlayRings at commit end, from&amp;nbsp;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;DWMWA_EXTENDED_FRAME_BOUNDS and DWMWA_CLOAKED,&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;gated by an EFB/cloak cache. Visibility follows the cloak flag,&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;not IsWindowVisible.&lt;br&gt;&lt;br&gt;SetWindowPos is issued directly — DeferWindowPos silently drops layered&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;popups.&lt;br&gt;&lt;br&gt;Band order target → R → L → B → T, re-chained on REORDER and every&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;commit.&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="240" width="348" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c7" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Focus — decided on the main thread" vertex="1">
+                    <mxGeometry height="290" width="394" x="1220" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="c7t" parent="c7" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#000000;" value="FocusWindow queues &lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;OP_FOCUS_WINDOW&lt;/span&gt;; commit Pass 9 runs&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;FocusWindowImmediate.&lt;br&gt;&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;It refuses to steal foreground from a fullscreen window, then climbs a ladder:&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;AttachThreadInput + SetForegroundWindow → SwitchToThisWindow → attach to the&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;desktop thread → synthetic Alt+Tab.&lt;br&gt;&lt;br&gt;focused_hwnd is only updated when that returns TRUE, so a refused steal leaves the&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;fullscreen window focused.&lt;br&gt;&lt;br&gt;FocusIntent drops registered non-target FOREGROUND events and re-posts&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;WM_FORCE_FOCUS.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="240" width="394" y="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" source="i3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="q1" value="Push(EventRecord)">
+                    <mxGeometry relative="1" x="0.2092" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="332" y="280"/>
+                            <mxPoint x="820" y="280"/>
+                            <mxPoint x="820" y="166"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="1" source="q1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;entryX=0.094;entryY=1.017;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.859;exitY=0.994;exitDx=0;exitDy=0;exitPerimeter=0;" target="q2" value="Pop">
+                    <mxGeometry relative="1" x="0.0736" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="1165.2" y="210"/>
+                            <mxPoint x="1266.4" y="210"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="1" source="c3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="c4" value="REGISTER_SUCCESSFUL">
+                    <mxGeometry relative="1" x="-0.0756" y="10" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="625" y="710"/>
+                            <mxPoint x="1033.5" y="710"/>
+                        </Array>
+                        <mxPoint x="750" y="650" as="sourcePoint"/>
+                        <mxPoint x="1030" y="650" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="1" source="c4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="c5" value="later events">
+                    <mxGeometry relative="1" x="-0.5959" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="1227" y="720"/>
+                            <mxPoint x="410" y="720"/>
+                        </Array>
+                        <mxPoint x="1223" y="690" as="sourcePoint"/>
+                        <mxPoint x="416" y="810" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;" value="mark rings dirty">
+                    <mxGeometry relative="1" x="0.0476" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="750" y="1040"/>
+                            <mxPoint x="900" y="1040"/>
+                        </Array>
+                        <mxPoint x="750" y="1030" as="sourcePoint"/>
+                        <mxPoint x="900" y="1030" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · src/window/**, src/transaction/**" basedOn="137651a" date="2026-11-27" covers="src/window/events/events.cpp;src/window/events/events.h;src/window/filter.cpp;src/window/cloaking.cpp;src/window/rules/rules.cpp;src/window/window.cpp;src/window/border/overlay.cpp;src/window/focus.cpp;src/window/cleanup.cpp;src/window/fullscreen" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" vertex="1">
+                        <mxGeometry height="24" width="900" x="40" y="1050" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" value="Legend: green = worker thread · yellow = queued · blue = main thread decisions · red = non-obvious consequence" vertex="1">
+                    <mxGeometry height="24" width="900" x="40" y="1074" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

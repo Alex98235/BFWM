@@ -1,0 +1,179 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-system-overview" name="System Overview">
+        <mxGraphModel dx="689" dy="448" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;" value="BFWM — System Overview" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;" value="C4 container view. One process, two BFWM threads, one Lua VM; all OS-visible changes funnel through the transaction commit." vertex="1">
+                    <mxGeometry height="26" width="1050" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="extUser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;User&lt;/b&gt;&lt;br&gt;keyboard, mouse" vertex="1">
+                    <mxGeometry height="60" width="200" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="extOS" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;Windows OS&lt;/b&gt;&lt;br&gt;user32 · DWM · shell · COM audio/network" vertex="1">
+                    <mxGeometry height="60" width="280" x="300" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="extCfg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3EEFF;strokeColor=#B9A6F0;fontSize=11;" value="&lt;b&gt;config.lua&lt;/b&gt;&lt;br&gt;%APPDATA%\BFWM\ or --config" vertex="1">
+                    <mxGeometry height="60" width="220" x="640" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="extProc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;Child processes&lt;/b&gt;&lt;br&gt;BFWM.spawn · BFWM.exec_cache" vertex="1">
+                    <mxGeometry height="60" width="240" x="920" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="cProc" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="BFWM.exe — single process · single instance guard (Local\BFWM-Instance)" vertex="1">
+                    <mxGeometry height="570" width="1120" x="40" y="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="cWorker" parent="cProc" style="swimlane;startSize=24;fillColor=#E7F6EC;strokeColor=#8BCB9F;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="T2 · worker thread — StartEventWatching (wm_worker.cpp:132)" vertex="1">
+                    <mxGeometry height="118" width="1080" x="20" y="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="wA" parent="cWorker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;Input hooks&lt;/b&gt;&lt;br&gt;WH_KEYBOARD_LL + WH_MOUSE_LL" vertex="1">
+                    <mxGeometry height="60" width="230" x="18" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="wB" parent="cWorker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;WinEvent hooks ×4&lt;/b&gt;&lt;br&gt;OUTOFCONTEXT + SKIPOWNPROCESS" vertex="1">
+                    <mxGeometry height="60" width="250" x="268" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="wC" parent="cWorker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;DPI watcher HWNDs&lt;/b&gt;&lt;br&gt;one hidden window per monitor" vertex="1">
+                    <mxGeometry height="60" width="230" x="538" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="wD" parent="cWorker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8BCB9F;fontSize=11;" value="blocking GetMessage loop&lt;br&gt;&lt;i&gt;owns no BFWM state&lt;/i&gt;" vertex="1">
+                    <mxGeometry height="60" width="274" x="788" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="cChan" parent="cProc" style="swimlane;startSize=24;fillColor=#FFF6E0;strokeColor=#E8C36A;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="Channels — the only legal way across" vertex="1">
+                    <mxGeometry height="96" width="1080" x="20" y="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="qA" parent="cChan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;SpscQueue&lt;/b&gt; 2048&lt;br&gt;EventRecord, lock-free" vertex="1">
+                    <mxGeometry height="52" width="230" x="18" y="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="qB" parent="cChan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;KeystrokeQueue&lt;/b&gt;&lt;br&gt;CS + semaphore, cap 8" vertex="1">
+                    <mxGeometry height="52" width="230" x="268" y="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="qC" parent="cChan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;PostThreadMessage&lt;/b&gt;&lt;br&gt;clicks, hover, force-focus, quit" vertex="1">
+                    <mxGeometry height="52" width="230" x="518" y="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="qD" parent="cChan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;SharedState&lt;/b&gt; read-only for worker&lt;br&gt;config · keybinds · thread id" vertex="1">
+                    <mxGeometry height="52" width="294" x="768" y="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="cMain" parent="cProc" style="swimlane;startSize=24;fillColor=#EEF4FF;strokeColor=#9DB8F2;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="T1 · main thread — composition root and MainLoop (main.cpp:485)" vertex="1">
+                    <mxGeometry height="272" width="1080" x="20" y="278" as="geometry"/>
+                </mxCell>
+                <mxCell id="mA" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Composition root&lt;/b&gt;&lt;br&gt;LoadConfig → BFWMSetup → MainLoop" vertex="1">
+                    <mxGeometry height="64" width="250" x="18" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="mB" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Workspace engine&lt;/b&gt;&lt;br&gt;monitor → workspace → window&lt;br&gt;dwindle · master · monocle" vertex="1">
+                    <mxGeometry height="64" width="250" x="288" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="mC" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;strokeWidth=2;" value="&lt;b&gt;Transaction and commit&lt;/b&gt;&lt;br&gt;queue ops, flush in 10 passes&lt;br&gt;the only writer of window geometry" vertex="1">
+                    <mxGeometry height="64" width="250" x="558" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="mD" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Lua config parser&lt;/b&gt;&lt;br&gt;VM + __newindex validation&lt;br&gt;defaults merge, hot reload" vertex="1">
+                    <mxGeometry height="64" width="234" x="828" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="mE" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;UI shell&lt;/b&gt;&lt;br&gt;one bar per monitor · snackbar overlay · tray icon" vertex="1">
+                    <mxGeometry height="64" width="250" x="18" y="136" as="geometry"/>
+                </mxCell>
+                <mxCell id="mF" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;System status and exec cache&lt;/b&gt;&lt;br&gt;audio · network · CPU · memory&lt;br&gt;non-blocking child stdout" vertex="1">
+                    <mxGeometry height="64" width="250" x="288" y="136" as="geometry"/>
+                </mxCell>
+                <mxCell id="mG" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Registries&lt;/b&gt;&lt;br&gt;MonitorRegistry · WindowRegistry · DpiSystem&lt;br&gt;window rules · MainContext" vertex="1">
+                    <mxGeometry height="64" width="250" x="558" y="136" as="geometry"/>
+                </mxCell>
+                <mxCell id="mH" parent="cMain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Event handling&lt;/b&gt;&lt;br&gt;drain → mutate model inline&lt;br&gt;queue OS effects, commit once" vertex="1">
+                    <mxGeometry height="64" width="234" x="828" y="136" as="geometry"/>
+                </mxCell>
+                <mxCell id="mNote" parent="cMain" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="Everything below the dashed line is main-thread only. The worker never calls into these boxes; it can only enqueue." vertex="1">
+                    <mxGeometry height="30" width="1044" x="18" y="216" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="cProc" source="qA" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="mH" value="drain">
+                    <mxGeometry relative="1" x="-0.402" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="280" y="228"/>
+                            <mxPoint x="280" y="400"/>
+                            <mxPoint x="965" y="400"/>
+                        </Array>
+                        <mxPoint x="153" y="278" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="extSurface" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;" value="&lt;b&gt;Visible result&lt;/b&gt; — tiled windows, per-window border rings (DirectComposition), status bar, toasts. All produced by the commit pass, never by a handler directly." vertex="1">
+                    <mxGeometry height="56" width="1120" x="40" y="834" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" source="extOS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="wA" value="low-level hooks">
+                    <mxGeometry relative="1" x="-0.2126" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="440" y="190"/>
+                            <mxPoint x="193" y="190"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="1" source="wB" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="qA" value="enqueue">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="453" y="370"/>
+                            <mxPoint x="193" y="370"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="1" source="extCfg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="mD" value="luaL_dofile">
+                    <mxGeometry relative="1" x="-0.5821" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="750" y="180"/>
+                            <mxPoint x="840" y="180"/>
+                            <mxPoint x="840" y="510"/>
+                            <mxPoint x="1005" y="510"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="1" source="mC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;entryX=0.469;entryY=0.002;entryDx=0;entryDy=0;entryPerimeter=0;" target="extSurface" value="SetWindowPos · cloak · focus">
+                    <mxGeometry relative="1" x="0.1351" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="743" y="750"/>
+                            <mxPoint x="565.3" y="750"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="1" source="mE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="extSurface" value="paint bar / toast">
+                    <mxGeometry relative="1" x="0.293" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="203" y="750"/>
+                            <mxPoint x="480" y="750"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e7" edge="1" parent="1" source="mF" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="extProc" value="spawn / pipe">
+                    <mxGeometry relative="1" x="-0.2247" y="-2" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="535.5" y="708"/>
+                            <mxPoint x="1150" y="708"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e8" edge="1" parent="1" source="mB" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="mC" value="inspire / lay out">
+                    <mxGeometry relative="1" x="0.2158" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="473" y="610"/>
+                            <mxPoint x="680.5" y="610"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e9" edge="1" parent="1" source="extUser" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="extOS" value="keys">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · whole tree (src/main.cpp, src/core/**, src/wm/**, src/workspace/**, src/config/**, src/bar/**, src/transaction/**)" basedOn="137651a" date="2026-11-27" covers="src/main.cpp;src/core;src/wm;src/workspace;src/config;src/bar;src/transaction;src/window;src/monitor;src/system" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" vertex="1">
+                        <mxGeometry height="24" width="900" x="40" y="890" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" value="Legend: green = worker thread · blue = main thread · yellow = shared channels · purple = Lua · grey = external" vertex="1">
+                    <mxGeometry height="24" width="900" x="40" y="914" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
