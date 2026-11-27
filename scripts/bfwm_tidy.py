@@ -23,9 +23,11 @@ This tool splits the work the way LLVM's own `run-clang-tidy` does:
 
 Scoping
 -------
-``--diff`` limits work to what is staged. A changed *header* has no compile
-command of its own, so it is mapped to the translation units that include it
-and those are analyzed instead - a header-only change is still covered.
+``analyze`` and ``format`` inspect only staged files by default, and ``format``
+is a dry run unless ``--write`` is given. ``--all`` widens either command to
+the whole source tree. A changed *header* has no compile command of its own,
+so it is mapped to the translation units that include it and those are
+analyzed instead - a header-only change is still covered.
 
 The same engine is exposed as a CLI and as a stdio MCP server:
 
@@ -223,6 +225,14 @@ def _abs(rel: str) -> Path:
     return (path if path.is_absolute() else REPO_ROOT / path).resolve()
 
 
+def _rel(path: str | Path) -> str:
+    """Display a path relative to the repo root when possible."""
+    try:
+        return Path(path).resolve().relative_to(REPO_ROOT).as_posix()
+    except (OSError, ValueError):
+        return str(path)
+
+
 def _in_source_tree(path: Path) -> bool:
     return any(path == d or d in path.parents for d in SOURCE_DIRS)
 
@@ -408,12 +418,25 @@ def _yaml_fix_files(fixes_dir: Path) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def analyze(targets: list[str], jobs: int = DEFAULT_JOBS) -> dict:
-    """Run clang-tidy in parallel, exporting fixes. Never writes source."""
+def analyze(
+    targets: list[str],
+    jobs: int = DEFAULT_JOBS,
+    scope: str = "staged",
+    files: list[str] | None = None,
+) -> dict:
+    """Run clang-tidy in parallel, exporting fixes. Never writes source.
+
+    Writes ``session.json`` recording the scope (``"staged"`` or ``"all"``),
+    the scoped file list and the current HEAD, so ``apply_fixes`` can refuse
+    to apply a stale or out-of-scope session.
+    """
+    if scope not in ("staged", "all"):
+        _die(f"unknown analyze scope {scope!r}")
     if not targets:
         return {
             "session": None,
             "targets": 0,
+            "scope": scope,
             "diagnostics": [],
             "fix_list": {"session": None, "files": [], "tu_yamls": 0},
             "clean": True,
@@ -432,6 +455,15 @@ def analyze(targets: list[str], jobs: int = DEFAULT_JOBS) -> dict:
 
     entries = [e for e in json.loads(db.read_text(encoding="utf-8")) if str(Path(e["file"]).resolve()) in wanted]
     (db_dir / "compile_commands.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
+
+    recorded_files = files if files is not None else targets
+    metadata = {
+        "session": session_id,
+        "scope": scope,
+        "files": sorted(str(_abs(f)) for f in recorded_files),
+        "head": _git("rev-parse", "HEAD").strip(),
+    }
+    (session / "session.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     cmd = [
         sys.executable,
@@ -456,6 +488,7 @@ def analyze(targets: list[str], jobs: int = DEFAULT_JOBS) -> dict:
     return {
         "session": session_id,
         "targets": len(targets),
+        "scope": scope,
         "diagnostics": diagnostics,
         "fix_list": {"session": session_id, "files": fix_files, "tu_yamls": len(yamls)},
         "clean": not diagnostics,
@@ -470,13 +503,30 @@ def current_session() -> str | None:
     return None
 
 
-def apply_fixes(session_id: str | None = None) -> dict:
+def _session_metadata(session: Path) -> dict:
+    meta_file = session / "session.json"
+    if not meta_file.is_file():
+        _die(f"session {session.name} has no scope metadata - re-run analyze")
+    try:
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        _die(f"session {session.name} has unreadable scope metadata - re-run analyze")
+    if meta.get("scope") not in ("staged", "all") or "head" not in meta:
+        _die(f"session {session.name} has incomplete scope metadata - re-run analyze")
+    return meta
+
+
+def apply_fixes(session_id: str | None = None, allow_all: bool = False) -> dict:
     """Apply an analyze session's fix-list once, serially.
 
     Only replacements targeting source files (``src/``, ``include/``) are
     applied. Test files are analyzed but never auto-fixed: clang-tidy rewrites
     tokens inside CBelt's function-like macros and breaks the build. Fix test
     findings by hand (or NOLINT them).
+
+    Refuses when the session is stale (HEAD moved), when it was produced with
+    ``analyze --all`` and the caller did not pass ``--all``, or when a staged
+    session would modify a file that is no longer staged.
     """
     session_id = session_id or current_session()
     if not session_id:
@@ -486,12 +536,26 @@ def apply_fixes(session_id: str | None = None) -> dict:
     if not fixes_dir.is_dir():
         _die(f"session {session_id} has no fixes directory")
 
+    meta = _session_metadata(session)
+    head_now = _git("rev-parse", "HEAD").strip()
+    if head_now != meta["head"]:
+        _die(
+            f"session was produced at {meta['head']}; re-run analyze at the current HEAD"
+        )
+    scope = meta["scope"]
+    if scope == "all" and not allow_all:
+        _die(
+            'session scope is "all" (whole tree); re-run analyze for staged scope '
+            "or pass --all to fix"
+        )
+
     # Stage only the source-file replacements; drop anything touching tests.
     staging = session / "fixes-src"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True, exist_ok=True)
     applied = 0
     skipped = 0
+    modify: set[Path] = set()
     for yaml_file in fixes_dir.glob("*.yaml"):
         paths = _yaml_paths(yaml_file)
         if not paths:
@@ -499,6 +563,7 @@ def apply_fixes(session_id: str | None = None) -> dict:
         if all(_is_fixable(p) for p in paths):
             shutil.copy2(yaml_file, staging / yaml_file.name)
             applied += 1
+            modify.update(_abs(p) for p in paths)
         else:
             skipped += 1
 
@@ -508,8 +573,22 @@ def apply_fixes(session_id: str | None = None) -> dict:
             "returncode": 0,
             "applied": 0,
             "skipped": skipped,
+            "files": [],
             "output": "no source-file fixes to apply",
         }
+
+    targets = sorted(str(p) for p in modify)
+    if scope == "staged":
+        staged_now = {str(_abs(f)) for f in changed_files(staged=True)}
+        for path in targets:
+            if path not in staged_now:
+                _die(
+                    f"refusing to modify {_rel(path)}: it is no longer staged - re-run analyze"
+                )
+
+    print(f"bfwm-tidy: applying {applied} fix file(s); will modify:", file=sys.stderr)
+    for path in targets:
+        print(f"  {_rel(path)}", file=sys.stderr)
 
     proc = subprocess.run(
         [clang_apply_replacements(), "-ignore-insert-conflict", str(staging)],
@@ -522,14 +601,19 @@ def apply_fixes(session_id: str | None = None) -> dict:
         "returncode": proc.returncode,
         "applied": applied,
         "skipped": skipped,
+        "files": [_rel(p) for p in targets],
         "output": ((proc.stdout or "") + (proc.stderr or "")).strip(),
     }
 
 
 def format_files(targets: list[str], check: bool = False, jobs: int = DEFAULT_JOBS) -> dict:
-    """Run clang-format in parallel; check mode is a dry run that never writes."""
+    """Run clang-format in parallel; check mode is a dry run that never writes.
+
+    In check mode ``ok`` is false when any file would change (the caller exits
+    non-zero). In write mode ``ok`` is false only when a rewrite failed.
+    """
     if not targets:
-        return {"changed": [], "ok": True, "count": 0, "mode": "check" if check else "write"}
+        return {"files": [], "ok": True, "count": 0, "mode": "check" if check else "write"}
 
     exe = clang_format()
 
@@ -548,23 +632,24 @@ def format_files(targets: list[str], check: bool = False, jobs: int = DEFAULT_JO
             if code != 0:
                 changed.append(path)
 
+    ok = not changed
     if not check and changed:
-        with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
-            list(
-                pool.map(
-                    lambda path: subprocess.run(
-                        [exe, "-i", path],
-                        cwd=REPO_ROOT,
-                        capture_output=True,
-                        text=True,
-                    ),
-                    changed,
-                )
+
+        def rewrite(path: str) -> int:
+            proc = subprocess.run(
+                [exe, "-i", path],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
             )
+            return proc.returncode
+
+        with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
+            ok = all(code == 0 for code in pool.map(rewrite, changed))
 
     return {
-        "changed": changed,
-        "ok": not changed,
+        "files": changed,
+        "ok": ok,
         "count": len(targets),
         "mode": "check" if check else "write",
     }
@@ -636,7 +721,9 @@ def run_hook() -> int:
         return 0
 
     scope = set(targets["scope"])
-    result = analyze(targets["tidy"], jobs=DEFAULT_JOBS)
+    result = analyze(
+        targets["tidy"], jobs=DEFAULT_JOBS, scope="staged", files=targets["scope"]
+    )
     fmt = format_files(targets["format"], check=True)
 
     # Only show diagnostics for files the user actually changed — otherwise
@@ -674,12 +761,12 @@ def run_hook() -> int:
             check = f" [{diag['check']}]" if diag["check"] else ""
             print(f"    {location}: {diag['message']}{check}", file=sys.stderr)
     if not fmt["ok"]:
-        print(f"  clang-format: {len(fmt['changed'])} file(s) need formatting", file=sys.stderr)
-        for path in fmt["changed"][:20]:
+        print(f"  clang-format: {len(fmt['files'])} file(s) need formatting", file=sys.stderr)
+        for path in fmt["files"][:20]:
             print(f"    {path}", file=sys.stderr)
     print("", file=sys.stderr)
     print("  review then apply fixes:  uv run scripts/bfwm_tidy.py fix", file=sys.stderr)
-    print("  apply formatting:         uv run scripts/bfwm_tidy.py format", file=sys.stderr)
+    print("  apply formatting:         uv run scripts/bfwm_tidy.py format --write", file=sys.stderr)
     print("  re-stage and commit again.", file=sys.stderr)
     return 1
 
@@ -721,28 +808,36 @@ def build_mcp_server():
         """Run clang-tidy over targets without modifying any source.
 
         diff=true (default) limits to staged files and maps changed headers to
-        the translation units that include them. Returns diagnostics plus a
-        fix-list for `apply_fixes`. `clean` is true when nothing was reported.
+        the translation units that include them. diff=false covers the whole
+        source tree. Returns diagnostics plus a fix-list for `apply_fixes`.
+        `clean` is true when nothing was reported.
 
         Only diagnostics touching files in the diff scope are reported —
         pre-existing findings in headers pulled in by the translation unit
         (e.g. dpi.h, sync.h, logger.h) are filtered out.
         """
         targets = resolve_targets(diff=diff, staged=staged, explicit=files)
-        result = analyze(targets["tidy"])
+        scope_name = "staged" if diff else "all"
+        result = analyze(
+            targets["tidy"],
+            scope=scope_name,
+            files=targets["scope"] if diff else targets["tidy"],
+        )
         scope = set(targets["scope"])
         result["diagnostics"] = [d for d in result["diagnostics"] if _in_scope(d["file"], scope)]
         result["clean"] = not result["diagnostics"]
         return result
 
     @server.tool()
-    def apply_fixes_tool(session: str | None = None) -> dict:
+    def apply_fixes_tool(session: str | None = None, allow_all: bool = False) -> dict:
         """Apply an analyze session's source-file fixes, once and serially.
 
         Only `src/` and `include/` files are fixed; test files are never
-        auto-fixed (clang-tidy's fixes break CBelt's macros).
+        auto-fixed (clang-tidy's fixes break CBelt's macros). Refuses when
+        HEAD moved since the analyze, or when a whole-tree session is applied
+        without allow_all=true.
         """
-        return apply_fixes(session)
+        return apply_fixes(session, allow_all=allow_all)
 
     @server.tool()
     def format_sources(diff: bool = True, staged: bool = True, check: bool = True) -> dict:
@@ -785,19 +880,30 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_analyze = sub.add_parser("analyze", help="run clang-tidy, export fixes (no writes)")
-    p_analyze.add_argument("--diff", action="store_true", help="only staged files (with header->TU mapping)")
-    p_analyze.add_argument("--all", action="store_true", help="entire source tree")
+    p_analyze.add_argument(
+        "--all", action="store_true", help="entire source tree (default: staged files only)"
+    )
     p_analyze.add_argument("--fail-on-findings", action="store_true", help="exit 1 if anything was reported")
 
     p_fix = sub.add_parser(
         "fix", help="apply the last analyze session's source fixes (tests are never auto-fixed)"
     )
     p_fix.add_argument("--session", default=None)
+    p_fix.add_argument(
+        "--all",
+        action="store_true",
+        dest="allow_all",
+        help="confirm applying a whole-tree (analyze --all) session",
+    )
 
-    p_format = sub.add_parser("format", help="run clang-format")
-    p_format.add_argument("--diff", action="store_true", help="only staged files")
-    p_format.add_argument("--all", action="store_true", help="entire source tree")
-    p_format.add_argument("--check", action="store_true", help="dry run (report, do not write)")
+    p_format = sub.add_parser("format", help="run clang-format (dry run unless --write)")
+    p_format.add_argument(
+        "--all", action="store_true", help="entire source tree (default: staged files only)"
+    )
+    p_format.add_argument(
+        "--write", action="store_true", help="rewrite files in place (default: dry run)"
+    )
+    p_format.add_argument("--check", action="store_true", help=argparse.SUPPRESS)
 
     sub.add_parser("build", help="incremental cmake build + refresh compile db")
     sub.add_parser("status", help="report db freshness, tool versions, session state")
@@ -819,10 +925,14 @@ def main(argv: list[str] | None = None) -> int:
         return _emit(install_hook())
 
     if args.command == "analyze":
-        all_files = not args.diff
-        targets = resolve_targets(diff=not all_files, staged=True)
-        result = analyze(targets["tidy"], jobs=args.jobs)
-        if args.diff and targets["scope"]:
+        targets = resolve_targets(diff=not args.all, staged=True)
+        result = analyze(
+            targets["tidy"],
+            jobs=args.jobs,
+            scope="all" if args.all else "staged",
+            files=targets["scope"] if not args.all else targets["tidy"],
+        )
+        if not args.all and targets["scope"]:
             scope = set(targets["scope"])
             result["diagnostics"] = [
                 d for d in result["diagnostics"] if _in_scope(d["file"], scope)
@@ -843,12 +953,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "fix":
-        return _emit(apply_fixes(args.session))
+        return _emit(apply_fixes(args.session, allow_all=args.allow_all))
 
     if args.command == "format":
-        all_files = not args.diff
-        targets = resolve_targets(diff=not all_files, staged=True)
-        result = format_files(targets["format"], check=args.check, jobs=args.jobs)
+        targets = resolve_targets(diff=not args.all, staged=True)
+        result = format_files(targets["format"], check=not args.write, jobs=args.jobs)
         _emit(result)
         return 0 if result["ok"] else 1
 

@@ -42,17 +42,25 @@ parallelism (default: 8).
 
 ```sh
 # Analyze the staged changes (parallel, no writes). Prints diagnostics + a fix-list.
-uv run scripts/bfwm_tidy.py analyze --diff
+uv run scripts/bfwm_tidy.py analyze
 
 # Analyze the whole source tree instead.
 uv run scripts/bfwm_tidy.py analyze --all
 
 # Apply the last analyze session's source fixes (single serial pass).
+# Refuses if HEAD moved or the session no longer matches what is staged.
 uv run scripts/bfwm_tidy.py fix
 
-# Format. --check is a dry run that only reports.
-uv run scripts/bfwm_tidy.py format --diff --check
+# Confirm applying a whole-tree (analyze --all) session.
+uv run scripts/bfwm_tidy.py fix --all
+
+# Format. Dry run by default: reports files, exits non-zero if any would change.
+uv run scripts/bfwm_tidy.py format
 uv run scripts/bfwm_tidy.py format --all
+
+# Format in place (the only way to write).
+uv run scripts/bfwm_tidy.py format --write
+uv run scripts/bfwm_tidy.py format --all --write
 
 # Incremental cmake build + refresh the compile database.
 uv run scripts/bfwm_tidy.py build
@@ -70,13 +78,35 @@ uv run scripts/bfwm_tidy.py status
 
 ### Scoping
 
-With `--diff`, only **staged** files are in scope. A changed header has no
-compile command of its own, so it is **mapped to the translation units that
-include it** and those are analyzed — a header-only change is still covered.
+`analyze` and `format` are **staged-only by default**. `analyze` never writes
+source, and `format` is a **dry run** unless you pass `--write`; it exits
+non-zero when a dry run finds files that would change. `--all` widens either
+command to the whole source tree.
+
+With the default scope a changed header has no compile command of its own, so
+it is **mapped to the translation units that include it** and those are
+analyzed — a header-only change is still covered.
 
 `analyze` and `format` cover `src/` + `test/tests/` (CBelt's `test/cbelt` is
 excluded). `fix`, however, only ever writes **source files** (`src/`,
 `include/`); test findings are never auto-applied.
+
+`--check` is still accepted by `format` as a deprecated no-op (a dry run is
+the default), so old invocations cannot become destructive. `--diff` has been
+removed.
+
+### Session safety
+
+Each `analyze` records its scope (`staged` or `all`), the file list and the
+current `HEAD` in `build/.bfwm-tidy/sessions/<id>/session.json`. `fix` refuses
+to apply:
+
+- a session produced at a different `HEAD` — re-run `analyze` at the current
+  `HEAD`;
+- an `analyze --all` session unless `fix --all` confirms it;
+- a staged-scope fix that would modify a file which is no longer staged.
+
+Before writing, `fix` prints the exact files it will modify.
 
 ## MCP server
 
@@ -106,14 +136,14 @@ Install it once:
 uv run scripts/bfwm_tidy.py install-hook
 ```
 
-This writes `.git/hooks/pre-commit`, which runs `analyze --diff` and
-`format --diff --check` on the staged files. It is **fail-only — it never
-writes** — and blocks the commit (exit 1) if either reports anything. Fix, then
-re-stage and commit again:
+This writes `.git/hooks/pre-commit`, which runs `analyze` (staged, hunk-filtered)
+and the `format` check on the staged files. It is **fail-only — it never
+writes source** — and blocks the commit (exit 1) if either reports anything.
+Fix, then re-stage and commit again:
 
 ```sh
 uv run scripts/bfwm_tidy.py fix
-uv run scripts/bfwm_tidy.py format
+uv run scripts/bfwm_tidy.py format --write
 git add -p
 ```
 
@@ -122,7 +152,7 @@ The hook coexists with graphify's `post-commit` / `post-checkout` hooks.
 ## Workflow at a glance
 
 ```
-analyze --diff   →  review the fix-list  →  fix  →  format  →  analyze --diff (confirm clean)
+analyze  →  review the fix-list  →  fix  →  format --write  →  analyze (confirm clean)
 ```
 
 The fixes clang-tidy suggests can be wrong — `analyze` is always safe (it never
