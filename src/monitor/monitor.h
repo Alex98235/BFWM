@@ -38,6 +38,8 @@ class Monitor {
    [[nodiscard]] auto GetRect() const -> RECT { return rect_; }
    /// Usable area (excluding taskbar)
    [[nodiscard]] auto GetWorkArea() const -> RECT { return work_area_; }
+   /// Re-read the work area from the OS, including the taskbar auto-hide rule
+   void RefreshWorkArea();
    /// Display number matching Windows Settings
    [[nodiscard]] auto GetDisplayNumber() const -> UINT {
       return display_number_;

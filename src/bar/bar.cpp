@@ -1832,13 +1832,28 @@ auto Bar::Init() -> bool {
           main->dpi->ScaleForMonitor(hmon, config.indicators[i].max_width);
    }
 
-   RECT const mon_rect = mon->GetRect();
-   int const mon_width = mon_rect.right - mon_rect.left;
+   // The bar lives inside the monitor work area, not the full monitor: a
+   // taskbar on any edge then pushes the bar instead of being overlapped.
+   // Workspaces inset the same work area by bar height
+   // (CreateWorkspaceForMonitor), so both derive from one origin and a top
+   // taskbar moves them together.
+   RECT const work_area = mon->GetWorkArea();
+   int const work_width = work_area.right - work_area.left;
+   int const work_height = work_area.bottom - work_area.top;
    int const bar_height = config.height;
-   int bar_width = mon_width - config.margin.left - config.margin.right;
-   int const bar_pos_x = mon_rect.left + config.margin.left;
-   int const bar_pos_y = mon_rect.top + config.margin.top;
-   bar_width = std::max(bar_width, 1);
+   int const bar_width = work_width - config.margin.left - config.margin.right;
+   int const fit_height =
+       work_height - config.margin.top - config.margin.bottom;
+   if ((bar_width < 1) || (fit_height < bar_height)) {
+      // Taskbar and margins leave no room: skip rather than draw over the
+      // taskbar.
+      WarnW(L"Bar not created on monitor %u: work area %dx%d cannot fit %dx%d",
+            mon->GetDisplayNumber(), work_width, work_height, bar_width,
+            bar_height);
+      return false;
+   }
+   int const bar_pos_x = work_area.left + config.margin.left;
+   int const bar_pos_y = work_area.top + config.margin.top;
 
    // Initialize Clay
    uint64_t const arena_size = Clay_MinMemorySize();

@@ -118,6 +118,14 @@ void RegisterMonitor(MonitorRegistry *reg, Monitor *monitor) {
           r.left, r.top, r.right - r.left, r.bottom - r.top);
 }
 
+void Monitor::RefreshWorkArea() {
+   MONITORINFOEXW miex;
+   miex.cbSize = sizeof(miex);
+   if (GetMonitorInfoW(handle_, reinterpret_cast<LPMONITORINFO>(&miex)) == 0)
+      return;
+   work_area_ = miex.rcWork;
+}
+
 auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
                               LPRECT lprcMonitor, LPARAM dwData) -> BOOL {
    (void)hdcMonitor;
@@ -163,31 +171,6 @@ auto CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor,
    };
    if (EnumDisplayDevicesW(miex.szDevice, 0, &display_device, 0) != 0)
       mon->SetUid(display_device.DeviceID);
-
-   // Detect taskbar auto-hide: if enabled, use full monitor rect so
-   // tiled windows extend edge-to-edge even when the taskbar is
-   // normally occupying work area space.
-   {
-      HWND tray_bar = FindWindowW(L"Shell_TrayWnd", nullptr);
-      if (tray_bar != nullptr) {
-         APPBARDATA abd = {.cbSize = sizeof(abd),
-                           .hWnd = tray_bar,
-                           .uCallbackMessage = {},
-                           .uEdge = {},
-                           .rc = {},
-                           .lParam = {}};
-         UINT const state = (UINT)SHAppBarMessage(ABM_GETSTATE, &abd);
-         if ((state & ABS_AUTOHIDE) != 0U) {
-            RECT tb_rect;
-            if (GetWindowRect(tray_bar, &tb_rect) != 0) {
-               RECT inter;
-               RECT const mon_rect = mon->GetRect();
-               if (IntersectRect(&inter, &mon_rect, &tb_rect) != 0)
-                  mon->SetWorkArea(mon_rect);
-            }
-         }
-      }
-   }
 
    RegisterMonitor(reg, mon);
    return TRUE;
@@ -403,9 +386,11 @@ TryMatchMonitor(struct SharedState *shared, struct MainContext *main,
       RECT const new_rect = new_replacement->GetRect();
       RECT const old_work_area = old_mon->GetWorkArea();
       RECT const new_work_area = new_replacement->GetWorkArea();
-      BOOL const rect_changed = static_cast<BOOL>(
-          (EqualRect(&old_rect, &new_rect) == FALSE) ||
-          (EqualRect(&old_work_area, &new_work_area) == FALSE));
+      BOOL const work_area_changed =
+          static_cast<BOOL>(EqualRect(&old_work_area, &new_work_area) == FALSE);
+      BOOL const rect_changed =
+          static_cast<BOOL>((EqualRect(&old_rect, &new_rect) == FALSE) ||
+                            (work_area_changed == TRUE));
       old_mon->SetRect(new_replacement->GetRect());
       old_mon->SetWorkArea(new_replacement->GetWorkArea());
       old_mon->SetDisplayNumber(new_replacement->GetDisplayNumber());
@@ -418,6 +403,10 @@ TryMatchMonitor(struct SharedState *shared, struct MainContext *main,
          for (size_t w = 0; w < old_mon->Workspaces().size(); w++) {
             old_mon->Workspaces()[w]->RecalculateRect(old_mon, shared, main);
          }
+         // The bar is positioned from the work area, so it has to be rebuilt
+         // when the taskbar or the display layout moves.
+         if (work_area_changed == TRUE)
+            BarUpdateRequest(main, BAR_UPDATE_RECREATE);
       } else {
          ReconcileMonitorDpi(shared, main, old_mon, old_dpis);
       }
