@@ -89,99 +89,104 @@ inline void SyncWindowOverlayAuto(MainContext *main, HWND hwnd) {
 
 inline auto NewWindowTrigger(HWND hwnd, SharedState *shared, MainContext *main,
                              BOOL startup) -> enum WindowTriggerReturnType {
-   if (shared == nullptr) return NO_CONTEXT;
+   if (shared == nullptr)
+      return NO_CONTEXT;
 
-   if (main->windows->FindByHwnd(hwnd) !=
-       nullptr){return WINDOW_ALREADY_REGISTERED;}
+   if (main->windows->FindByHwnd(hwnd) != nullptr) {
+      return WINDOW_ALREADY_REGISTERED;
+   }
 
-if (IsManageableWindow(shared, main, hwnd, startup)) {
-   // Reject owned windows — tooltips, dropdowns, context menus
-   HWND owner = GetWindow(hwnd, GW_OWNER);
-   if ((owner != nullptr) && (main->windows->FindByHwnd(owner) != nullptr))
-      return REGISTER_SKIPPED;
-
-   // Reject very small windows (dialogs, Steam update popups, etc.)
-   {
-      RECT rect;
-      if ((GetWindowRect(hwnd, &rect) == TRUE) &&
-          (rect.right - rect.left < MIN_WINDOW_WIDTH ||
-           rect.bottom - rect.top < MIN_WINDOW_HEIGHT))
+   if (IsManageableWindow(shared, main, hwnd, startup)) {
+      // Reject owned windows — tooltips, dropdowns, context menus
+      HWND owner = GetWindow(hwnd, GW_OWNER);
+      if ((owner != nullptr) && (main->windows->FindByHwnd(owner) != nullptr))
          return REGISTER_SKIPPED;
+
+      // Reject very small windows (dialogs, Steam update popups, etc.)
+      {
+         RECT rect;
+         if ((GetWindowRect(hwnd, &rect) == TRUE) &&
+             (rect.right - rect.left < MIN_WINDOW_WIDTH ||
+              rect.bottom - rect.top < MIN_WINDOW_HEIGHT))
+            return REGISTER_SKIPPED;
+      }
+
+      std::wstring window_title;
+      std::wstring window_class;
+
+      window_title.resize(WINDOW_STR_BUF_SIZE);
+      int const title_len =
+          GetWindowTextW(hwnd, window_title.data(), WINDOW_STR_BUF_SIZE);
+      window_title.resize(title_len > 0 ? static_cast<size_t>(title_len) : 0);
+
+      window_class.resize(WINDOW_STR_BUF_SIZE);
+      int const class_len =
+          GetClassNameW(hwnd, window_class.data(), WINDOW_STR_BUF_SIZE);
+      if (class_len == 0) {
+         BFWMLogLastError("Could not get window class");
+         return NO_CLASS;
+      }
+      window_class.resize(static_cast<size_t>(class_len));
+
+      // Convert class name and title to narrow strings for rule matching.
+      std::string const class_name_a = WideToNarrow(window_class);
+      std::string const title_a = WideToNarrow(window_title);
+
+      // Fetch process name once for all rule checks.
+      std::string process_buf(MAX_PATH, '\0');
+      const char *process =
+          GetWindowProcessName(hwnd, process_buf.data(), process_buf.size());
+
+      // Check hardcoded blacklist and user ignore rules before creating
+      // the Window.
+      if (IsExcludedByRules(shared, main, class_name_a.data(), title_a.data(),
+                            process)) {
+         return REGISTER_SKIPPED;
+      }
+
+      auto window_owner = std::make_unique<Window>(hwnd, window_title);
+      Window *window = window_owner.get();
+
+      // Detect fullscreen windows at registration time so they never enter
+      // the layout tree.
+      FullscreenType const fullscreen_type = DetectFullscreenWindow(hwnd);
+      /* FullscreenType is an unscoped (signed) enum; take the mask as unsigned
+       * so the bitwise AND has no signed operand. */
+      auto const fullscreen_mask =
+          static_cast<unsigned>(FS_EXCLUSIVE_FULLSCREEN | FS_BORDERLESS_WINDOW);
+      if ((static_cast<unsigned>(fullscreen_type) & fullscreen_mask) != 0U)
+         window->SetUnmanagedFullscreen(TRUE);
+
+      // Restore maximized windows so the layout can position them — the
+      // OS-level WS_MAXIMIZE state overrides SetWindowPos.
+      if (IsZoomed(hwnd) == TRUE)
+         ShowWindow(hwnd, SW_RESTORE);
+
+      // Apply non-ignore rules (floating, workspace).
+      WindowRulesApply(shared, main, window, class_name_a.data(),
+                       title_a.data(), process);
+
+      main->windows->Register(std::move(window_owner));
+
+      // Create the border overlay ring. OverlayCreate establishes
+      // initial geometry/visibility; a fullscreen window's ring stays
+      // suppressed until it exits fullscreen. Construction never fails — on
+      // failure the overlay is inert and every method no-ops.
+      window->SetOverlay(std::make_unique<Overlay>(
+          shared, main, hwnd, shared->config.border_color,
+          shared->config.border_width, shared->config.border_radius));
+      if (window->IsUnmanagedFullscreen() == TRUE)
+         window->SyncOverlay(TRUE);
+
+      DebugW(L"Registered window: hwnd=%p title=\"%ls\" class=\"%ls\" "
+             L"startup=%d",
+             reinterpret_cast<void *>(hwnd), window_title.c_str(),
+             window_class.c_str(), startup);
+
+      return REGISTER_SUCCESSFUL;
    }
 
-   std::wstring window_title;
-   std::wstring window_class;
-
-   window_title.resize(WINDOW_STR_BUF_SIZE);
-   int const title_len =
-       GetWindowTextW(hwnd, window_title.data(), WINDOW_STR_BUF_SIZE);
-   window_title.resize(title_len > 0 ? static_cast<size_t>(title_len) : 0);
-
-   window_class.resize(WINDOW_STR_BUF_SIZE);
-   int const class_len =
-       GetClassNameW(hwnd, window_class.data(), WINDOW_STR_BUF_SIZE);
-   if (class_len == 0) {
-      BFWMLogLastError("Could not get window class");
-      return NO_CLASS;
-   }
-   window_class.resize(static_cast<size_t>(class_len));
-
-   // Convert class name and title to narrow strings for rule matching.
-   std::string const class_name_a = WideToNarrow(window_class);
-   std::string const title_a = WideToNarrow(window_title);
-
-   // Fetch process name once for all rule checks.
-   std::string process_buf(MAX_PATH, '\0');
-   const char *process =
-       GetWindowProcessName(hwnd, process_buf.data(), process_buf.size());
-
-   // Check hardcoded blacklist and user ignore rules before creating
-   // the Window.
-   if (IsExcludedByRules(shared, main, class_name_a.data(), title_a.data(),
-                         process)) {
-      return REGISTER_SKIPPED;
-   }
-
-   auto window_owner = std::make_unique<Window>(hwnd, window_title);
-   Window *window = window_owner.get();
-
-   // Detect fullscreen windows at registration time so they never enter
-   // the layout tree.
-   FullscreenType const fullscreen_type = DetectFullscreenWindow(hwnd);
-   if ((fullscreen_type & (FS_EXCLUSIVE_FULLSCREEN | FS_BORDERLESS_WINDOW)) !=
-       0)
-      window->SetUnmanagedFullscreen(TRUE);
-
-   // Restore maximized windows so the layout can position them — the
-   // OS-level WS_MAXIMIZE state overrides SetWindowPos.
-   if (IsZoomed(hwnd) == TRUE)
-      ShowWindow(hwnd, SW_RESTORE);
-
-   // Apply non-ignore rules (floating, workspace).
-   WindowRulesApply(shared, main, window, class_name_a.data(), title_a.data(),
-                    process);
-
-   main->windows->Register(std::move(window_owner));
-
-   // Create the border overlay ring. OverlayCreate establishes
-   // initial geometry/visibility; a fullscreen window's ring stays
-   // suppressed until it exits fullscreen. Construction never fails — on
-   // failure the overlay is inert and every method no-ops.
-   window->SetOverlay(std::make_unique<Overlay>(
-       shared, main, hwnd, shared->config.border_color,
-       shared->config.border_width, shared->config.border_radius));
-   if (window->IsUnmanagedFullscreen() == TRUE)
-      window->SyncOverlay(TRUE);
-
-   DebugW(L"Registered window: hwnd=%p title=\"%ls\" class=\"%ls\" "
-          L"startup=%d",
-          reinterpret_cast<void *>(hwnd), window_title.c_str(),
-          window_class.c_str(), startup);
-
-   return REGISTER_SUCCESSFUL;
-}
-
-return REGISTER_SKIPPED;
+   return REGISTER_SKIPPED;
 } // namespace
 
 /**
