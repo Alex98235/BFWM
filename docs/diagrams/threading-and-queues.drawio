@@ -1,0 +1,189 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-threading-and-queues" name="Threading and Queues">
+        <mxGraphModel dx="1197" dy="777" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;" value="BFWM — Threading and Queues" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;" value="Exactly two BFWM threads. Everything crosses from worker to main through lock-free queues or PostThreadMessage — never SendMessage. The main thread owns every HWND." vertex="1">
+                    <mxGeometry height="26" width="1400" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="cM" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="T1 · MAIN THREAD — owns all windows and state" vertex="1">
+                    <mxGeometry height="620" width="400" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="m1" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Owns every HWND:&lt;/b&gt; monitor-helper window, one Bar per monitor, snackbar overlay, tray helper" vertex="1">
+                    <mxGeometry height="56" width="368" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="m2" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Owns the registries:&lt;/b&gt; MonitorRegistry · DpiSystem · WindowRegistry · LuaConfig · ExecCache · TransactionState" vertex="1">
+                    <mxGeometry height="64" width="368" x="16" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="m3" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;Non-blocking pump:&lt;/b&gt; PeekMessage(PM_REMOVE) — never GetMessage" vertex="1">
+                    <mxGeometry height="44" width="368" x="16" y="172" as="geometry"/>
+                </mxCell>
+                <mxCell id="m4" parent="cM" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="Idles with Sleep(1) when no keystrokes were queued" vertex="1">
+                    <mxGeometry height="26" width="368" x="16" y="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="m5" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;Blocks only at:&lt;/b&gt; SendMessageTimeout(WM_CLOSE, 2 s) · EnumWindows / EnumDisplayMonitors under lock · worker join at shutdown" vertex="1">
+                    <mxGeometry height="64" width="368" x="16" y="250" as="geometry"/>
+                </mxCell>
+                <mxCell id="m6" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;MainContext::lock&lt;/b&gt; — recursive CRITICAL_SECTION, taken only from main-thread code. It serialises DrainEventQueue against the loop&#39;s own refresh passes; it is NOT a cross-thread mutex." vertex="1">
+                    <mxGeometry height="76" width="368" x="16" y="322" as="geometry"/>
+                </mxCell>
+                <mxCell id="m7" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;T3 · console handler thread&lt;/b&gt; (OS-created)&lt;br&gt;Ctrl+C → running = FALSE, dummy Enqueue to wake the pump" vertex="1">
+                    <mxGeometry height="56" width="368" x="16" y="406" as="geometry"/>
+                </mxCell>
+                <mxCell id="m8" parent="cM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;T5 · COM audio callback thread&lt;/b&gt; (OS-created)&lt;br&gt;writes volatile g_audio_dirty; main polls and clears it" vertex="1">
+                    <mxGeometry height="56" width="368" x="16" y="470" as="geometry"/>
+                </mxCell>
+                <mxCell id="m9" parent="cM" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="Shutdown: stop worker (WM_QUIT + join) → restore fullscreen →&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(90, 98, 110);&quot;&gt;restore desktop → BFWMFree → SystemStatusShutdown&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="60" width="368" x="16" y="534" as="geometry"/>
+                </mxCell>
+                <mxCell id="cQ" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="CROSS-THREAD CHANNELS" vertex="1">
+                    <mxGeometry height="620" width="380" x="480" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="q1" parent="cQ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;strokeWidth=2;" value="&lt;b&gt;SpscQueue&lt;/b&gt; — window/DPI events&lt;br&gt;2048 slots · EventRecord POD · not a template" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="q1b" parent="cQ" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="&lt;p&gt;&lt;span&gt;Push: head_ release-store · Pop: head_ acquire-load&lt;br&gt;&lt;/span&gt;&lt;span&gt;Full → dropped_++ and return false (record lost, producer continues)&lt;br&gt;&lt;/span&gt;&lt;span&gt;Drain pops at most 2048 per tick; leftovers wait for the next iteration&lt;/span&gt;&lt;/p&gt;" vertex="1">
+                    <mxGeometry height="76" width="348" x="16" y="96" as="geometry"/>
+                </mxCell>
+                <mxCell id="q2" parent="cQ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;strokeWidth=2;" value="&lt;b&gt;KeystrokeQueue&lt;/b&gt; — input&lt;br&gt;CRITICAL_SECTION + semaphore, capacity 8" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="q2b" parent="cQ" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#B85450;" value="Header says Dequeue blocks;&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(184, 84, 80);&quot;&gt;implementation waits with a 0 ms timeout — it polls.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="34" width="348" x="16" y="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="q3" parent="cQ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;PostThreadMessage&lt;/b&gt; — the only main→worker and hook→main channel" vertex="1">
+                    <mxGeometry height="44" width="348" x="16" y="272" as="geometry"/>
+                </mxCell>
+                <mxCell id="q3b" parent="cQ" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="WM_APP_DESKTOP_CLICK · WM_APP_MOUSE_HOVER&lt;br&gt;WM_FORCE_FOCUS · WM_APP_DPI_WATCHER_RECREATE · WM_QUIT" vertex="1">
+                    <mxGeometry height="36" width="348" x="16" y="320" as="geometry"/>
+                </mxCell>
+                <mxCell id="q4" parent="cQ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;" value="&lt;b&gt;volatile flags&lt;/b&gt; (not atomics)&lt;br&gt;setup_in_progress · g_audio_dirty · running" vertex="1">
+                    <mxGeometry height="56" width="348" x="16" y="366" as="geometry"/>
+                </mxCell>
+                <mxCell id="q5" parent="cQ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;WindowRegistry::lock_&lt;/b&gt;&lt;br&gt;the only registry with a lock — because the worker calls FindByHwnd from the mouse hook" vertex="1">
+                    <mxGeometry height="60" width="348" x="16" y="430" as="geometry"/>
+                </mxCell>
+                <mxCell id="q6" parent="cQ" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="No std::atomic outside the SPSC head/tail/dropped. No Interlocked*.&amp;nbsp;&lt;div&gt;No SRWLOCK. No thread pool, no std::thread anywhere in src/.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="60" width="348" x="16" y="498" as="geometry"/>
+                </mxCell>
+                <mxCell id="cW" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="T2 · WORKER THREAD — input hooks and window events only" vertex="1">
+                    <mxGeometry height="620" width="520" x="900" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="w1" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;strokeWidth=2;" value="&lt;b&gt;StartEventWatching()&lt;/b&gt; wm_worker.cpp:132&lt;br&gt;the only _beginthreadex in the repository (wm_worker.cpp:191)" vertex="1">
+                    <mxGeometry height="52" width="488" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="w2" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="ComInitGuard → &lt;b&gt;WH_KEYBOARD_LL + WH_MOUSE_LL&lt;/b&gt; hooks" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="96" as="geometry"/>
+                </mxCell>
+                <mxCell id="w3" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;SetWinEventHook ×4&lt;/b&gt; — OUTOFCONTEXT + SKIPOWNPROCESS (events.cpp:813-852)" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="148" as="geometry"/>
+                </mxCell>
+                <mxCell id="w4" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="One hidden &lt;b&gt;DPI watcher HWND per monitor&lt;/b&gt; (created via posted messages)" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="w5" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;Blocking GetMessage loop&lt;/b&gt;; thread messages handled inline (DPI watcher recreate)" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="252" as="geometry"/>
+                </mxCell>
+                <mxCell id="w6" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;Reads SharedState lock-free:&lt;/b&gt; keybinds via KBDFind, focus_follows_mouse, main_thread_id" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="304" as="geometry"/>
+                </mxCell>
+                <mxCell id="w7" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;" value="&lt;b&gt;Never mutates SharedState or MainContext.&lt;/b&gt; Reads windows-&amp;gt;FindByHwnd (locked) and focused_hwnd (plain read)." vertex="1">
+                    <mxGeometry height="56" width="488" x="16" y="356" as="geometry"/>
+                </mxCell>
+                <mxCell id="w8" parent="cW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;" value="&lt;b&gt;Lifetime:&lt;/b&gt; spawned by LoadConfig (main.cpp:360) AFTER the config is parsed, so hooks never see a half-built config. Torn down on WM_QUIT: destroy DPI watchers, unhook WinEvent, unhook input." vertex="1">
+                    <mxGeometry height="76" width="488" x="16" y="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="w9" parent="cW" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="Hook procs and WinEventProc run on THIS thread&#39;s message loop — that is why they may never touch&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(90, 98, 110);&quot;&gt;BFWM state directly.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="44" width="488" x="16" y="504" as="geometry"/>
+                </mxCell>
+                <mxCell id="cLoop" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="MainLoop iteration — src/main.cpp:485" vertex="1">
+                    <mxGeometry height="330" width="700" x="40" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="loopText" parent="cLoop" style="text;html=1;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;" value="&lt;b&gt;1&lt;/b&gt;  DrainEventQueue() — pop ≤2048, one Begin + ONE commit for the whole batch&lt;br&gt;&lt;b&gt;2&lt;/b&gt;  ProcessWindowMessages() — DISPLAYCHANGE / SUSPEND / RESUME / FORCE_FOCUS / DESKTOP_CLICK / MOUSE_HOVER&lt;br&gt;&lt;b&gt;3&lt;/b&gt;  ProcessReconcile() — only when pending AND deadline passed: reclaim overlays, refresh fullscreen, ReconcileMonitors&lt;br&gt;&lt;b&gt;4&lt;/b&gt;  Overlay reconcile tick — every 500 ms, skipped while resize_hwnd is set&lt;br&gt;&lt;b&gt;5&lt;/b&gt;  ProcessKeystrokes() — Begin, DispatchKeybind ×N, one commit; generation guard drops stale binds&lt;br&gt;&lt;b&gt;6&lt;/b&gt;  ConvergeAsyncMoves() — throttled to 33 ms, re-runs ApplyLayout until every move lands&lt;br&gt;&lt;b&gt;7&lt;/b&gt;  focus_intent.Expire() — 2 s backstop&lt;br&gt;&lt;b&gt;8&lt;/b&gt;  AdoptStuckLayouts()   &lt;b&gt;9&lt;/b&gt;  CheckPendingKills()   &lt;b&gt;10&lt;/b&gt;  Snackbar::Tick()&lt;br&gt;&lt;b&gt;11&lt;/b&gt;  dpi_update block — refresh work areas, re-tile, request BAR_UPDATE_RECREATE&lt;br&gt;&lt;b&gt;12&lt;/b&gt;  bar_update block — PresentBars (destroy+recreate) or Bar::UpdateAll&lt;br&gt;&lt;b&gt;13&lt;/b&gt;  take the lock; if running == FALSE, break" vertex="1">
+                    <mxGeometry height="280" width="668" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="cFocus" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;" value="FocusIntent — why a stray foreground does not steal focus" vertex="1">
+                    <mxGeometry height="330" width="660" x="760" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx1" parent="cFocus" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#1B1F24;" value="&lt;b&gt;Problem:&lt;/b&gt; Windows delivers EVENT_SYSTEM_FOREGROUND for whatever the app decides to activate.&amp;nbsp;&lt;div&gt;&lt;span style=&quot;color: rgb(27, 31, 36);&quot;&gt;During a spawn storm that can be the wrong window, which would drag the active workspace with it.&lt;/span&gt;&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="44" width="628" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx2" parent="cFocus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;" value="&lt;b&gt;States:&lt;/b&gt; None → Known (target HWND known) or Learn (spawn issued, window not yet created)" vertex="1">
+                    <mxGeometry height="36" width="628" x="16" y="86" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx3" parent="cFocus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;" value="&lt;b&gt;ArmKnown&lt;/b&gt; workspace.cpp:615 (+ destroy / hide / minimize fallbacks)&lt;br&gt;&lt;b&gt;ArmLearn&lt;/b&gt; HandleSpawn handlers.cpp:526" vertex="1">
+                    <mxGeometry height="44" width="628" x="16" y="128" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx4" parent="cFocus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDECEC;strokeColor=#EBA3A3;fontSize=11;" value="&lt;b&gt;ShouldSuppress(hwnd):&lt;/b&gt; drop a REGISTERED non-target foreground, then re-post WM_FORCE_FOCUS to re-assert our target. Unregistered windows are always let through." vertex="1">
+                    <mxGeometry height="44" width="628" x="16" y="178" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx5" parent="cFocus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F6EC;strokeColor=#8BCB9F;fontSize=11;" value="&lt;b&gt;Clears on:&lt;/b&gt; NoteLanded(target) · real user input since the baseline (GetLastInputInfo, wrap-safe delta) · the 2 s Expire() backstop" vertex="1">
+                    <mxGeometry height="44" width="628" x="16" y="228" as="geometry"/>
+                </mxCell>
+                <mxCell id="fx6" parent="cFocus" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;" value="&quot;The user spoke — yield&quot;: any genuine input clears the intent immediately, so it can never fight a deliberate click." vertex="1">
+                    <mxGeometry height="36" width="628" x="16" y="278" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" value="Push(EventRecord)">
+                    <mxGeometry relative="1" x="0.2022" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="890" y="271"/>
+                            <mxPoint x="890" y="165"/>
+                        </Array>
+                        <mxPoint x="916" y="271" as="sourcePoint"/>
+                        <mxPoint x="843.9999999999998" y="165" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="1" source="w5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="q3" value="PostThreadMessage">
+                    <mxGeometry relative="1" x="-0.087" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="1" source="q1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" target="m3" value="Pop ≤2048 / tick">
+                    <mxGeometry relative="1" x="0.0576" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="1" source="q2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;strokeWidth=2;entryX=1;entryY=0.75;entryDx=0;entryDy=0;exitX=0.002;exitY=0.644;exitDx=0;exitDy=0;exitPerimeter=0;" target="m3" value="Dequeue">
+                    <mxGeometry relative="1" x="0.0297" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="1" source="w7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="q5" value="FindByHwnd (locked)">
+                    <mxGeometry relative="1" x="-0.027" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e7" edge="1" parent="1" source="w6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;dashed=1;entryX=1;entryY=0.75;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;labelBorderColor=none;horizontal=1;textShadow=0;defaultLabelBackgroundColor=page;" target="m2" value="reads config lock-free">
+                    <mxGeometry relative="1" x="-0.2683" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="880" y="426"/>
+                            <mxPoint x="880" y="460"/>
+                            <mxPoint x="460" y="460"/>
+                            <mxPoint x="460" y="248"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · src/main.cpp, src/wm/**, src/transaction/spsc_queue.*, src/core/**" basedOn="137651a" date="2026-11-27" covers="src/main.cpp;src/wm;src/transaction/spsc_queue.h;src/transaction/spsc_queue.cpp;src/core/main_context.h;src/core/worker_context.h;src/core/shared_state.h;src/core/focus_intent.h;src/input/queue.h;src/input/hooks.cpp;src/window/events/events.cpp" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;" vertex="1">
+                        <mxGeometry height="24" width="660" x="760" y="1090" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;whiteSpace=wrap;" value="Legend: blue = main thread · green = worker thread · grey = OS-created thread · yellow = queue / shared state · red = contract you must not break" vertex="1">
+                    <mxGeometry height="40" width="700" x="40" y="1090" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;labelAutoRotate=0;labelBorderColor=none;defaultLabelBackgroundColor=page;" value="Enqueue(Keystroke)">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="870" y="214"/>
+                            <mxPoint x="870" y="292"/>
+                        </Array>
+                        <mxPoint x="916" y="214" as="sourcePoint"/>
+                        <mxPoint x="844" y="292" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

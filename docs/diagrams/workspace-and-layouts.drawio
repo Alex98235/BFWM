@@ -1,0 +1,197 @@
+<mxfile host="65bd71144e">
+    <diagram id="bfwm-workspace-and-layouts" name="Workspace and Layouts">
+        <mxGraphModel dx="996" dy="647" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1B1F24;rounded=1;roundedPerimeter=1;" value="BFWM — Workspace and Layouts" vertex="1">
+                    <mxGeometry height="34" width="900" x="40" y="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A626E;rounded=1;roundedPerimeter=1;" value="Monitors own workspaces, workspaces own layout engines, the registry owns windows. Layouts are DPI-pure — everything is scaled once when the workspace rect is built." vertex="1">
+                    <mxGeometry height="26" width="1400" x="40" y="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;" value="1 · Ownership" vertex="1">
+                    <mxGeometry height="470" width="560" x="40" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="o1" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;MainContext&lt;/b&gt; (main thread only)" vertex="1">
+                    <mxGeometry height="36" width="528" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="o2" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;MonitorRegistry&lt;/b&gt; — owns raw Monitor*&lt;br&gt;identity = PnP device instance UID (MONITOR\DEL4049\5&amp;amp;...)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="84" as="geometry"/>
+                </mxCell>
+                <mxCell id="o3" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;Monitor&lt;/b&gt; owns: workspaces_ (raw Workspace*), active_workspace_ (non-owning),&lt;br&gt;unique_ptr&amp;lt;Bar&amp;gt; · bar_height_ (physical px) · fullscreen_count_" vertex="1">
+                    <mxGeometry height="56" width="528" x="16" y="148" as="geometry"/>
+                </mxCell>
+                <mxCell id="o4" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;WindowRegistry&lt;/b&gt; — owns every unique_ptr&amp;lt;Window&amp;gt; globally.&lt;br&gt;Workspaces hold non-owning Window* only." vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="216" as="geometry"/>
+                </mxCell>
+                <mxCell id="o5" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;Workspace&lt;/b&gt; owns unique_ptr&amp;lt;LayoutEngine&amp;gt; and a non-owning window list;&lt;br&gt;keeps workspace_rect (bar-reserved) and usable_rect (edge + border inset)" vertex="1">
+                    <mxGeometry height="52" width="528" x="16" y="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="o6" parent="c1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9DB;strokeColor=#E9D58A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="IDs are globally unique even though workspaces live in a monitor array — FindWorkspaceById scans every monitor. A workspace is movable (MoveToMonitor) and records origin_monitor_uid_ so it can return on reconnect." vertex="1">
+                    <mxGeometry height="62" width="528" x="16" y="344" as="geometry"/>
+                </mxCell>
+                <mxCell id="o7" parent="c1" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;spacingLeft=8;fontColor=#5A626E;rounded=1;roundedPerimeter=1;" value="startSize=28 · nothing here is shared with the worker thread; the worker only enqueues events" vertex="1">
+                    <mxGeometry height="30" width="528" x="16" y="412" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="c1" source="o3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;" target="o5" value="owns">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;labelBackgroundColor=default;labelBorderColor=none;" value="2 · Rect math — where the tiling area comes from" vertex="1">
+                    <mxGeometry height="470" width="440" x="630" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="r1" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;monitor.work_area&lt;/b&gt; (physical px)" vertex="1">
+                    <mxGeometry height="32" width="408" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="r2" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;roundedPerimeter=1;" value="+ margin.top + bar height + margin.bottom" vertex="1">
+                    <mxGeometry height="32" width="408" x="16" y="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="r3" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;workspace_rect&lt;/b&gt;" vertex="1">
+                    <mxGeometry height="32" width="408" x="16" y="124" as="geometry"/>
+                </mxCell>
+                <mxCell id="r4" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;roundedPerimeter=1;" value="inset gap_edge on all four sides (0 when gaps_enabled = 0)&lt;br&gt;gaps and border_width were scaled once from the monitor DPI" vertex="1">
+                    <mxGeometry height="48" width="408" x="16" y="168" as="geometry"/>
+                </mxCell>
+                <mxCell id="r5" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;engine rect&lt;/b&gt;" vertex="1">
+                    <mxGeometry height="32" width="408" x="16" y="228" as="geometry"/>
+                </mxCell>
+                <mxCell id="r6" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;master / monocle:&lt;/b&gt; tiled_rect = engine rect − border_width" vertex="1">
+                    <mxGeometry height="36" width="408" x="16" y="272" as="geometry"/>
+                </mxCell>
+                <mxCell id="r7" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;dwindle:&lt;/b&gt; leaf rect − border_width, plus half of gap_between on every interior side (detected against the engine rect)" vertex="1">
+                    <mxGeometry height="52" width="408" x="16" y="318" as="geometry"/>
+                </mxCell>
+                <mxCell id="r8" parent="c2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=11;roundedPerimeter=1;" value="&lt;b&gt;usable_rect&lt;/b&gt; = workspace_rect − (gap_edge + border_width)&lt;br&gt;&lt;i&gt;used only to clamp adopted stuck-window rects,&lt;/i&gt; never for normal placement" vertex="1">
+                    <mxGeometry height="56" width="408" x="16" y="382" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="c2" source="r1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="r2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="c2" source="r2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="r3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="c2" source="r3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="r4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="c2" source="r4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="r5">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="c2" source="r5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;" target="r6">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" edge="1" parent="c2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontSize=10;">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="230" y="259.9999999999999" as="sourcePoint"/>
+                        <mxPoint x="230" y="318" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e10" edge="1" parent="c2" style="rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;fontSize=10;elbow=vertical;labelAutoRotate=0;shadow=0;defaultLabelBackgroundColor=page;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="c5" value="one Bar per monitor">
+                    <mxGeometry relative="1" x="0.015" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="-20" y="178"/>
+                            <mxPoint x="-20" y="500"/>
+                            <mxPoint x="400" y="500"/>
+                        </Array>
+                        <mxPoint x="-36" y="178" as="sourcePoint"/>
+                        <mxPoint x="410" y="522" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="c3" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;" value="3 · Layout engines — one vtable, three implementations" vertex="1">
+                    <mxGeometry height="470" width="534" x="1080" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="l0" parent="c3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F7;strokeColor=#B8C0CC;fontSize=10;align=left;verticalAlign=middle;spacingLeft=6;roundedPerimeter=1;" value="LayoutEngine: insert · remove · apply · get_rect · move_window · get_neighbor · get_closest_window · set_active_window · resize_window · resize_window_to_rect · toggle_split · swap_split · apply_config" vertex="1">
+                    <mxGeometry height="56" width="502" x="16" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1" parent="c3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="&lt;b&gt;dwindle — binary space partition&lt;/b&gt;&lt;br&gt;Splits the focused leaf along its longer dimension (width &amp;gt; height → horizontal).&lt;br&gt;Focus keeps the first half; the new window always gets the second.&lt;br&gt;Ratio defaults to 0.5, clamped to 0.1–0.9 when resized.&lt;br&gt;Remove collapses the parent; the survivor inherits its rect." vertex="1">
+                    <mxGeometry height="96" width="502" x="16" y="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2" parent="c3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="&lt;b&gt;master — columns plus stack&lt;/b&gt;&lt;br&gt;Left region = tiled_rect.width × master_factor (0.5) holds master_count (1) windows,&lt;br&gt;each sliced vertically; the rest stack vertically on the right.&lt;br&gt;gap_between is inserted between the regions and between slices; the last slice&lt;br&gt;absorbs integer rounding. No resize support (base stubs return false)." vertex="1">
+                    <mxGeometry height="96" width="502" x="16" y="206" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3" parent="c3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=11;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="&lt;b&gt;monocle — stacking&lt;/b&gt;&lt;br&gt;Every window&#39;s rect is tiled_rect. Visibility is z-order and selection only,&lt;br&gt;driven by SequenceLayout (prev/next cycling, set_active_window).&lt;br&gt;get_closest_window returns the selected window." vertex="1">
+                    <mxGeometry height="76" width="502" x="16" y="312" as="geometry"/>
+                </mxCell>
+                <mxCell id="l4" parent="c3" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;rounded=1;roundedPerimeter=1;" value="master and monocle share SequenceLayout (linear list, circular move_window). dwindle keeps its own tree." vertex="1">
+                    <mxGeometry height="40" width="502" x="16" y="396" as="geometry"/>
+                </mxCell>
+                <mxCell id="c4" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;" value="4 · Apply path — from relayout request to SetWindowPos" vertex="1">
+                    <mxGeometry height="380" width="760" x="40" y="620" as="geometry"/>
+                </mxCell>
+                <mxCell id="ap" parent="c4" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;1&lt;/b&gt;  QueueRelayout(ws) → OP_RELAYOUT_WORKSPACE&lt;br&gt;&lt;b&gt;2&lt;/b&gt;  commit Pass 4 → Workspace::ApplyLayout (self-wraps a transaction when none is open)&lt;br&gt;&lt;b&gt;3&lt;/b&gt;  CloakInactiveWorkspaces runs FIRST — DWM must see the cloak state before any move&lt;br&gt;&lt;b&gt;4&lt;/b&gt;  PlacementApply → engine-&amp;gt;apply() recalculates rects, then moves_in_flight = FALSE&lt;br&gt;&lt;b&gt;5&lt;/b&gt;  per window: engine-&amp;gt;get_rect → MaybeIssueMove&lt;br&gt;&lt;b&gt;6&lt;/b&gt;  backpressure: issue only if the previous move landed (within DPI rounding tolerance)&lt;br&gt;      or the 250 ms stall timeout expired; otherwise defer and keep moves_in_flight set&lt;br&gt;&lt;b&gt;7&lt;/b&gt;  IssueMove → IssueRectWithDpiConversion →&lt;br&gt;      SetWindowPos(ASYNCWINDOWPOS | NOSENDCHANGING | FRAMECHANGED) — asynchronous by design&lt;br&gt;&lt;b&gt;8&lt;/b&gt;  moves_in_flight drives ConvergeAsyncMoves: throttled to 33 ms, it re-runs ApplyLayout&lt;br&gt;      until every move lands, so a slow app causes re-layout instead of a lost keystroke&lt;br&gt;&lt;b&gt;9&lt;/b&gt;  AdoptStuckLayouts: a window that keeps refusing its rect gets its ACTUAL rect adopted&lt;br&gt;      into the layout (clamped to usable_rect) with one snackbar warning&lt;br&gt;&lt;b&gt;10&lt;/b&gt;  borders: inactive colours are queued by the relayout; the active colour is queued in Pass 9/10&lt;br&gt;      so focus always wins, and the ring paints once at commit end" vertex="1">
+                    <mxGeometry height="330" width="728" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="c5" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;" value="5 · Bar — one window per monitor" vertex="1">
+                    <mxGeometry height="380" width="420" x="820" y="620" as="geometry"/>
+                </mxCell>
+                <mxCell id="b1" parent="c5" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;rounded=1;roundedPerimeter=1;" value="A TOOLWINDOW / NOACTIVATE popup inside the work area, top z.&amp;nbsp;&lt;div&gt;Positioned once per monitor; geometry and fonts are scaled from that monitor&#39;s DPI.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="52" width="388" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="b2" parent="c5" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;rounded=1;roundedPerimeter=1;" value="Indicators are config-driven, grouped by align into Left / Center / Right with spacers&amp;nbsp;&lt;div&gt;for absolute centring. Max 8.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="40" width="388" x="16" y="94" as="geometry"/>
+                </mxCell>
+                <mxCell id="b3" parent="c5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="types: workspaces · title · clock · volume · network · cpu · memory · custom (Lua output callback, may use BFWM.exec_cache)" vertex="1">
+                    <mxGeometry height="52" width="388" x="16" y="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="b4" parent="c5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF4FF;strokeColor=#9DB8F2;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="&lt;b&gt;BarUpdateRequest()&lt;/b&gt; max-merges into main-&amp;gt;bar_update (DIRTY &amp;lt; RECREATE)&lt;br&gt;end of MainLoop: RECREATE → PresentBars destroys + recreates every bar,&lt;br&gt;then Bar::UpdateAll → InvalidateRect → WM_PAINT → Clay layout → GDI double buffer" vertex="1">
+                    <mxGeometry height="76" width="388" x="16" y="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="b5" parent="c5" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;rounded=1;roundedPerimeter=1;" value="A WM_TIMER at the fastest provider poll rate (default 1000 ms) also invalidates,&amp;nbsp;&lt;div&gt;so clock and system indicators advance without any event.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="52" width="388" x="16" y="284" as="geometry"/>
+                </mxCell>
+                <mxCell id="c6" parent="1" style="swimlane;startSize=28;fillColor=#F7F8FA;strokeColor=#C9D1DC;html=1;fontStyle=1;fontColor=#1B1F24;verticalAlign=top;rounded=1;roundedPerimeter=1;" value="6 · Monitor hotplug" vertex="1">
+                    <mxGeometry height="380" width="354" x="1260" y="620" as="geometry"/>
+                </mxCell>
+                <mxCell id="h1" parent="c6" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;ReconcileMonitors()&lt;/b&gt; — EnumDisplayMonitors, re-register every DPI,&lt;div&gt;then match existing monitors by &lt;b&gt;UID first, HMONITOR second&lt;/b&gt;.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="56" width="322" x="16" y="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="h2" parent="c6" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Disconnected:&lt;/b&gt; its workspaces migrate to a fallback monitor and&amp;nbsp;&lt;div&gt;record origin_monitor_uid_; the monitor is deleted.&amp;nbsp;&lt;/div&gt;&lt;div&gt;Active workspace is re-activated on the fallback.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="64" width="322" x="16" y="98" as="geometry"/>
+                </mxCell>
+                <mxCell id="h3" parent="c6" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;rounded=1;roundedPerimeter=1;fontColor=#000000;labelBorderColor=none;labelBackgroundColor=none;" value="&lt;b&gt;New monitor:&lt;/b&gt; workspace priority is pinned&amp;nbsp;&lt;div&gt;config → origin UID match → fresh workspace.&amp;nbsp;&lt;/div&gt;&lt;div&gt;Bar is created, visibility committed.&lt;/div&gt;" vertex="1">
+                    <mxGeometry height="56" width="322" x="16" y="168" as="geometry"/>
+                </mxCell>
+                <mxCell id="h4" parent="c6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF6E0;strokeColor=#E8C36A;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;roundedPerimeter=1;" value="Work-area change → BAR_UPDATE_RECREATE. DPI change detected per UID → dpi_update, consumed by the loop as a full re-tile (rects, gaps, bar height, bars)." vertex="1">
+                    <mxGeometry height="64" width="322" x="16" y="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="h5" parent="c6" style="text;html=1;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;fontColor=#5A626E;rounded=1;roundedPerimeter=1;" value="Then CompactMonitorArray, CommitMonitorVisibility, RestoreFocusState." vertex="1">
+                    <mxGeometry height="40" width="322" x="16" y="302" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" edge="1" parent="1" source="o5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontColor=#666666;labelBackgroundColor=default;fontSize=10;convertToSvg=0;labelAutoRotate=1;labelPosition=center;verticalLabelPosition=middle;align=center;verticalAlign=middle;labelBorderColor=none;defaultLabelBackgroundColor=page;textShadow=0;" target="c3" value="engine vtable">
+                    <mxGeometry relative="1" x="-0.7182" as="geometry">
+                        <mxPoint as="offset"/>
+                        <Array as="points">
+                            <mxPoint x="620" y="406"/>
+                            <mxPoint x="620" y="320"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e9" edge="1" parent="1" source="c3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#5A626E;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;strokeWidth=2;" target="c4" value="get_rect">
+                    <mxGeometry relative="1" x="0.0011" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1070" y="335"/>
+                            <mxPoint x="1070" y="590"/>
+                            <mxPoint x="420" y="590"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e11" edge="1" parent="1" source="c6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8A94A6;fontColor=#5A626E;labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=10;dashed=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="c2" value="hotplug / DPI">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1250" y="810"/>
+                            <mxPoint x="1250" y="580"/>
+                            <mxPoint x="850" y="580"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <object label="Based on commit 137651a (2026-11-27) · src/workspace/**, src/monitor/**, src/bar/**, src/dpi/**" basedOn="137651a" date="2026-11-27" covers="src/workspace;src/monitor;src/bar;src/dpi;src/notification/snackbar.h;src/tray;src/system" id="prov">
+                    <mxCell parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;rounded=1;roundedPerimeter=1;" vertex="1">
+                        <mxGeometry height="24" width="900" x="40" y="1020" as="geometry"/>
+                    </mxCell>
+                </object>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#8A94A6;rounded=1;roundedPerimeter=1;" value="Legend: yellow = geometry / cached state · blue = layout and UI logic · grey = derived or helper data · dashed = recovery or hotplug path" vertex="1">
+                    <mxGeometry height="24" width="900" x="40" y="1044" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
