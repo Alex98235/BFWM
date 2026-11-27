@@ -1,0 +1,18 @@
+# Commits in this file are skipped by `git blame`.
+# https://git-scm.com/docs/git-config#Documentation/git-config.txt-blameignoreRevsFile
+#
+# Enable it for this clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only whitespace-only or near-whitespace commits belong here. Everything else
+# should keep its attribution, however small.
+#
+# NOTE: f0c090186712 is not purely whitespace. It also carries a two-line
+# signedness fix in src/window/events/events.cpp, because the formatter put the
+# whole file into the pre-commit hook's changed-line scope and that surfaced a
+# pre-existing bugprone-signed-bitwise finding. The fix is described in the
+# commit message. Excluding the commit here hides those two lines from blame;
+# that trade was accepted so the other 170 lines keep a clean attribution.
+
+# style(events): apply clang-format to events.cpp
+f0c090186712
