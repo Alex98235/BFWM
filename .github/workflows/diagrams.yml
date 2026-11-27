@@ -1,0 +1,42 @@
+name: Diagrams
+
+# Runs on every PR and on main, deliberately without a paths filter: a change
+# under src/ is what makes a diagram stale, so filtering on docs/diagrams would
+# skip exactly the case this job exists to catch. The job only reads git
+# metadata, so it costs a few seconds.
+on:
+  pull_request:
+    branches: ['main']
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    name: Check diagram provenance
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # check_diagrams.ps1 resolves each diagram's basedOn commit and counts
+          # commits after it, so the full history has to be present. A shallow
+          # checkout would report every diagram as BAD-SHA.
+          fetch-depth: 0
+
+      - name: Check diagrams against their recorded commits
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/check_diagrams.ps1
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Write-Host "::error title=Architecture diagrams need review::A diagram's covered paths changed since its baseOn commit. Run 'pwsh scripts/check_diagrams.ps1' locally, review the flagged diagrams, then update their basedOn/date/covers provenance cell. See docs/diagrams/README.md."
+            exit $code
+          }
