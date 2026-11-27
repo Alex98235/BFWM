@@ -35,9 +35,9 @@ It runs clang-tidy and clang-format over your staged files and blocks the
 commit on findings. To fix them:
 
 ```sh
-uv run scripts/bfwm_tidy.py analyze --diff   # see what's wrong
-uv run scripts/bfwm_tidy.py fix              # apply clang-tidy fixes
-uv run scripts/bfwm_tidy.py format           # apply clang-format
+uv run scripts/bfwm_tidy.py analyze        # see what's wrong (staged files, no writes)
+uv run scripts/bfwm_tidy.py fix            # apply clang-tidy fixes
+uv run scripts/bfwm_tidy.py format --write # apply clang-format (format alone is a dry run; --write is required)
 git add -p
 ```
 
